@@ -26,7 +26,7 @@ class PumpReading(models.Model):
     current_index = models.DecimalField(max_digits=12, decimal_places=2)
     quantity_sold = models.DecimalField(max_digits=12, decimal_places=2)
     reading_date = models.DateField()
-    created_by = models.ForeignKey('account.CustomUser', on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey('account.CustomUser', on_delete=models.SET_NULL, null=True) # role = manager
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
