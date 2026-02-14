@@ -273,6 +273,14 @@
                                     <i class="fas fa-check"></i>
                                 </a>
                             {% endif %}
+                            <a 
+                                href="{% url 'delete_user' user.id %}" 
+                                class="text-red-700 hover:text-red-900 p-2 hover:bg-red-100 rounded-lg transition-colors delete-user-btn"
+                                title="Supprimer définitivement"
+                                onclick="return confirmDelete(event, '{{ user.get_full_name }}')"
+                            >
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
                         </div>
                     </td>
                 </tr>
@@ -538,6 +546,34 @@
             return false;
         }
     });
+    
+    // Fonction de confirmation de suppression
+    function confirmDelete(event, userName) {
+        event.preventDefault();
+        const deleteUrl = event.currentTarget.href;
+        
+        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur "${userName}" ?\n\nCette action est irréversible et supprimera toutes les données associées à cet utilisateur.`)) {
+            // Créer un formulaire pour la suppression (POST avec CSRF)
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = deleteUrl;
+            
+            // Ajouter le token CSRF
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken.value;
+                form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+        
+        return false;
+    }
 </script>
 {% endblock %}
 

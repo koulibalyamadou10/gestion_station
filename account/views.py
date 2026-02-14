@@ -6,8 +6,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from account.models import CustomUser
 from permissions_web import super_admin_required, admin_required
-from django.core.mail import send_mail
-from django.conf import settings
 import secrets
 import string
 
@@ -123,6 +121,37 @@ def not_access_view(request):
     """
     return render(request, 'account/not_access.html')
 
+@super_admin_required
+def delete_user_view(request, user_id):
+    """
+    Vue pour supprimer définitivement un utilisateur
+    Accessible uniquement aux super_admins
+    """
+    if request.method == 'POST':
+        try:
+            user_to_delete = CustomUser.objects.get(id=user_id)
+            
+            # Empêcher la suppression de soi-même
+            if user_to_delete.id == request.user.id:
+                messages.error(request, 'Vous ne pouvez pas supprimer votre propre compte.')
+                return redirect('users_list')
+            
+            # Empêcher la suppression d'un autre super_admin
+            if user_to_delete.role == 'super_admin':
+                messages.error(request, 'Vous ne pouvez pas supprimer un autre Super Administrateur.')
+                return redirect('users_list')
+            
+            user_name = user_to_delete.get_full_name()
+            user_to_delete.delete()
+            
+            messages.success(request, f'Utilisateur {user_name} supprimé définitivement avec succès.')
+        except CustomUser.DoesNotExist:
+            messages.error(request, 'Utilisateur introuvable.')
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la suppression : {str(e)}')
+    
+    return redirect('users_list')
+
 def generate_password(length=12):
     """
     Génère un mot de passe sécurisé aléatoire
@@ -184,47 +213,22 @@ def create_user_view(request):
                     is_active=True
                 )
                 
-                # Envoyer l'email avec le mot de passe
-                try:
-                    subject = 'Bienvenue sur Station Manager - Vos identifiants de connexion'
-                    message = f"""
-Bonjour {user.get_full_name()},
-
-Votre compte a été créé avec succès sur la plateforme Station Manager.
-
-Voici vos identifiants de connexion :
-
-📧 Email : {user.email}
-🔑 Mot de passe : {generated_password}
-
-⚠️ IMPORTANT : Pour des raisons de sécurité, nous vous recommandons fortement de changer ce mot de passe lors de votre première connexion.
-
-Vous pouvez vous connecter en visitant : {request.build_absolute_uri('/login/')}
-
-Cordialement,
-L'équipe Station Manager
-                    """
-                    
-                    send_mail(
-                        subject,
-                        message,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [user.email],
-                        fail_silently=False,
-                    )
-                    
+                # Envoyer l'email avec le mot de passe via la méthode du modèle
+                login_url = request.build_absolute_uri('/login/')
+                email_sent = user.send_credentials_email(generated_password, login_url)
+                
+                if email_sent:
                     messages.success(
                         request, 
                         f'Utilisateur {user.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {user.email}.'
                     )
-                except Exception as email_error:
+                else:
                     # Si l'envoi d'email échoue, on crée quand même l'utilisateur mais on affiche un avertissement
                     messages.warning(
                         request, 
                         f'Utilisateur {user.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
                         f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
                     )
-                    messages.error(request, f'Erreur email : {str(email_error)}')
                 
                 return redirect('users_list')
             except Exception as e:

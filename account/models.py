@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils.translation import gettext_lazy as _
+from django.core.mail import send_mail
+from django.conf import settings
 
 # Create your models here.
 class CustomUserManager(BaseUserManager):
@@ -61,3 +63,55 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} {self.email} {self.role}"
+    
+    def send_credentials_email(self, password, login_url=None):
+        """
+        Envoie un email avec les identifiants de connexion à l'utilisateur
+        
+        Args:
+            password: Le mot de passe généré à envoyer
+            login_url: URL de connexion (optionnel)
+        
+        Returns:
+            bool: True si l'email a été envoyé avec succès, False sinon
+        """
+        try:
+            subject = 'Bienvenue sur Station Manager - Vos identifiants de connexion'
+            
+            # Construire l'URL de connexion si non fournie
+            if not login_url:
+                from django.contrib.sites.models import Site
+                try:
+                    current_site = Site.objects.get_current()
+                    login_url = f"https://{current_site.domain}/login/"
+                except:
+                    login_url = "/login/"
+            
+            message = f"""Bonjour {self.get_full_name()},
+
+Votre compte a été créé avec succès sur la plateforme Station Manager.
+
+Voici vos identifiants de connexion :
+
+📧 Email : {self.email}
+🔑 Mot de passe : {password}
+
+⚠️ IMPORTANT : Pour des raisons de sécurité, nous vous recommandons fortement de changer ce mot de passe lors de votre première connexion.
+
+Vous pouvez vous connecter en visitant : {login_url}
+
+Cordialement,
+L'équipe Station Manager"""
+            
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [self.email],
+                fail_silently=False,
+            )
+            return True
+        except Exception as e:
+            # Logger l'erreur si nécessaire
+            print(f"Erreur lors de l'envoi de l'email à {self.email}: {str(e)}")
+            return False
