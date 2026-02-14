@@ -456,3 +456,65 @@ def delete_manager_view(request, manager_id):
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
     
     return redirect('account:managers_list')
+
+@login_required
+def user_detail_view(request, user_id):
+    """
+    Vue pour afficher les détails d'un utilisateur
+    Accessible selon les permissions :
+    - super_admin : peut voir tous les utilisateurs
+    - admin : peut voir ses managers et lui-même
+    - manager : peut voir seulement lui-même
+    """
+    user_detail = get_object_or_404(CustomUser, id=user_id)
+    
+    # Vérifier les permissions
+    if request.user.role == 'super_admin':
+        # Super admin peut voir tous les utilisateurs
+        pass
+    elif request.user.role == 'admin':
+        # Admin peut voir ses managers et lui-même
+        if user_detail.role == 'manager' and user_detail.created_by != request.user:
+            messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
+            return redirect('account:managers_list')
+        elif user_detail.role not in ['manager', 'admin'] and user_detail != request.user:
+            messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
+            return redirect('account:dashboard')
+    elif request.user.role == 'manager':
+        # Manager peut voir seulement lui-même
+        if user_detail != request.user:
+            messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
+            return redirect('account:dashboard')
+    else:
+        # Autres rôles : seulement soi-même
+        if user_detail != request.user:
+            messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
+            return redirect('account:dashboard')
+    
+    # Récupérer les stations associées
+    stations = None
+    managed_stations = None
+    
+    if user_detail.role == 'admin':
+        # Stations créées par cet admin
+        from stations.models import Station
+        stations = Station.objects.filter(created_by=user_detail).order_by('-created_at')
+    elif user_detail.role == 'manager':
+        # Stations gérées par ce manager
+        from stations.models import StationManager
+        station_managers = StationManager.objects.filter(manager=user_detail)
+        managed_stations = [sm.station for sm in station_managers]
+    
+    # Récupérer les managers créés (si admin)
+    created_managers = None
+    if user_detail.role == 'admin':
+        created_managers = CustomUser.objects.filter(created_by=user_detail, role='manager').order_by('-created_at')
+    
+    context = {
+        'user_detail': user_detail,
+        'stations': stations,
+        'managed_stations': managed_stations,
+        'created_managers': created_managers,
+    }
+    
+    return render(request, 'account/user_detail.html', context)

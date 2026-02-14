@@ -1,0 +1,349 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Détails de l'Utilisateur - {{ user_detail.get_full_name }}{% endblock %}
+
+{% block page_title %}Détails de l'Utilisateur{% endblock %}
+
+{% block content %}
+<!-- Bouton Retour -->
+<div class="mb-6">
+    <a 
+        href="{% if user_detail.role == 'manager' %}{% url 'account:managers_list' %}{% else %}{% url 'account:users_list' %}{% endif %}" 
+        class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors font-semibold"
+    >
+        <i class="fas fa-arrow-left mr-2"></i>
+        Retour à la liste
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Colonne principale - Informations -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Informations personnelles -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-user mr-2 text-blue-600"></i>
+                    Informations personnelles
+                </h3>
+                <div class="flex items-center space-x-2">
+                    <a 
+                        href="#" 
+                        class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-semibold flex items-center"
+                        title="Modifier"
+                    >
+                        <i class="fas fa-edit mr-2"></i>
+                        Modifier
+                    </a>
+                    {% if user_detail != request.user and user_detail.role != 'super_admin' %}
+                    <form 
+                        method="POST" 
+                        action="{% if user_detail.role == 'manager' %}{% url 'account:delete_manager' user_detail.id %}{% else %}{% url 'account:delete_user' user_detail.id %}{% endif %}" 
+                        class="inline"
+                        onsubmit="return confirmDelete(event, '{{ user_detail.get_full_name }}')"
+                    >
+                        {% csrf_token %}
+                        <button 
+                            type="submit"
+                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold flex items-center"
+                            title="Supprimer"
+                        >
+                            <i class="fas fa-trash mr-2"></i>
+                            Supprimer
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Prénom</label>
+                        <p class="text-lg font-bold text-gray-800">{{ user_detail.first_name }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Nom</label>
+                        <p class="text-lg font-bold text-gray-800">{{ user_detail.last_name }}</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-500 mb-1">Nom complet</label>
+                    <p class="text-lg text-gray-800">{{ user_detail.get_full_name }}</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-500 mb-1">Email</label>
+                    <p class="text-lg text-gray-800 flex items-center">
+                        <i class="fas fa-envelope mr-2 text-blue-500"></i>
+                        {{ user_detail.email }}
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Code téléphone</label>
+                        <p class="text-sm text-gray-700">{{ user_detail.phone_code }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-500 mb-1">Numéro de téléphone</label>
+                        <p class="text-sm text-gray-700 flex items-center">
+                            <i class="fas fa-phone mr-2 text-green-500"></i>
+                            {{ user_detail.phone_number|slice:":3" }}-{{ user_detail.phone_number|slice:"3:5" }}-{{ user_detail.phone_number|slice:"5:7" }}-{{ user_detail.phone_number|slice:"7:9" }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rôle et Statut -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-user-tag mr-2 text-blue-600"></i>
+                Rôle et Statut
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-500 mb-1">Rôle</label>
+                    <div class="mt-2">
+                        {% if user_detail.role == 'super_admin' %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                <i class="fas fa-user-crown mr-2"></i> Super Administrateur
+                            </span>
+                        {% elif user_detail.role == 'admin' %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                <i class="fas fa-user-shield mr-2"></i> Propriétaire de station-service
+                            </span>
+                        {% elif user_detail.role == 'manager' %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                <i class="fas fa-user-tie mr-2"></i> Gérant de station-service
+                            </span>
+                        {% else %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                {{ user_detail.get_role_display }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-500 mb-1">Statut</label>
+                    <div class="mt-2">
+                        {% if user_detail.is_active %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-check-circle mr-2"></i> Actif
+                            </span>
+                        {% else %}
+                            <span class="px-4 py-2 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                <i class="fas fa-times-circle mr-2"></i> Inactif
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stations associées (si admin ou manager) -->
+        {% if user_detail.role == 'admin' and stations %}
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-gas-pump mr-2 text-blue-600"></i>
+                Stations créées ({{ stations.count }})
+            </h3>
+            <div class="space-y-3">
+                {% for station in stations|slice:":5" %}
+                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">{{ station.name }}</h4>
+                            <p class="text-sm text-gray-600">
+                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                {{ station.city }} - {{ station.address }}
+                            </p>
+                        </div>
+                        <a 
+                            href="{% url 'stations:station_detail' station.station_uuid %}" 
+                            class="text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                            Voir <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if stations.count > 5 %}
+                <p class="text-sm text-gray-500 text-center mt-2">
+                    Et {{ stations.count|add:"-5" }} autre{{ stations.count|add:"-5"|pluralize }} station{{ stations.count|add:"-5"|pluralize }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if user_detail.role == 'manager' and managed_stations %}
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-gas-pump mr-2 text-blue-600"></i>
+                Stations gérées ({{ managed_stations|length }})
+            </h3>
+            <div class="space-y-3">
+                {% for station in managed_stations|slice:":5" %}
+                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">{{ station.name }}</h4>
+                            <p class="text-sm text-gray-600">
+                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                {{ station.city }} - {{ station.address }}
+                            </p>
+                        </div>
+                        <a 
+                            href="{% url 'stations:station_detail' station.station_uuid %}" 
+                            class="text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                            Voir <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Gérants créés (si admin) -->
+        {% if user_detail.role == 'admin' and created_managers %}
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-user-tie mr-2 text-blue-600"></i>
+                Gérants créés ({{ created_managers.count }})
+            </h3>
+            <div class="space-y-3">
+                {% for manager in created_managers|slice:":5" %}
+                <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">{{ manager.get_full_name }}</h4>
+                            <p class="text-sm text-gray-600">
+                                <i class="fas fa-envelope mr-1"></i>
+                                {{ manager.email }}
+                            </p>
+                        </div>
+                        <a 
+                            href="{% url 'account:user_detail' manager.id %}" 
+                            class="text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                            Voir <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if created_managers.count > 5 %}
+                <p class="text-sm text-gray-500 text-center mt-2">
+                    Et {{ created_managers.count|add:"-5" }} autre{{ created_managers.count|add:"-5"|pluralize }} gérant{{ created_managers.count|add:"-5"|pluralize }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Colonne latérale - Informations complémentaires -->
+    <div class="space-y-6">
+        <!-- Photo de profil / Avatar -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="text-center">
+                <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-user text-white text-4xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">{{ user_detail.get_full_name }}</h3>
+                <p class="text-gray-600 text-sm mt-1">{{ user_detail.email }}</p>
+            </div>
+        </div>
+
+        <!-- Informations sur le créateur -->
+        {% if user_detail.created_by %}
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-user-plus mr-2 text-blue-600"></i>
+                Créé par
+            </h3>
+            <div class="space-y-3">
+                <div class="flex items-center space-x-3">
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user-shield text-blue-600"></i>
+                    </div>
+                    <div>
+                        <a 
+                            href="{% url 'account:user_detail' user_detail.created_by.id %}" 
+                            class="font-semibold text-gray-800 hover:text-blue-600 transition-colors"
+                        >
+                            {{ user_detail.created_by.get_full_name }}
+                        </a>
+                        <p class="text-sm text-gray-500">{{ user_detail.created_by.email }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Dates -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-calendar-alt mr-2 text-blue-600"></i>
+                Dates
+            </h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Créé le</label>
+                    <p class="text-sm text-gray-800">
+                        <i class="fas fa-calendar-plus mr-2 text-green-500"></i>
+                        {{ user_detail.created_at|date:"d/m/Y à H:i" }}
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Dernière modification</label>
+                    <p class="text-sm text-gray-800">
+                        <i class="fas fa-edit mr-2 text-blue-500"></i>
+                        {{ user_detail.updated_at|date:"d/m/Y à H:i" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-bolt mr-2 text-blue-600"></i>
+                Actions rapides
+            </h3>
+            <div class="space-y-2">
+                <a 
+                    href="mailto:{{ user_detail.email }}" 
+                    class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center"
+                >
+                    <i class="fas fa-envelope mr-2"></i>
+                    Envoyer un email
+                </a>
+                <a 
+                    href="tel:{{ user_detail.phone_code }}{{ user_detail.phone_number }}" 
+                    class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center justify-center"
+                >
+                    <i class="fas fa-phone mr-2"></i>
+                    Appeler
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Fonction de confirmation de suppression
+    function confirmDelete(event, userName) {
+        event.preventDefault();
+        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur "${userName}" ?\n\nCette action est irréversible.`)) {
+            event.target.closest('form').submit();
+        }
+        return false;
+    }
+</script>
+{% endblock %}
+
