@@ -127,7 +127,7 @@
                     Gérant
                 </h3>
                 <button 
-                    onclick="openAssignManagerModal(); return false;"
+                    id="assignManagerBtn"
                     class="text-sm bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center"
                     title="{% if current_manager %}Changer le gérant{% else %}Assigner un gérant{% endif %}"
                 >
@@ -472,8 +472,8 @@
         new mapboxgl.Popup({ offset: 25 })
             .setHTML(`
                 <div class="p-2">
-                    <h3 class="font-bold text-gray-800">${mapboxgl.escapeHtml('{{ station.name }}')}</h3>
-                    <p class="text-sm text-gray-600">${mapboxgl.escapeHtml('{{ station.address }}')}</p>
+                    <h3 class="font-bold text-gray-800">{{ station.name|escapejs }}</h3>
+                    <p class="text-sm text-gray-600">{{ station.address|escapejs }}</p>
                 </div>
             `)
     )
@@ -707,21 +707,19 @@
     }
     
     // Gestion du modal d'assignation de gérant
-    const assignManagerModal = document.getElementById('assignManagerModal');
-    const closeAssignManagerModal = document.getElementById('closeAssignManagerModal');
-    const cancelAssignManager = document.getElementById('cancelAssignManager');
-    const assignManagerForm = document.getElementById('assignManagerForm');
-    const assignManagerSelect = document.getElementById('assign_manager_select');
-    const assignOwnerSelect = document.getElementById('assign_owner_select');
-    
     function openAssignManagerModal() {
+        const assignManagerModal = document.getElementById('assignManagerModal');
         if (!assignManagerModal) {
             console.error('Modal assignManagerModal introuvable');
+            alert('Erreur : Le modal d\'assignation est introuvable.');
             return;
         }
         
         assignManagerModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        
+        const assignManagerSelect = document.getElementById('assign_manager_select');
+        const assignOwnerSelect = document.getElementById('assign_owner_select');
         
         // Si super_admin, pré-sélectionner le propriétaire actuel
         {% if user.role == 'super_admin' %}
@@ -750,8 +748,25 @@
         {% endif %}
     }
     
-    // Rendre la fonction accessible globalement
+    // Rendre la fonction accessible globalement AVANT la déclaration des variables
     window.openAssignManagerModal = openAssignManagerModal;
+    
+    // Déclarer les variables pour les autres fonctions
+    const assignManagerModal = document.getElementById('assignManagerModal');
+    const closeAssignManagerModal = document.getElementById('closeAssignManagerModal');
+    const cancelAssignManager = document.getElementById('cancelAssignManager');
+    const assignManagerForm = document.getElementById('assignManagerForm');
+    const assignManagerSelect = document.getElementById('assign_manager_select');
+    const assignOwnerSelect = document.getElementById('assign_owner_select');
+    
+    // Ajouter l'événement click au bouton d'assignation
+    const assignManagerBtn = document.getElementById('assignManagerBtn');
+    if (assignManagerBtn) {
+        assignManagerBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openAssignManagerModal();
+        });
+    }
     
     function closeAssignManagerModalFunc() {
         assignManagerModal.classList.add('hidden');
