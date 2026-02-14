@@ -137,7 +137,34 @@ def create_station_view(request):
         except Exception as e:
             messages.error(request, f'Erreur lors de la création de la station : {str(e)}')
     
-    return redirect('stations_list')
+    return redirect('stations:stations_list')
+
+@login_required
+def station_detail_view(request, station_id):
+    """
+    Vue pour afficher les détails d'une station
+    Accessible aux admins et super_admins
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
+        return redirect('account:dashboard')
+    
+    try:
+        station = get_object_or_404(Station, id=station_id)
+        
+        # Vérifier les permissions
+        if request.user.role == 'admin' and station.created_by != request.user:
+            messages.error(request, 'Vous n\'avez pas la permission de voir cette station.')
+            return redirect('stations:stations_list')
+        
+        context = {
+            'station': station,
+        }
+        
+        return render(request, 'stations/stations_detail.html', context)
+    except Exception as e:
+        messages.error(request, f'Erreur lors du chargement de la station : {str(e)}')
+        return redirect('stations:stations_list')
 
 @login_required
 def delete_station_view(request, station_id):
@@ -165,4 +192,4 @@ def delete_station_view(request, station_id):
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
     
-    return redirect('stations_list')
+    return redirect('stations:stations_list')
