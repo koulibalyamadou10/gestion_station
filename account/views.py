@@ -216,7 +216,7 @@ def create_user_view(request):
                 # Envoyer l'email avec le mot de passe via la méthode du modèle
                 login_url = request.build_absolute_uri('/login/')
                 email_sent = user.send_credentials_email(generated_password, login_url)
-                
+
                 if email_sent:
                     messages.success(
                         request, 
