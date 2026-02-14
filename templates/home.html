@@ -2,32 +2,177 @@
 
 {% block title %}Accueil - Système de Gestion de Station-Service{% endblock %}
 
+{% block extra_css %}
+<style>
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-50px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(50px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .hero-section {
+        min-height: 100vh;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    
+    .hero-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        z-index: 0;
+    }
+    
+    .hero-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.9) 0%, rgba(29, 78, 216, 0.9) 100%);
+        z-index: 1;
+    }
+    
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .animate-fade-in-up {
+        animation: fadeInUp 1s ease-out;
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 1.5s ease-out;
+    }
+    
+    .animate-slide-in-left {
+        animation: slideInLeft 1s ease-out;
+    }
+    
+    .animate-slide-in-right {
+        animation: slideInRight 1s ease-out;
+    }
+    
+    .fade-in-on-scroll {
+        opacity: 0;
+        transform: translateY(50px);
+        transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+    }
+    
+    .fade-in-on-scroll.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    
+    .delay-100 {
+        animation-delay: 0.1s;
+    }
+    
+    .delay-200 {
+        animation-delay: 0.2s;
+    }
+    
+    .delay-300 {
+        animation-delay: 0.3s;
+    }
+    
+    .delay-400 {
+        animation-delay: 0.4s;
+    }
+    
+    .floating {
+        animation: floating 3s ease-in-out infinite;
+    }
+    
+    @keyframes floating {
+        0%, 100% {
+            transform: translateY(0px);
+        }
+        50% {
+            transform: translateY(-20px);
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Hero Section -->
-<section class="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<section class="hero-section text-white">
+    <div class="hero-background"></div>
+    <div class="hero-overlay"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 hero-content w-full">
         <div class="text-center">
-            <h1 class="text-5xl md:text-6xl font-bold mb-6 animate-fade-in">
-                <i class="fas fa-gas-pump mr-4"></i>
+            <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fade-in-up">
+                <i class="fas fa-gas-pump mr-4 floating"></i>
                 Gestion Complète de Station-Service
             </h1>
-            <p class="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
+            <p class="text-xl md:text-2xl lg:text-3xl mb-8 text-blue-100 max-w-4xl mx-auto animate-fade-in-up delay-200">
                 Solution professionnelle pour gérer vos stations-service : 
                 carburant, pompes, stock, finances et rapports en un seul endroit.
             </p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <div class="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up delay-300">
                 {% if not user.is_authenticated %}
-                    <a href="#" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                    <a href="#" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg animate-slide-in-left">
                         <i class="fas fa-rocket mr-2"></i> Commencer maintenant
                     </a>
-                    <a href="#" class="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all">
+                    <a href="{% url 'login' %}" class="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all animate-slide-in-right">
                         <i class="fas fa-sign-in-alt mr-2"></i> Se connecter
                     </a>
                 {% else %}
-                    <a href="#" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                    <a href="{% url 'dashboard' %}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
                         <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
                     </a>
                 {% endif %}
+            </div>
+            <!-- Scroll indicator -->
+            <div class="mt-16 animate-bounce">
+                <i class="fas fa-chevron-down text-3xl text-white opacity-70"></i>
             </div>
         </div>
     </div>
@@ -36,7 +181,7 @@
 <!-- Features Overview -->
 <section class="py-16 bg-white">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-12">
+        <div class="text-center mb-12 fade-in-on-scroll">
             <h2 class="text-4xl font-bold text-gray-800 mb-4">
                 <i class="fas fa-star text-yellow-500 mr-2"></i>
                 Fonctionnalités Principales
@@ -46,7 +191,7 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <!-- Feature 1: Pompes -->
-            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2 fade-in-on-scroll">
                 <div class="text-4xl text-blue-600 mb-4">
                     <i class="fas fa-gas-pump"></i>
                 </div>
@@ -57,7 +202,7 @@
             </div>
             
             <!-- Feature 2: Stock -->
-            <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+            <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2 fade-in-on-scroll">
                 <div class="text-4xl text-green-600 mb-4">
                     <i class="fas fa-oil-can"></i>
                 </div>
@@ -68,7 +213,7 @@
             </div>
             
             <!-- Feature 3: Finances -->
-            <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+            <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2 fade-in-on-scroll">
                 <div class="text-4xl text-yellow-600 mb-4">
                     <i class="fas fa-money-bill-wave"></i>
                 </div>
@@ -79,7 +224,7 @@
             </div>
             
             <!-- Feature 4: Rapports -->
-            <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2 fade-in-on-scroll">
                 <div class="text-4xl text-purple-600 mb-4">
                     <i class="fas fa-chart-line"></i>
                 </div>
@@ -355,11 +500,46 @@
                 <i class="fas fa-rocket mr-2"></i> Créer un compte gratuitement
             </a>
         {% else %}
-            <a href="#" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+            <a href="{% url 'dashboard' %}" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
                 <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
             </a>
         {% endif %}
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Intersection Observer pour les animations au scroll
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, observerOptions);
+    
+    // Observer tous les éléments avec la classe fade-in-on-scroll
+    document.querySelectorAll('.fade-in-on-scroll').forEach(el => {
+        observer.observe(el);
+    });
+    
+    // Smooth scroll pour l'indicateur de scroll
+    const scrollIndicator = document.querySelector('.animate-bounce');
+    if (scrollIndicator && scrollIndicator.parentElement) {
+        scrollIndicator.parentElement.style.cursor = 'pointer';
+        scrollIndicator.parentElement.addEventListener('click', function() {
+            const featuresSection = document.querySelector('.bg-white');
+            if (featuresSection) {
+                featuresSection.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    }
+</script>
 {% endblock %}
 

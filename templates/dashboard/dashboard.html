@@ -1,0 +1,192 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Tableau de bord - Système de Gestion de Station-Service{% endblock %}
+
+{% block page_title %}Tableau de bord{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Card 1: Total Ventes -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Total Ventes</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">0 L</p>
+                <p class="text-green-600 text-sm mt-1">
+                    <i class="fas fa-arrow-up mr-1"></i> 0%
+                </p>
+            </div>
+            <div class="bg-blue-100 p-4 rounded-full">
+                <i class="fas fa-gas-pump text-3xl text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2: Stock Actuel -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Stock Actuel</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">0 L</p>
+                <p class="text-gray-500 text-sm mt-1">
+                    Essence + Gazoil
+                </p>
+            </div>
+            <div class="bg-green-100 p-4 rounded-full">
+                <i class="fas fa-oil-can text-3xl text-green-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3: Caisse -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Caisse</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">0 FCFA</p>
+                <p class="text-gray-500 text-sm mt-1">
+                    Solde disponible
+                </p>
+            </div>
+            <div class="bg-yellow-100 p-4 rounded-full">
+                <i class="fas fa-money-bill-wave text-3xl text-yellow-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Stations -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Stations</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">0</p>
+                <p class="text-gray-500 text-sm mt-1">
+                    Stations actives
+                </p>
+            </div>
+            <div class="bg-purple-100 p-4 rounded-full">
+                <i class="fas fa-building text-3xl text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Column (2/3) -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Recent Activity -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-800">
+                    <i class="fas fa-history mr-2 text-blue-600"></i>
+                    Activité récente
+                </h2>
+                <a href="#" class="text-blue-600 hover:text-blue-800 text-sm font-semibold">
+                    Voir tout <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+            <div class="space-y-4">
+                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fas fa-gas-pump text-blue-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-800">Nouveau index enregistré</p>
+                        <p class="text-sm text-gray-600">Il y a 2 heures</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fas fa-truck text-green-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-800">Approvisionnement reçu</p>
+                        <p class="text-sm text-gray-600">Il y a 5 heures</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div class="bg-yellow-100 p-3 rounded-full">
+                        <i class="fas fa-money-bill-wave text-yellow-600"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-800">Versement effectué</p>
+                        <p class="text-sm text-gray-600">Hier</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-bolt mr-2 text-yellow-500"></i>
+                Actions rapides
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <a href="#" class="flex flex-col items-center justify-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                    <i class="fas fa-gas-pump text-3xl text-blue-600 mb-2"></i>
+                    <span class="text-sm font-semibold text-gray-800">Index</span>
+                </a>
+                <a href="#" class="flex flex-col items-center justify-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                    <i class="fas fa-oil-can text-3xl text-green-600 mb-2"></i>
+                    <span class="text-sm font-semibold text-gray-800">Stock</span>
+                </a>
+                <a href="#" class="flex flex-col items-center justify-center p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
+                    <i class="fas fa-money-bill-wave text-3xl text-yellow-600 mb-2"></i>
+                    <span class="text-sm font-semibold text-gray-800">Dépense</span>
+                </a>
+                <a href="#" class="flex flex-col items-center justify-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                    <i class="fas fa-chart-line text-3xl text-purple-600 mb-2"></i>
+                    <span class="text-sm font-semibold text-gray-800">Rapport</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column (1/3) -->
+    <div class="space-y-6">
+        <!-- Profile Card -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="text-center">
+                <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-user text-white text-3xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800">{{ user.get_full_name|default:user.email }}</h3>
+                <p class="text-gray-600 text-sm mb-4">
+                    {% if user.role == 'admin' %}
+                        <i class="fas fa-user-shield mr-1"></i> Administrateur
+                    {% elif user.role == 'manager' %}
+                        <i class="fas fa-user-tie mr-1"></i> Gérant
+                    {% else %}
+                        {{ user.get_role_display }}
+                    {% endif %}
+                </p>
+                <a href="#" class="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold">
+                    <i class="fas fa-edit mr-1"></i> Modifier le profil
+                </a>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-bell mr-2 text-blue-600"></i>
+                Notifications
+            </h2>
+            <div class="space-y-3">
+                <div class="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                    <p class="text-sm font-semibold text-gray-800">Stock faible</p>
+                    <p class="text-xs text-gray-600">Essence en dessous du seuil</p>
+                </div>
+                <div class="p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+                    <p class="text-sm font-semibold text-gray-800">Rapport mensuel</p>
+                    <p class="text-xs text-gray-600">Génération disponible</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

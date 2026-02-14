@@ -17,6 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render
+from account.views import login_view, dashboard_view, logout_view
 
 def view_home(request):
     return render(request, 'home.html')
@@ -24,4 +25,7 @@ def view_home(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', view_home, name='home'),
+    path('login/', login_view, name='login'),
+    path('logout/', logout_view, name='logout'),
+    path('dashboard/', dashboard_view, name='dashboard'),
 ]
