@@ -1,7 +1,7 @@
 <!-- Sidebar -->
-<aside class="w-64 bg-gray-900 text-white min-h-screen fixed left-0 top-0 z-30 transition-all duration-300" id="sidebar">
+<aside class="w-64 bg-gray-900 text-white h-screen fixed left-0 top-0 z-30 transition-all duration-300 flex flex-col" id="sidebar">
     <!-- Logo -->
-    <div class="p-6 border-b border-gray-800">
+    <div class="p-6 border-b border-gray-800 flex-shrink-0">
         <div class="flex items-center space-x-3">
             <div class="bg-blue-600 p-2 rounded-lg">
                 <i class="fas fa-gas-pump text-2xl"></i>
@@ -13,29 +13,8 @@
         </div>
     </div>
 
-    <!-- User Info -->
-    <div class="p-4 border-b border-gray-800">
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                <i class="fas fa-user text-white"></i>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold truncate">{{ user.get_full_name|default:user.email }}</p>
-                <p class="text-xs text-gray-400 truncate">
-                    {% if user.role == 'admin' %}
-                        <i class="fas fa-user-shield mr-1"></i> Administrateur
-                    {% elif user.role == 'manager' %}
-                        <i class="fas fa-user-tie mr-1"></i> Gérant
-                    {% else %}
-                        <i class="fas fa-user mr-1"></i> {{ user.get_role_display }}
-                    {% endif %}
-                </p>
-            </div>
-        </div>
-    </div>
-
     <!-- Navigation Menu -->
-    <nav class="p-4 space-y-2 overflow-y-auto" style="max-height: calc(100vh - 200px);">
+    <nav class="p-4 space-y-2 overflow-y-auto flex-1">
         <!-- Dashboard -->
         <a href="{% url 'dashboard' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600{% endif %}">
             <i class="fas fa-tachometer-alt w-5"></i>
@@ -112,6 +91,29 @@
             <span>Déconnexion</span>
         </a>
     </nav>
+
+    <!-- User Info - En bas -->
+    <div class="p-4 border-t border-gray-800 flex-shrink-0 bg-gray-800">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-user text-white"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold truncate text-white">{{ user.get_full_name|default:user.email }}</p>
+                <p class="text-xs text-gray-400 truncate">
+                    {% if user.role == 'admin' %}
+                        <i class="fas fa-user-shield mr-1"></i> Administrateur
+                    {% elif user.role == 'manager' %}
+                        <i class="fas fa-user-tie mr-1"></i> Gérant
+                    {% elif user.role == 'super_admin' %}
+                        <i class="fas fa-user-crown mr-1"></i> Super Administrateur
+                    {% else %}
+                        <i class="fas fa-user mr-1"></i> {{ user.get_role_display }}
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
 </aside>
 
 <!-- Mobile Sidebar Overlay -->
