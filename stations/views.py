@@ -11,25 +11,27 @@ def stations_list_view(request):
     Vue pour afficher la liste des stations
     Accessible aux admins et super_admins
     """
-    # Récupérer les stations selon le rôle
-    if request.user.role == 'super_admin':
-        # Le super_admin voit toutes les stations
-        stations = Station.objects.all().order_by('-created_at')
-    elif request.user.role == 'admin':
-        # L'admin voit uniquement ses propres stations
-        stations = Station.objects.filter(created_by=request.user).order_by('-created_at')
-    else:
+    # Vérifier les permissions
+    if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
         return redirect('dashboard')
     
+    # Récupérer toutes les stations pour les statistiques et filtres
+    if request.user.role == 'super_admin':
+        all_stations = Station.objects.all()
+    else:
+        all_stations = Station.objects.filter(created_by=request.user)
+    
     # Statistiques
-    total_stations = stations.count()
+    total_stations = all_stations.count()
     
     # Filtres et recherche
     search_query = request.GET.get('search', '')
     city_filter = request.GET.get('city', '')
     
     # Appliquer les filtres
+    stations = all_stations.order_by('-created_at')
+    
     if search_query:
         stations = stations.filter(
             Q(name__icontains=search_query) |
@@ -44,7 +46,10 @@ def stations_list_view(request):
     filtered_count = stations.count()
     
     # Liste des villes uniques pour le filtre
-    cities = Station.objects.values_list('city', flat=True).distinct().order_by('city')
+    if request.user.role == 'super_admin':
+        cities = Station.objects.values_list('city', flat=True).distinct().order_by('city')
+    else:
+        cities = Station.objects.filter(created_by=request.user).values_list('city', flat=True).distinct().order_by('city')
     
     context = {
         'stations': stations,
@@ -56,3 +61,67 @@ def stations_list_view(request):
     }
     
     return render(request, 'stations/stations_list.html', context)
+
+@login_required
+def create_station_view(request):
+    """
+    Vue pour créer une nouvelle station
+    Accessible aux admins et super_admins
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        messages.error(request, 'Vous n\'avez pas la permission de créer une station.')
+        return redirect('stations_list')
+    
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        city = request.POST.get('city', '').strip()
+        address = request.POST.get('address', '').strip()
+        
+        # Validation
+        if not name or not city or not address:
+            messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
+            return redirect('stations_list')
+        
+        try:
+            # Créer la station
+            station = Station.objects.create(
+                name=name,
+                city=city,
+                address=address,
+                created_by=request.user
+            )
+            
+            messages.success(request, f'La station "{station.name}" a été créée avec succès.')
+            return redirect('stations_list')
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la création de la station : {str(e)}')
+    
+    return redirect('stations_list')
+
+@login_required
+def delete_station_view(request, station_id):
+    """
+    Vue pour supprimer une station
+    Accessible aux admins et super_admins
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        messages.error(request, 'Vous n\'avez pas la permission de supprimer une station.')
+        return redirect('stations_list')
+    
+    if request.method == 'POST':
+        try:
+            station = get_object_or_404(Station, id=station_id)
+            
+            # Vérifier les permissions
+            if request.user.role == 'admin' and station.created_by != request.user:
+                messages.error(request, 'Vous n\'avez pas la permission de supprimer cette station.')
+                return redirect('stations_list')
+            
+            station_name = station.name
+            station.delete()
+            
+            messages.success(request, f'La station "{station_name}" a été supprimée avec succès.')
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la suppression : {str(e)}')
+    
+    return redirect('stations_list')

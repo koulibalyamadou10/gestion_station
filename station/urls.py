@@ -23,6 +23,7 @@ from account.views import (
     managers_list_view, create_manager_view, delete_manager_view,
     profile_view, change_password_view
 )
+from stations.views import stations_list_view, create_station_view, delete_station_view
 
 def view_home(request):
     return render(request, 'home.html')
@@ -41,5 +42,8 @@ urlpatterns = [
     path('managers/delete/<int:manager_id>/', delete_manager_view, name='delete_manager'),
     path('profile/', profile_view, name='profile'),
     path('profile/change-password/', change_password_view, name='change_password'),
+    path('stations/', stations_list_view, name='stations_list'),
+    path('stations/create/', create_station_view, name='create_station'),
+    path('stations/delete/<int:station_id>/', delete_station_view, name='delete_station'),
     path('not-access/', not_access_view, name='not_access'),
 ]
