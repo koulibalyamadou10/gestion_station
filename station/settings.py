@@ -130,7 +130,6 @@ STATIC_URL = 'static/'
 # models user
 AUTH_USER_MODEL = 'account.CustomUser'
 
-# maillings
 # Email settings
 EMAIL_BACKEND = config('EMAIL_BACKEND')
 EMAIL_HOST = config('EMAIL_HOST')

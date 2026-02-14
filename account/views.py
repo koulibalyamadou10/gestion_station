@@ -357,6 +357,77 @@ def create_manager_view(request):
     
     return redirect('managers_list')
 
+@login_required
+def profile_view(request):
+    """
+    Vue pour afficher et modifier le profil de l'utilisateur connecté
+    """
+    user = request.user
+    
+    if request.method == 'POST':
+        # Mise à jour des informations du profil
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        phone_code = request.POST.get('phone_code')
+        phone_number = request.POST.get('phone_number')
+        
+        if first_name and last_name:
+            user.first_name = first_name
+            user.last_name = last_name
+        
+        if phone_code and phone_number:
+            import re
+            user.phone_code = phone_code
+            user.phone_number = re.sub(r'\D', '', phone_number)  # Enlever les séparateurs
+        
+        user.save()
+        messages.success(request, 'Votre profil a été mis à jour avec succès.')
+        return redirect('profile')
+    
+    context = {
+        'user': user
+    }
+    
+    return render(request, 'account/profile.html', context)
+
+@login_required
+def change_password_view(request):
+    """
+    Vue pour changer le mot de passe de l'utilisateur connecté
+    """
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        # Vérifier le mot de passe actuel
+        if not request.user.check_password(current_password):
+            messages.error(request, 'Le mot de passe actuel est incorrect.')
+            return redirect('profile')
+        
+        # Vérifier que les nouveaux mots de passe correspondent
+        if new_password != confirm_password:
+            messages.error(request, 'Les nouveaux mots de passe ne correspondent pas.')
+            return redirect('profile')
+        
+        # Vérifier la longueur du nouveau mot de passe
+        if len(new_password) < 8:
+            messages.error(request, 'Le nouveau mot de passe doit contenir au moins 8 caractères.')
+            return redirect('profile')
+        
+        # Changer le mot de passe
+        request.user.set_password(new_password)
+        request.user.save()
+        
+        # Ré-authentifier l'utilisateur pour éviter la déconnexion
+        from django.contrib.auth import update_session_auth_hash
+        update_session_auth_hash(request, request.user)
+        
+        messages.success(request, 'Votre mot de passe a été changé avec succès.')
+        return redirect('profile')
+    
+    return redirect('profile')
+
 @admin_required
 def delete_manager_view(request, manager_id):
     """

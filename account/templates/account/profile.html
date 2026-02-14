@@ -1,0 +1,423 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Mon Profil - Système de Gestion de Station-Service{% endblock %}
+
+{% block page_title %}Mon Profil{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Colonne gauche - Informations du profil -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Informations personnelles -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-user mr-2 text-blue-600"></i>
+                    Informations personnelles
+                </h3>
+                <button 
+                    id="editProfileBtn"
+                    class="text-blue-600 hover:text-blue-800 font-semibold flex items-center"
+                >
+                    <i class="fas fa-edit mr-2"></i>
+                    Modifier
+                </button>
+            </div>
+
+            <form id="profileForm" method="POST" action="{% url 'profile' %}" class="space-y-4">
+                {% csrf_token %}
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Prénom <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            name="first_name" 
+                            value="{{ user.first_name }}"
+                            required
+                            id="first_name"
+                            readonly
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50"
+                        >
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Nom <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            name="last_name" 
+                            value="{{ user.last_name }}"
+                            required
+                            id="last_name"
+                            readonly
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Email
+                    </label>
+                    <input 
+                        type="email" 
+                        value="{{ user.email }}"
+                        disabled
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Code téléphone <span class="text-red-500">*</span>
+                        </label>
+                        <select 
+                            name="phone_code" 
+                            required
+                            id="phone_code"
+                            disabled
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50"
+                        >
+                            <option value="224" {% if user.phone_code == '224' %}selected{% endif %}>224</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Numéro de téléphone <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            name="phone_number" 
+                            value="{% if user.phone_number %}{{ user.phone_number|slice:":3" }}-{{ user.phone_number|slice:"3:5" }}-{{ user.phone_number|slice:"5:7" }}-{{ user.phone_number|slice:"7:9" }}{% endif %}"
+                            required
+                            id="phone_number"
+                            readonly
+                            maxlength="13"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50"
+                            placeholder="624-52-85-96"
+                        >
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Rôle
+                    </label>
+                    <input 
+                        type="text" 
+                        value="{% if user.role == 'super_admin' %}Super Administrateur{% elif user.role == 'admin' %}Propriétaire d'une station-service{% elif user.role == 'manager' %}Gérant d'une station-service{% else %}{{ user.get_role_display }}{% endif %}"
+                        disabled
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                    >
+                </div>
+
+                <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                    <button 
+                        type="button"
+                        id="cancelEditBtn"
+                        class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold hidden"
+                    >
+                        Annuler
+                    </button>
+                    <button 
+                        type="submit"
+                        id="saveProfileBtn"
+                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold hidden"
+                    >
+                        <i class="fas fa-save mr-2"></i>
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Changer le mot de passe -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-lock mr-2 text-blue-600"></i>
+                Changer le mot de passe
+            </h3>
+
+            <form id="changePasswordForm" method="POST" action="{% url 'change_password' %}" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Mot de passe actuel <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="password" 
+                            name="current_password" 
+                            required
+                            id="current_password"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pr-12"
+                            placeholder="••••••••"
+                        >
+                        <button 
+                            type="button" 
+                            id="toggleCurrentPassword"
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                            <i class="fas fa-eye" id="eyeCurrentIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Nouveau mot de passe <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="password" 
+                            name="new_password" 
+                            required
+                            id="new_password"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pr-12"
+                            placeholder="••••••••"
+                            minlength="8"
+                        >
+                        <button 
+                            type="button" 
+                            id="toggleNewPassword"
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                            <i class="fas fa-eye" id="eyeNewIcon"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Minimum 8 caractères</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Confirmer le nouveau mot de passe <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="password" 
+                            name="confirm_password" 
+                            required
+                            id="confirm_password"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none pr-12"
+                            placeholder="••••••••"
+                            minlength="8"
+                        >
+                        <button 
+                            type="button" 
+                            id="toggleConfirmPassword"
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                            <i class="fas fa-eye" id="eyeConfirmIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end pt-4 border-t border-gray-200">
+                    <button 
+                        type="submit"
+                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                    >
+                        <i class="fas fa-key mr-2"></i>
+                        Changer le mot de passe
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Colonne droite - Carte profil -->
+    <div>
+        <div class="bg-white rounded-xl shadow-lg p-6 sticky top-4">
+            <div class="text-center">
+                <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-user text-white text-4xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">{{ user.get_full_name }}</h3>
+                <p class="text-gray-600 text-sm mb-4">
+                    {% if user.role == 'super_admin' %}
+                        <i class="fas fa-user-crown mr-1 text-purple-600"></i> Super Administrateur
+                    {% elif user.role == 'admin' %}
+                        <i class="fas fa-user-shield mr-1 text-yellow-600"></i> Propriétaire de station
+                    {% elif user.role == 'manager' %}
+                        <i class="fas fa-user-tie mr-1 text-orange-600"></i> Gérant
+                    {% else %}
+                        {{ user.get_role_display }}
+                    {% endif %}
+                </p>
+                
+                <div class="space-y-3 text-sm text-left bg-gray-50 p-4 rounded-lg">
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-envelope mr-3 text-gray-400 w-5"></i>
+                        <span class="truncate">{{ user.email }}</span>
+                    </div>
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-phone mr-3 text-gray-400 w-5"></i>
+                        <span>{{ user.phone_code }} {% if user.phone_number and user.phone_number|length == 9 %}{{ user.phone_number|slice:":3" }}-{{ user.phone_number|slice:"3:5" }}-{{ user.phone_number|slice:"5:7" }}-{{ user.phone_number|slice:"7:9" }}{% else %}{{ user.phone_number }}{% endif %}</span>
+                    </div>
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-calendar mr-3 text-gray-400 w-5"></i>
+                        <span>Membre depuis {{ user.created_at|date:"d/m/Y" }}</span>
+                    </div>
+                    {% if user.created_by %}
+                    <div class="flex items-center text-gray-700">
+                        <i class="fas fa-user-plus mr-3 text-gray-400 w-5"></i>
+                        <span>Créé par {{ user.created_by.get_full_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle edit mode
+    const editProfileBtn = document.getElementById('editProfileBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const saveProfileBtn = document.getElementById('saveProfileBtn');
+    const profileForm = document.getElementById('profileForm');
+    const firstNameInput = document.getElementById('first_name');
+    const lastNameInput = document.getElementById('last_name');
+    const phoneCodeSelect = document.getElementById('phone_code');
+    const phoneNumberInput = document.getElementById('phone_number');
+    
+    let originalValues = {
+        first_name: firstNameInput.value,
+        last_name: lastNameInput.value,
+        phone_code: phoneCodeSelect.value,
+        phone_number: phoneNumberInput.value
+    };
+    
+    editProfileBtn.addEventListener('click', function() {
+        // Activer l'édition
+        firstNameInput.removeAttribute('readonly');
+        lastNameInput.removeAttribute('readonly');
+        phoneCodeSelect.removeAttribute('disabled');
+        phoneNumberInput.removeAttribute('readonly');
+        
+        firstNameInput.classList.remove('bg-gray-50');
+        lastNameInput.classList.remove('bg-gray-50');
+        phoneCodeSelect.classList.remove('bg-gray-50');
+        phoneNumberInput.classList.remove('bg-gray-50');
+        
+        editProfileBtn.classList.add('hidden');
+        cancelEditBtn.classList.remove('hidden');
+        saveProfileBtn.classList.remove('hidden');
+    });
+    
+    cancelEditBtn.addEventListener('click', function() {
+        // Restaurer les valeurs originales
+        firstNameInput.value = originalValues.first_name;
+        lastNameInput.value = originalValues.last_name;
+        phoneCodeSelect.value = originalValues.phone_code;
+        phoneNumberInput.value = originalValues.phone_number;
+        
+        // Désactiver l'édition
+        firstNameInput.setAttribute('readonly', 'readonly');
+        lastNameInput.setAttribute('readonly', 'readonly');
+        phoneCodeSelect.setAttribute('disabled', 'disabled');
+        phoneNumberInput.setAttribute('readonly', 'readonly');
+        
+        firstNameInput.classList.add('bg-gray-50');
+        lastNameInput.classList.add('bg-gray-50');
+        phoneCodeSelect.classList.add('bg-gray-50');
+        phoneNumberInput.classList.add('bg-gray-50');
+        
+        editProfileBtn.classList.remove('hidden');
+        cancelEditBtn.classList.add('hidden');
+        saveProfileBtn.classList.add('hidden');
+    });
+    
+    // Formatage du numéro de téléphone
+    phoneNumberInput.addEventListener('input', function(e) {
+        if (!phoneNumberInput.hasAttribute('readonly')) {
+            let value = e.target.value.replace(/\D/g, '');
+            
+            if (value.length > 9) {
+                value = value.substring(0, 9);
+            }
+            
+            let formatted = '';
+            if (value.length > 0) {
+                formatted = value.substring(0, 3);
+                if (value.length > 3) {
+                    formatted += '-' + value.substring(3, 5);
+                }
+                if (value.length > 5) {
+                    formatted += '-' + value.substring(5, 7);
+                }
+                if (value.length > 7) {
+                    formatted += '-' + value.substring(7, 9);
+                }
+            }
+            
+            e.target.value = formatted;
+        }
+    });
+    
+    // Enlever les séparateurs avant la soumission
+    profileForm.addEventListener('submit', function(e) {
+        const phoneValue = phoneNumberInput.value.replace(/\D/g, '');
+        phoneNumberInput.value = phoneValue;
+        
+        if (phoneValue.length !== 9) {
+            e.preventDefault();
+            alert('Le numéro de téléphone doit contenir exactement 9 chiffres !');
+            phoneNumberInput.focus();
+            return false;
+        }
+    });
+    
+    // Toggle password visibility
+    function setupPasswordToggle(buttonId, inputId, iconId) {
+        const button = document.getElementById(buttonId);
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        
+        if (button && input && icon) {
+            button.addEventListener('click', function() {
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+                
+                if (type === 'password') {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            });
+        }
+    }
+    
+    setupPasswordToggle('toggleCurrentPassword', 'current_password', 'eyeCurrentIcon');
+    setupPasswordToggle('toggleNewPassword', 'new_password', 'eyeNewIcon');
+    setupPasswordToggle('toggleConfirmPassword', 'confirm_password', 'eyeConfirmIcon');
+    
+    // Validation du formulaire de changement de mot de passe
+    const changePasswordForm = document.getElementById('changePasswordForm');
+    changePasswordForm.addEventListener('submit', function(e) {
+        const newPassword = document.getElementById('new_password').value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        
+        if (newPassword !== confirmPassword) {
+            e.preventDefault();
+            alert('Les nouveaux mots de passe ne correspondent pas !');
+            return false;
+        }
+        
+        if (newPassword.length < 8) {
+            e.preventDefault();
+            alert('Le nouveau mot de passe doit contenir au moins 8 caractères !');
+            return false;
+        }
+    });
+</script>
+{% endblock %}
+
