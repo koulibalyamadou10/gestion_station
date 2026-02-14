@@ -157,14 +157,90 @@ def station_detail_view(request, station_uuid):
             messages.error(request, 'Vous n\'avez pas la permission de voir cette station.')
             return redirect('stations:stations_list')
         
+        # Récupérer la liste des admins pour le super_admin
+        admins = None
+        if request.user.role == 'super_admin':
+            from account.models import CustomUser
+            admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
+        
         context = {
             'station': station,
+            'admins': admins,
         }
         
         return render(request, 'stations/stations_detail.html', context)
     except Exception as e:
         messages.error(request, f'Erreur lors du chargement de la station : {str(e)}')
         return redirect('stations:stations_list')
+
+@login_required
+def update_station_view(request, station_uuid):
+    """
+    Vue pour modifier une station
+    Accessible aux admins et super_admins
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        messages.error(request, 'Vous n\'avez pas la permission de modifier une station.')
+        return redirect('stations:stations_list')
+    
+    if request.method == 'POST':
+        try:
+            station = get_object_or_404(Station, station_uuid=station_uuid)
+            
+            # Vérifier les permissions
+            if request.user.role == 'admin' and station.created_by != request.user:
+                messages.error(request, 'Vous n\'avez pas la permission de modifier cette station.')
+                return redirect('stations:stations_list')
+            
+            name = request.POST.get('name', '').strip()
+            city = request.POST.get('city', '').strip()
+            address = request.POST.get('address', '').strip()
+            latitude = request.POST.get('latitude', '').strip()
+            longitude = request.POST.get('longitude', '').strip()
+            
+            # Validation
+            if not name or not city or not address:
+                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
+                return redirect('stations:station_detail', station_uuid=station_uuid)
+            
+            if not latitude or not longitude:
+                messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
+                return redirect('stations:station_detail', station_uuid=station_uuid)
+            
+            # Déterminer le created_by selon le rôle (seulement si super_admin)
+            if request.user.role == 'super_admin':
+                created_by_id = request.POST.get('created_by', '').strip()
+                if created_by_id:
+                    from account.models import CustomUser
+                    try:
+                        created_by = CustomUser.objects.get(id=created_by_id, role='admin', is_active=True)
+                        station.created_by = created_by
+                    except CustomUser.DoesNotExist:
+                        pass  # Garder le created_by actuel si invalide
+            
+            # Convertir les coordonnées en Decimal
+            from decimal import Decimal
+            latitude_decimal = Decimal(latitude)
+            longitude_decimal = Decimal(longitude)
+            
+            # Mettre à jour la station
+            station.name = name
+            station.city = city
+            station.address = address
+            station.latitude = latitude_decimal
+            station.longitude = longitude_decimal
+            station.save()
+            
+            messages.success(request, f'La station "{station.name}" a été modifiée avec succès.')
+            return redirect('stations:station_detail', station_uuid=station_uuid)
+        except ValueError:
+            messages.error(request, 'Les coordonnées géographiques sont invalides.')
+            return redirect('stations:station_detail', station_uuid=station_uuid)
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la modification : {str(e)}')
+            return redirect('stations:station_detail', station_uuid=station_uuid)
+    
+    return redirect('stations:stations_list')
 
 @login_required
 def delete_station_view(request, station_uuid):

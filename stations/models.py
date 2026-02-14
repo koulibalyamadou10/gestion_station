@@ -15,3 +15,13 @@ class Station(models.Model):
 
     def __str__(self):
         return self.name
+
+class StationManager(models.Model):
+    station_manager_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
+    station = models.ForeignKey(Station, on_delete=models.CASCADE)
+    manager = models.ForeignKey('account.CustomUser', on_delete=models.CASCADE) # role = manager
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.manager.get_full_name()

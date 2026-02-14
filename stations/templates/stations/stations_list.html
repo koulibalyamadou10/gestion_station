@@ -168,8 +168,9 @@
                                 </a>
                                 <a 
                                     href="#" 
+                                    onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name }}', '{{ station.city }}', '{{ station.address }}', '{{ station.latitude }}', '{{ station.longitude }}', '{{ station.created_by.id }}'); return false;"
                                     class="text-yellow-600 hover:text-yellow-800 transition-colors"
-                                    title="Modifier (bientôt disponible)"
+                                    title="Modifier"
                                 >
                                     <i class="fas fa-edit"></i>
                                 </a>
@@ -333,6 +334,126 @@
     </div>
 </div>
 
+<!-- Modal de Modification de Station -->
+<div id="editStationModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-edit mr-2 text-blue-600"></i>
+                Modifier la station
+            </h3>
+            <button 
+                id="closeEditStationModal"
+                class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        
+        <form id="editStationForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Nom de la station <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    name="name" 
+                    id="edit_station_name"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="Ex: Station Total Conakry"
+                >
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Ville <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    name="city" 
+                    id="edit_station_city"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="Ex: Conakry"
+                >
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Adresse <span class="text-red-500">*</span>
+                </label>
+                <textarea 
+                    name="address" 
+                    id="edit_station_address"
+                    required
+                    rows="3"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                    placeholder="Ex: Route du Niger, Commune de Matam"
+                ></textarea>
+            </div>
+
+            <!-- Carte Mapbox pour sélectionner l'emplacement -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Emplacement sur la carte <span class="text-red-500">*</span>
+                </label>
+                <p class="text-xs text-gray-500 mb-2">Cliquez sur la carte pour modifier l'emplacement exact de la station</p>
+                <div id="editMap" class="w-full h-96 rounded-lg border border-gray-300 overflow-hidden"></div>
+                <div class="mt-2 flex items-center space-x-4 text-sm">
+                    <div class="flex items-center text-gray-600">
+                        <i class="fas fa-map-marker-alt mr-2 text-red-500"></i>
+                        <span id="editCoordinatesDisplay">Cliquez sur la carte pour définir l'emplacement</span>
+                    </div>
+                </div>
+                <!-- Champs cachés pour latitude et longitude -->
+                <input type="hidden" name="latitude" id="edit_latitude" required>
+                <input type="hidden" name="longitude" id="edit_longitude" required>
+            </div>
+
+            <!-- Champ created_by : visible uniquement pour super_admin -->
+            {% if user.role == 'super_admin' %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Propriétaire de la station <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    name="created_by" 
+                    id="edit_station_created_by"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Sélectionner un propriétaire</option>
+                    {% for admin in admins %}
+                        <option value="{{ admin.id }}">{{ admin.get_full_name }} ({{ admin.email }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Sélectionnez le propriétaire de la station-service</p>
+            </div>
+            {% endif %}
+
+            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button 
+                    type="button"
+                    id="cancelEditStation"
+                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    Enregistrer les modifications
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Mapbox GL JS -->
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -453,6 +574,135 @@
         }
     });
 
+    // Gestion du modal de modification
+    let editMap = null;
+    let editMarker = null;
+    let currentStationUuid = null;
+    
+    const editStationModal = document.getElementById('editStationModal');
+    const closeEditStationModal = document.getElementById('closeEditStationModal');
+    const cancelEditStation = document.getElementById('cancelEditStation');
+    const editStationForm = document.getElementById('editStationForm');
+    const editLatitudeInput = document.getElementById('edit_latitude');
+    const editLongitudeInput = document.getElementById('edit_longitude');
+    const editCoordinatesDisplay = document.getElementById('editCoordinatesDisplay');
+    
+    function openEditStationModal(uuid, name, city, address, lat, lng, createdById) {
+        currentStationUuid = uuid;
+        
+        // Remplir les champs
+        document.getElementById('edit_station_name').value = name;
+        document.getElementById('edit_station_city').value = city;
+        document.getElementById('edit_station_address').value = address;
+        if (document.getElementById('edit_station_created_by')) {
+            document.getElementById('edit_station_created_by').value = createdById || '';
+        }
+        
+        // Mettre à jour l'action du formulaire
+        editStationForm.action = `/stations/${uuid}/update/`;
+        
+        // Ouvrir le modal
+        editStationModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        
+        // Initialiser la carte après un court délai pour s'assurer que le modal est visible
+        setTimeout(() => {
+            initEditMap(parseFloat(lat), parseFloat(lng));
+        }, 100);
+    }
+    
+    function initEditMap(lat, lng) {
+        // Détruire la carte existante si elle existe
+        if (editMap) {
+            editMap.remove();
+        }
+        
+        // Créer la nouvelle carte
+        editMap = new mapboxgl.Map({
+            container: 'editMap',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [lng, lat],
+            zoom: 15
+        });
+        
+        // Ajouter les contrôles de navigation
+        editMap.addControl(new mapboxgl.NavigationControl());
+        
+        // Ajouter un marqueur à l'emplacement actuel
+        editMarker = new mapboxgl.Marker({
+            draggable: true,
+            color: '#ef4444'
+        })
+        .setLngLat([lng, lat])
+        .addTo(editMap);
+        
+        // Mettre à jour les coordonnées
+        updateEditCoordinates(lng, lat);
+        
+        // Mettre à jour les coordonnées quand on déplace le marqueur
+        editMarker.on('dragend', function() {
+            const lngLat = editMarker.getLngLat();
+            updateEditCoordinates(lngLat.lng, lngLat.lat);
+        });
+        
+        // Mettre à jour les coordonnées quand on clique sur la carte
+        editMap.on('click', function(e) {
+            const lngLat = e.lngLat;
+            editMarker.setLngLat([lngLat.lng, lngLat.lat]);
+            updateEditCoordinates(lngLat.lng, lngLat.lat);
+        });
+    }
+    
+    function updateEditCoordinates(lng, lat) {
+        editLatitudeInput.value = lat.toFixed(6);
+        editLongitudeInput.value = lng.toFixed(6);
+        editCoordinatesDisplay.textContent = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+    }
+    
+    function closeEditStationModalFunc() {
+        editStationModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        editStationForm.reset();
+        currentStationUuid = null;
+        
+        // Réinitialiser les coordonnées
+        if (editCoordinatesDisplay) {
+            editCoordinatesDisplay.textContent = 'Cliquez sur la carte pour définir l\'emplacement';
+        }
+        if (editLatitudeInput) {
+            editLatitudeInput.value = '';
+        }
+        if (editLongitudeInput) {
+            editLongitudeInput.value = '';
+        }
+        
+        // Détruire la carte
+        if (editMap) {
+            editMap.remove();
+            editMap = null;
+            editMarker = null;
+        }
+    }
+    
+    closeEditStationModal?.addEventListener('click', closeEditStationModalFunc);
+    cancelEditStation?.addEventListener('click', closeEditStationModalFunc);
+    
+    // Fermer le modal en cliquant en dehors
+    editStationModal?.addEventListener('click', function(e) {
+        if (e.target === editStationModal) {
+            closeEditStationModalFunc();
+        }
+    });
+    
+    // Validation du formulaire de modification
+    editStationForm?.addEventListener('submit', function(e) {
+        if (!editLatitudeInput.value || !editLongitudeInput.value) {
+            e.preventDefault();
+            alert('Veuillez sélectionner un emplacement sur la carte en cliquant dessus.');
+            return false;
+        }
+    });
+    
     // Fonction de confirmation de suppression
     function confirmDelete(event, stationName) {
         event.preventDefault();
