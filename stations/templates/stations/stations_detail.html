@@ -448,6 +448,14 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
 <script>
+    // Fonction helper pour échapper le HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     // Clé API Mapbox
     mapboxgl.accessToken = 'pk.eyJ1Ijoia291bGliYWx5YW1hZG91MTAiLCJhIjoiY21qdWl1MmJoMDkxdTNkczlwNHExcGh1aiJ9.60YhE1b2esO5PoEn7BMIMg';
     
@@ -472,8 +480,8 @@
         new mapboxgl.Popup({ offset: 25 })
             .setHTML(`
                 <div class="p-2">
-                    <h3 class="font-bold text-gray-800">{{ station.name|escapejs }}</h3>
-                    <p class="text-sm text-gray-600">{{ station.address|escapejs }}</p>
+                    <h3 class="font-bold text-gray-800">${escapeHtml('{{ station.name }}')}</h3>
+                    <p class="text-sm text-gray-600">${escapeHtml('{{ station.address }}')}</p>
                 </div>
             `)
     )
@@ -708,6 +716,7 @@
     
     // Gestion du modal d'assignation de gérant
     function openAssignManagerModal() {
+        console.log('openAssignManagerModal appelée');
         const assignManagerModal = document.getElementById('assignManagerModal');
         if (!assignManagerModal) {
             console.error('Modal assignManagerModal introuvable');
@@ -715,6 +724,7 @@
             return;
         }
         
+        console.log('Ouverture du modal');
         assignManagerModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         
@@ -760,12 +770,39 @@
     const assignOwnerSelect = document.getElementById('assign_owner_select');
     
     // Ajouter l'événement click au bouton d'assignation
-    const assignManagerBtn = document.getElementById('assignManagerBtn');
-    if (assignManagerBtn) {
-        assignManagerBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            openAssignManagerModal();
-        });
+    // Utiliser plusieurs méthodes pour s'assurer que le bouton est bien attaché
+    function attachAssignManagerButton() {
+        const assignManagerBtn = document.getElementById('assignManagerBtn');
+        if (assignManagerBtn) {
+            console.log('Bouton assignManagerBtn trouvé');
+            // Retirer tous les anciens listeners en clonant le bouton
+            const newBtn = assignManagerBtn.cloneNode(true);
+            assignManagerBtn.parentNode.replaceChild(newBtn, assignManagerBtn);
+            
+            // Ajouter le nouveau listener
+            newBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clic sur assignManagerBtn détecté');
+                openAssignManagerModal();
+                return false;
+            });
+            
+            console.log('Event listener attaché au bouton assignManagerBtn');
+        } else {
+            console.error('Bouton assignManagerBtn introuvable');
+        }
+    }
+    
+    // Essayer immédiatement
+    attachAssignManagerButton();
+    
+    // Aussi essayer après le chargement complet du DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachAssignManagerButton);
+    } else {
+        // DOM déjà chargé, essayer après un court délai
+        setTimeout(attachAssignManagerButton, 100);
     }
     
     function closeAssignManagerModalFunc() {
