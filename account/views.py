@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_protect
@@ -210,12 +210,15 @@ def create_user_view(request):
                     phone_code=phone_code,
                     phone_number=phone_number,
                     role='admin',  # Forcé à admin
-                    is_active=True
+                    is_active=True,
+                    created_by=request.user  # Le super_admin qui crée l'admin
                 )
                 
                 # Envoyer l'email avec le mot de passe via la méthode du modèle
                 login_url = request.build_absolute_uri('/login/')
                 email_sent = user.send_credentials_email(generated_password, login_url)
+
+                print(generated_password)
 
                 if email_sent:
                     messages.success(
@@ -235,3 +238,147 @@ def create_user_view(request):
                 messages.error(request, f'Erreur lors de la création : {str(e)}')
     
     return redirect('users_list')
+
+@admin_required
+def managers_list_view(request):
+    """
+    Vue pour afficher la liste des managers (gérants) d'un admin
+    Accessible aux admins et super_admins
+    """
+    # Si super_admin, voir tous les managers
+    # Si admin, voir uniquement ses managers
+    if request.user.role == 'super_admin':
+        managers = CustomUser.objects.filter(role='manager').order_by('-created_at')
+    else:
+        managers = CustomUser.objects.filter(role='manager', created_by=request.user).order_by('-created_at')
+    
+    # Filtres et recherche
+    search_query = request.GET.get('search', '')
+    status_filter = request.GET.get('status', '')
+    
+    # Appliquer les filtres
+    if search_query:
+        managers = managers.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(phone_number__icontains=search_query)
+        )
+    
+    if status_filter:
+        if status_filter == 'active':
+            managers = managers.filter(is_active=True)
+        elif status_filter == 'inactive':
+            managers = managers.filter(is_active=False)
+    
+    # Statistiques
+    total_managers = managers.count()
+    active_managers = managers.filter(is_active=True).count()
+    inactive_managers = managers.filter(is_active=False).count()
+    
+    context = {
+        'managers': managers,
+        'total_managers': total_managers,
+        'active_managers': active_managers,
+        'inactive_managers': inactive_managers,
+        'search_query': search_query,
+        'status_filter': status_filter,
+    }
+    
+    return render(request, 'account/managers_content.html', context)
+
+@admin_required
+def create_manager_view(request):
+    """
+    Vue pour créer un nouveau manager (gérant)
+    Accessible aux admins et super_admins
+    """
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        email = request.POST.get('email')
+        phone_code = request.POST.get('phone_code')
+        phone_number = request.POST.get('phone_number')
+        
+        # Validation
+        errors = []
+        
+        if not first_name or not last_name:
+            errors.append('Le prénom et le nom sont requis.')
+        
+        if not email:
+            errors.append('L\'email est requis.')
+        elif CustomUser.objects.filter(email=email).exists():
+            errors.append('Cet email est déjà utilisé.')
+        
+        if not phone_code or not phone_number:
+            errors.append('Le code et le numéro de téléphone sont requis.')
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+        else:
+            try:
+                # Générer un mot de passe sécurisé
+                generated_password = generate_password(16)
+                
+                # Créer le manager
+                manager = CustomUser.objects.create_user(
+                    email=email,
+                    password=generated_password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone_code=phone_code,
+                    phone_number=phone_number,
+                    role='manager',  # Forcé à manager
+                    is_active=True,
+                    created_by=request.user  # L'admin qui crée le manager
+                )
+                
+                # Envoyer l'email avec le mot de passe via la méthode du modèle
+                login_url = request.build_absolute_uri('/login/')
+                email_sent = manager.send_credentials_email(generated_password, login_url)
+                
+                if email_sent:
+                    messages.success(
+                        request, 
+                        f'Gérant {manager.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {manager.email}.'
+                    )
+                else:
+                    messages.warning(
+                        request, 
+                        f'Gérant {manager.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
+                        f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
+                    )
+                
+                return redirect('managers_list')
+            except Exception as e:
+                messages.error(request, f'Erreur lors de la création : {str(e)}')
+    
+    return redirect('managers_list')
+
+@admin_required
+def delete_manager_view(request, manager_id):
+    """
+    Vue pour supprimer définitivement un manager
+    Accessible aux admins et super_admins
+    """
+    if request.method == 'POST':
+        try:
+            manager_to_delete = get_object_or_404(CustomUser, id=manager_id, role='manager')
+            
+            # Vérifier que l'admin peut supprimer ce manager
+            if request.user.role == 'admin' and manager_to_delete.created_by != request.user:
+                messages.error(request, 'Vous n\'avez pas la permission de supprimer ce gérant.')
+                return redirect('managers_list')
+            
+            manager_name = manager_to_delete.get_full_name()
+            manager_to_delete.delete()
+            
+            messages.success(request, f'Gérant {manager_name} supprimé définitivement avec succès.')
+        except CustomUser.DoesNotExist:
+            messages.error(request, 'Gérant introuvable.')
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la suppression : {str(e)}')
+    
+    return redirect('managers_list')

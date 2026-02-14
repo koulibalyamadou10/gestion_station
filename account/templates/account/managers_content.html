@@ -1,0 +1,510 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Gestion des Gérants - Système de Gestion de Station-Service{% endblock %}
+
+{% block page_title %}Gestion des Gérants{% endblock %}
+
+{% block content %}
+<!-- Cards Statistiques -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Total Gérants -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Total Gérants</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_managers }}</p>
+            </div>
+            <div class="bg-blue-100 p-4 rounded-full">
+                <i class="fas fa-user-tie text-3xl text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gérants Actifs -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Actifs</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ active_managers }}</p>
+            </div>
+            <div class="bg-green-100 p-4 rounded-full">
+                <i class="fas fa-user-check text-3xl text-green-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gérants Inactifs -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Inactifs</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ inactive_managers }}</p>
+            </div>
+            <div class="bg-red-100 p-4 rounded-full">
+                <i class="fas fa-user-times text-3xl text-red-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtres et Recherche -->
+<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <form method="GET" action="{% url 'managers_list' %}" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Recherche -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-search mr-2 text-blue-600"></i>Rechercher
+                </label>
+                <input 
+                    type="text" 
+                    name="search" 
+                    value="{{ search_query }}"
+                    placeholder="Nom, email, téléphone..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+            </div>
+
+            <!-- Filtre par statut -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-toggle-on mr-2 text-blue-600"></i>Statut
+                </label>
+                <select 
+                    name="status" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Tous les statuts</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Actifs</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactifs</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+            <button 
+                type="submit" 
+                class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+            >
+                <i class="fas fa-filter mr-2"></i> Filtrer
+            </button>
+            <a 
+                href="{% url 'managers_list' %}" 
+                class="text-gray-600 hover:text-gray-800 font-semibold flex items-center"
+            >
+                <i class="fas fa-redo mr-2"></i> Réinitialiser
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Liste des Gérants -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+            <i class="fas fa-list mr-2 text-blue-600"></i>
+            Liste des Gérants ({{ managers.count }})
+        </h3>
+        <button 
+            id="createManagerBtn"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+        >
+            <i class="fas fa-user-plus mr-2"></i>
+            Créer un gérant
+        </button>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Gérant
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Contact
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Statut
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Date de création
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for manager in managers %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-user-tie text-white"></i>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    {{ manager.get_full_name }}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    {{ manager.email }}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-phone mr-2 text-gray-400"></i>
+                            {{ manager.phone_code }} {{ manager.phone_number }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if manager.is_active %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-check-circle mr-1"></i> Actif
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                <i class="fas fa-times-circle mr-1"></i> Inactif
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ manager.created_at|date:"d/m/Y" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a 
+                                href="#" 
+                                class="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Voir détails"
+                            >
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a 
+                                href="#" 
+                                class="text-yellow-600 hover:text-yellow-900 p-2 hover:bg-yellow-50 rounded-lg transition-colors"
+                                title="Modifier"
+                            >
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if manager.is_active %}
+                                <a 
+                                    href="#" 
+                                    class="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Désactiver"
+                                >
+                                    <i class="fas fa-ban"></i>
+                                </a>
+                            {% else %}
+                                <a 
+                                    href="#" 
+                                    class="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Activer"
+                                >
+                                    <i class="fas fa-check"></i>
+                                </a>
+                            {% endif %}
+                            <a 
+                                href="{% url 'delete_manager' manager.id %}" 
+                                class="text-red-700 hover:text-red-900 p-2 hover:bg-red-100 rounded-lg transition-colors delete-manager-btn"
+                                title="Supprimer définitivement"
+                                onclick="return confirmDelete(event, '{{ manager.get_full_name }}')"
+                            >
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-12 text-center">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-user-tie text-4xl text-gray-400 mb-4"></i>
+                            <p class="text-gray-600 font-semibold">Aucun gérant trouvé</p>
+                            <p class="text-gray-500 text-sm mt-2">Essayez de modifier vos critères de recherche ou créez votre premier gérant</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Création Gérant -->
+<div id="createManagerModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-user-plus mr-2 text-blue-600"></i>
+                Créer un gérant
+            </h3>
+            <button 
+                id="closeManagerModalBtn"
+                class="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Form -->
+        <form id="createManagerForm" method="POST" action="{% url 'create_manager' %}" class="p-6">
+            {% csrf_token %}
+            
+            <div class="space-y-6">
+                <!-- Informations personnelles -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-user mr-2 text-blue-600"></i>
+                        Informations personnelles
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Prénom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="first_name" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="Prénom"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Nom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="last_name" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="Nom"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations de connexion -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-envelope mr-2 text-blue-600"></i>
+                        Informations de connexion
+                    </h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="email" 
+                                name="email" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="email@example.com"
+                            >
+                        </div>
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                            <div class="flex items-start">
+                                <i class="fas fa-info-circle text-blue-600 mr-2 mt-1"></i>
+                                <div>
+                                    <p class="text-sm text-blue-800 font-semibold mb-1">
+                                        Mot de passe généré automatiquement
+                                    </p>
+                                    <p class="text-xs text-blue-700">
+                                        Un mot de passe sécurisé sera généré automatiquement et envoyé par email au gérant.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations de contact -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-phone mr-2 text-blue-600"></i>
+                        Informations de contact
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Code téléphone <span class="text-red-500">*</span>
+                            </label>
+                            <select 
+                                name="phone_code" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                            >
+                                <option value="224" selected>224</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Numéro de téléphone <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="phone_number" 
+                                id="manager_phone_number"
+                                required
+                                maxlength="13"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="624-52-85-96"
+                            >
+                            <p class="text-xs text-gray-500 mt-1">Format : 624-52-85-96</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rôle (fixé à manager) -->
+                <div class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg">
+                    <div class="flex items-center">
+                        <i class="fas fa-info-circle text-orange-600 mr-2"></i>
+                        <p class="text-sm text-orange-800">
+                            <strong>Rôle :</strong> Gérant d'une station-service
+                        </p>
+                    </div>
+                    <input type="hidden" name="role" value="manager">
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-4 mt-6 pt-6 border-t border-gray-200">
+                <button 
+                    type="button"
+                    id="cancelManagerBtn"
+                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    Créer le gérant
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Modal management
+    const createManagerBtn = document.getElementById('createManagerBtn');
+    const createManagerModal = document.getElementById('createManagerModal');
+    const closeManagerModalBtn = document.getElementById('closeManagerModalBtn');
+    const cancelManagerBtn = document.getElementById('cancelManagerBtn');
+    const createManagerForm = document.getElementById('createManagerForm');
+    const managerPhoneNumberInput = document.getElementById('manager_phone_number');
+
+    // Ouvrir le modal
+    createManagerBtn.addEventListener('click', function() {
+        createManagerModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    });
+
+    // Fermer le modal
+    function closeManagerModal() {
+        createManagerModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        createManagerForm.reset();
+    }
+
+    closeManagerModalBtn.addEventListener('click', closeManagerModal);
+    cancelManagerBtn.addEventListener('click', closeManagerModal);
+
+    // Fermer en cliquant en dehors
+    createManagerModal.addEventListener('click', function(e) {
+        if (e.target === createManagerModal) {
+            closeManagerModal();
+        }
+    });
+
+    // Formatage du numéro de téléphone (format guinéen : 624-52-85-96)
+    managerPhoneNumberInput.addEventListener('input', function(e) {
+        // Enlever tous les caractères non numériques
+        let value = e.target.value.replace(/\D/g, '');
+        
+        // Limiter à 9 chiffres
+        if (value.length > 9) {
+            value = value.substring(0, 9);
+        }
+        
+        // Formater avec des tirets : 624-52-85-96
+        let formatted = '';
+        if (value.length > 0) {
+            formatted = value.substring(0, 3);
+            if (value.length > 3) {
+                formatted += '-' + value.substring(3, 5);
+            }
+            if (value.length > 5) {
+                formatted += '-' + value.substring(5, 7);
+            }
+            if (value.length > 7) {
+                formatted += '-' + value.substring(7, 9);
+            }
+        }
+        
+        e.target.value = formatted;
+    });
+    
+    // Enlever les séparateurs avant la soumission
+    createManagerForm.addEventListener('submit', function(e) {
+        // Validation basique
+        const email = document.querySelector('#createManagerForm input[name="email"]').value;
+        if (!email || !email.includes('@')) {
+            e.preventDefault();
+            alert('Veuillez entrer une adresse email valide !');
+            return false;
+        }
+        
+        // Enlever les tirets du numéro de téléphone avant l'envoi
+        const phoneValue = managerPhoneNumberInput.value.replace(/\D/g, '');
+        managerPhoneNumberInput.value = phoneValue;
+        
+        // Vérifier que le numéro a bien 9 chiffres
+        if (phoneValue.length !== 9) {
+            e.preventDefault();
+            alert('Le numéro de téléphone doit contenir exactement 9 chiffres !');
+            managerPhoneNumberInput.focus();
+            return false;
+        }
+    });
+    
+    // Fonction de confirmation de suppression
+    function confirmDelete(event, managerName) {
+        event.preventDefault();
+        const deleteUrl = event.currentTarget.href;
+        
+        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement le gérant "${managerName}" ?\n\nCette action est irréversible et supprimera toutes les données associées à ce gérant.`)) {
+            // Créer un formulaire pour la suppression (POST avec CSRF)
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = deleteUrl;
+            
+            // Ajouter le token CSRF
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrfToken) {
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrfmiddlewaretoken';
+                csrfInput.value = csrfToken.value;
+                form.appendChild(csrfInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+        
+        return false;
+    }
+</script>
+{% endblock %}
+
