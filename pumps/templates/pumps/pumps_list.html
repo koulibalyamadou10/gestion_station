@@ -5,6 +5,18 @@
 {% block page_title %}Gestion des Pompes{% endblock %}
 
 {% block content %}
+<!-- Indicateur de mode lecture seule (pour les admins) -->
+{% if is_read_only %}
+<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
+    <div class="flex items-center">
+        <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+        <p class="text-sm text-yellow-800">
+            <strong>Mode lecture seule :</strong> Vous pouvez consulter les pompes mais ne pouvez pas les créer, modifier ou enregistrer des lectures.
+        </p>
+    </div>
+</div>
+{% endif %}
+
 <!-- Informations sur la station -->
 <div class="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl shadow-lg p-6 mb-8 text-white">
     <div class="flex items-center justify-between">
@@ -64,7 +76,8 @@
 
 </div>
 
-<!-- Bouton Créer une pompe - En bas à droite -->
+<!-- Bouton Créer une pompe - En bas à droite (uniquement pour les managers) -->
+{% if not is_read_only %}
 <div class="flex justify-end mb-8">
     <button 
         id="createPumpBtn"
@@ -74,6 +87,7 @@
         Créer une pompe
     </button>
 </div>
+{% endif %}
 
 <!-- Filtres et Recherche -->
 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
@@ -186,6 +200,7 @@
                                 >
                                     <i class="fas fa-eye"></i>
                                 </a>
+                                {% if not is_read_only %}
                                 <a 
                                     href="#" 
                                     onclick="openReadingModal('{{ pump.pump_uuid }}', '{{ pump.name }}', '{{ pump.current_index }}'); return false;"
@@ -217,6 +232,7 @@
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -243,7 +259,8 @@
     </div>
 </div>
 
-<!-- Modal de Création de Pompe -->
+<!-- Modal de Création de Pompe (uniquement pour les managers) -->
+{% if not is_read_only %}
 <div id="createPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -341,8 +358,10 @@
         </form>
     </div>
 </div>
+{% endif %}
 
-<!-- Modal de Modification de Pompe -->
+<!-- Modal de Modification de Pompe (uniquement pour les managers) -->
+{% if not is_read_only %}
 <div id="editPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -445,7 +464,8 @@
     </div>
 </div>
 
-<!-- Modal d'Enregistrement de Lecture -->
+<!-- Modal d'Enregistrement de Lecture (uniquement pour les managers) -->
+{% if not is_read_only %}
 <div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -550,6 +570,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 
 <script>
     // Gestion du modal de création

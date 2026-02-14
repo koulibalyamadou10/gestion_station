@@ -9,20 +9,31 @@ from stations.models import StationManager
 from permissions_web import manager_required
 
 @login_required
-@manager_required
 def pumps_list_view(request):
     """
-    Vue pour afficher la liste des pompes du gérant
-    Accessible uniquement aux managers
+    Vue pour afficher la liste des pompes
+    Accessible aux managers (écriture) et aux admins (lecture seule)
     """
-    # Récupérer la station assignée au manager
     try:
-        station_manager = StationManager.objects.filter(manager=request.user).first()
-        if not station_manager:
-            messages.error(request, 'Aucune station ne vous est assignée.')
+        # Pour les managers : récupérer leur station assignée
+        if request.user.role == 'manager':
+            station_manager = StationManager.objects.filter(manager=request.user).first()
+            if not station_manager:
+                messages.error(request, 'Aucune station ne vous est assignée.')
+                return redirect('account:dashboard')
+            station = station_manager.station
+        # Pour les admins : récupérer leurs stations
+        elif request.user.role == 'admin':
+            from stations.models import Station
+            stations = Station.objects.filter(created_by=request.user)
+            if not stations.exists():
+                messages.error(request, 'Vous n\'avez aucune station.')
+                return redirect('account:dashboard')
+            # Pour l'instant, on prend la première station (on pourrait ajouter un sélecteur)
+            station = stations.first()
+        else:
+            messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
             return redirect('account:dashboard')
-        
-        station = station_manager.station
         
         # Récupérer toutes les pompes de cette station
         pumps = Pump.objects.filter(station=station).order_by('-created_at')
@@ -55,6 +66,7 @@ def pumps_list_view(request):
             'filtered_count': filtered_count,
             'search_query': search_query,
             'type_filter': type_filter,
+            'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
         }
         
         return render(request, 'pumps/pumps_list.html', context)
@@ -116,20 +128,30 @@ def create_pump_view(request):
         return redirect('pumps:pumps_list')
 
 @login_required
-@manager_required
 def pump_detail_view(request, pump_uuid):
     """
     Vue pour afficher les détails d'une pompe
-    Accessible uniquement aux managers
+    Accessible aux managers (écriture) et aux admins (lecture seule)
     """
     try:
         pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
         
-        # Vérifier que la pompe appartient à la station du manager
-        station_manager = StationManager.objects.filter(manager=request.user).first()
-        if not station_manager or pump.station != station_manager.station:
-            messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette pompe.')
-            return redirect('pumps:pumps_list')
+        # Vérifier les permissions selon le rôle
+        if request.user.role == 'manager':
+            # Pour les managers : vérifier que la pompe appartient à leur station
+            station_manager = StationManager.objects.filter(manager=request.user).first()
+            if not station_manager or pump.station != station_manager.station:
+                messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette pompe.')
+                return redirect('pumps:pumps_list')
+        elif request.user.role == 'admin':
+            # Pour les admins : vérifier que la pompe appartient à une de leurs stations
+            from stations.models import Station
+            if pump.station.created_by != request.user:
+                messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette pompe.')
+                return redirect('pumps:pumps_list')
+        else:
+            messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
+            return redirect('account:dashboard')
         
         # Récupérer les lectures de la pompe
         readings = PumpReading.objects.filter(pump=pump).order_by('-reading_date', '-created_at')[:10]
@@ -141,6 +163,7 @@ def pump_detail_view(request, pump_uuid):
             'pump': pump,
             'readings': readings,
             'quantity_sold_total': quantity_sold_total,
+            'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
         }
         
         return render(request, 'pumps/pump_detail.html', context)

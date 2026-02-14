@@ -5,6 +5,18 @@
 {% block page_title %}Détails de la Pompe{% endblock %}
 
 {% block content %}
+<!-- Indicateur de mode lecture seule (pour les admins) -->
+{% if is_read_only %}
+<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
+    <div class="flex items-center">
+        <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
+        <p class="text-sm text-yellow-800">
+            <strong>Mode lecture seule :</strong> Vous pouvez consulter les détails de la pompe mais ne pouvez pas la modifier ou enregistrer des lectures.
+        </p>
+    </div>
+</div>
+{% endif %}
+
 <!-- Bouton Retour -->
 <div class="mb-6">
     <a 
@@ -26,6 +38,7 @@
                     <i class="fas fa-info-circle mr-2 text-blue-600"></i>
                     Informations générales
                 </h3>
+                {% if not is_read_only %}
                 <div class="flex items-center space-x-2">
                     <a 
                         href="#" 
@@ -53,6 +66,7 @@
                         </button>
                     </form>
                 </div>
+                {% endif %}
             </div>
 
             <div class="space-y-4">
