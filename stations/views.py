@@ -14,7 +14,7 @@ def stations_list_view(request):
     # Vérifier les permissions
     if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
-        return redirect('dashboard')
+        return redirect('account:dashboard')
     
     # Récupérer toutes les stations pour les statistiques et filtres
     if request.user.role == 'super_admin':
@@ -77,7 +77,7 @@ def create_station_view(request):
     """
     if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission de créer une station.')
-        return redirect('stations_list')
+        return redirect('stations:stations_list')
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
@@ -92,14 +92,14 @@ def create_station_view(request):
             created_by_id = request.POST.get('created_by', '').strip()
             if not created_by_id:
                 messages.error(request, 'Veuillez sélectionner un propriétaire de station.')
-                return redirect('stations_list')
+                return redirect('stations:stations_list')
             
             from account.models import CustomUser
             try:
                 created_by = CustomUser.objects.get(id=created_by_id, role='admin', is_active=True)
             except CustomUser.DoesNotExist:
                 messages.error(request, 'Le propriétaire sélectionné est invalide.')
-                return redirect('stations_list')
+                return redirect('stations:stations_list')
         else:
             # L'admin crée pour lui-même
             created_by = request.user
@@ -107,11 +107,11 @@ def create_station_view(request):
         # Validation
         if not name or not city or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-            return redirect('stations_list')
+            return redirect('stations:stations_list')
         
         if not latitude or not longitude:
             messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
-            return redirect('stations_list')
+            return redirect('stations:stations_list')
         
         try:
             # Convertir les coordonnées en Decimal
@@ -130,10 +130,10 @@ def create_station_view(request):
             )
             
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
-            return redirect('stations_list')
+            return redirect('stations:stations_list')
         except ValueError:
             messages.error(request, 'Les coordonnées géographiques sont invalides.')
-            return redirect('stations_list')
+            return redirect('stations:stations_list')
         except Exception as e:
             messages.error(request, f'Erreur lors de la création de la station : {str(e)}')
     
@@ -147,7 +147,7 @@ def delete_station_view(request, station_id):
     """
     if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission de supprimer une station.')
-        return redirect('stations_list')
+        return redirect('stations:stations_list')
     
     if request.method == 'POST':
         try:
@@ -156,7 +156,7 @@ def delete_station_view(request, station_id):
             # Vérifier les permissions
             if request.user.role == 'admin' and station.created_by != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de supprimer cette station.')
-                return redirect('stations_list')
+                return redirect('stations:stations_list')
             
             station_name = station.name
             station.delete()

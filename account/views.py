@@ -15,7 +15,7 @@ def login_view(request):
     Vue pour gérer la connexion des utilisateurs
     """
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('account:dashboard')
     
     if request.method == 'POST':
         email = request.POST.get('email')
@@ -33,7 +33,7 @@ def login_view(request):
                 login(request, user)
                 messages.success(request, f'Bienvenue {user.get_full_name()} !')
                 # Redirection vers le dashboard
-                next_url = request.GET.get('next', 'dashboard')
+                next_url = request.GET.get('next', 'account:dashboard')
                 return redirect(next_url)
             else:
                 messages.error(request, 'Votre compte est désactivé.')
@@ -135,12 +135,12 @@ def delete_user_view(request, user_id):
             # Empêcher la suppression de soi-même
             if user_to_delete.id == request.user.id:
                 messages.error(request, 'Vous ne pouvez pas supprimer votre propre compte.')
-                return redirect('users_list')
+                return redirect('account:users_list')
             
             # Empêcher la suppression d'un autre super_admin
             if user_to_delete.role == 'super_admin':
                 messages.error(request, 'Vous ne pouvez pas supprimer un autre Super Administrateur.')
-                return redirect('users_list')
+                return redirect('account:users_list')
             
             user_name = user_to_delete.get_full_name()
             user_to_delete.delete()
@@ -151,7 +151,7 @@ def delete_user_view(request, user_id):
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
     
-    return redirect('users_list')
+    return redirect('account:users_list')
 
 def generate_password(length=12):
     """
@@ -234,11 +234,11 @@ def create_user_view(request):
                         f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
                     )
                 
-                return redirect('users_list')
+                return redirect('account:users_list')
             except Exception as e:
                 messages.error(request, f'Erreur lors de la création : {str(e)}')
     
-    return redirect('users_list')
+    return redirect('account:users_list')
 
 @admin_required
 def managers_list_view(request):
@@ -354,11 +354,11 @@ def create_manager_view(request):
                         f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
                     )
                 
-                return redirect('managers_list')
+                return redirect('account:managers_list')
             except Exception as e:
                 messages.error(request, f'Erreur lors de la création : {str(e)}')
     
-    return redirect('managers_list')
+    return redirect('account:managers_list')
 
 @login_required
 def profile_view(request):
@@ -385,7 +385,7 @@ def profile_view(request):
         
         user.save()
         messages.success(request, 'Votre profil a été mis à jour avec succès.')
-        return redirect('profile')
+        return redirect('account:profile')
     
     context = {
         'user': user
@@ -406,17 +406,17 @@ def change_password_view(request):
         # Vérifier le mot de passe actuel
         if not request.user.check_password(current_password):
             messages.error(request, 'Le mot de passe actuel est incorrect.')
-            return redirect('profile')
+            return redirect('account:profile')
         
         # Vérifier que les nouveaux mots de passe correspondent
         if new_password != confirm_password:
             messages.error(request, 'Les nouveaux mots de passe ne correspondent pas.')
-            return redirect('profile')
+            return redirect('account:profile')
         
         # Vérifier la longueur du nouveau mot de passe
         if len(new_password) < 8:
             messages.error(request, 'Le nouveau mot de passe doit contenir au moins 8 caractères.')
-            return redirect('profile')
+            return redirect('account:profile')
         
         # Changer le mot de passe
         request.user.set_password(new_password)
@@ -427,9 +427,9 @@ def change_password_view(request):
         update_session_auth_hash(request, request.user)
         
         messages.success(request, 'Votre mot de passe a été changé avec succès.')
-        return redirect('profile')
+        return redirect('account:profile')
     
-    return redirect('profile')
+    return redirect('account:profile')
 
 @admin_required
 def delete_manager_view(request, manager_id):
@@ -444,7 +444,7 @@ def delete_manager_view(request, manager_id):
             # Vérifier que l'admin peut supprimer ce manager
             if request.user.role == 'admin' and manager_to_delete.created_by != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de supprimer ce gérant.')
-                return redirect('managers_list')
+                return redirect('account:managers_list')
             
             manager_name = manager_to_delete.get_full_name()
             manager_to_delete.delete()
@@ -455,4 +455,4 @@ def delete_manager_view(request, manager_id):
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
     
-    return redirect('managers_list')
+    return redirect('account:managers_list')

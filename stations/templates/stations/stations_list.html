@@ -55,7 +55,7 @@
 
 <!-- Filtres et Recherche -->
 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-    <form method="GET" action="{% url 'stations_list' %}" class="space-y-4">
+    <form method="GET" action="{% url 'stations:stations_list' %}" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Recherche -->
             <div>
@@ -97,7 +97,7 @@
                     Filtrer
                 </button>
                 <a 
-                    href="{% url 'stations_list' %}"
+                    href="{% url 'stations:stations_list' %}"
                     class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold flex items-center justify-center"
                 >
                     <i class="fas fa-redo mr-2"></i>
@@ -175,7 +175,7 @@
                                 </a>
                                 <form 
                                     method="POST" 
-                                    action="{% url 'delete_station' station.id %}" 
+                                    action="{% url 'stations:delete_station' station.id %}" 
                                     class="inline"
                                     onsubmit="return confirmDelete(event, '{{ station.name }}')"
                                 >
@@ -230,7 +230,7 @@
             </button>
         </div>
         
-        <form id="createStationForm" method="POST" action="{% url 'create_station' %}" class="p-6 space-y-4">
+        <form id="createStationForm" method="POST" action="{% url 'stations:create_station' %}" class="p-6 space-y-4">
             {% csrf_token %}
             
             <div>

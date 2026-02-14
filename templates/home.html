@@ -161,11 +161,11 @@
                     <a href="#" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg animate-slide-in-left">
                         <i class="fas fa-rocket mr-2"></i> Commencer maintenant
                     </a>
-                    <a href="{% url 'login' %}" class="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all animate-slide-in-right">
+                    <a href="{% url 'account:login' %}" class="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all animate-slide-in-right">
                         <i class="fas fa-sign-in-alt mr-2"></i> Se connecter
                     </a>
                 {% else %}
-                    <a href="{% url 'dashboard' %}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                    <a href="{% url 'account:dashboard' %}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
                         <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
                     </a>
                 {% endif %}
@@ -500,7 +500,7 @@
                 <i class="fas fa-rocket mr-2"></i> Créer un compte gratuitement
             </a>
         {% else %}
-            <a href="{% url 'dashboard' %}" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+            <a href="{% url 'account:dashboard' %}" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
                 <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
             </a>
         {% endif %}

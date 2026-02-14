@@ -24,7 +24,7 @@
                 </button>
             </div>
 
-            <form id="profileForm" method="POST" action="{% url 'profile' %}" class="space-y-4">
+            <form id="profileForm" method="POST" action="{% url 'account:profile' %}" class="space-y-4">
                 {% csrf_token %}
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -143,7 +143,7 @@
                 Changer le mot de passe
             </h3>
 
-            <form id="changePasswordForm" method="POST" action="{% url 'change_password' %}" class="space-y-4">
+            <form id="changePasswordForm" method="POST" action="{% url 'account:change_password' %}" class="space-y-4">
                 {% csrf_token %}
                 
                 <div>

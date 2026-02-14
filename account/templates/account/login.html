@@ -47,7 +47,7 @@
             </div>
 
             <!-- Formulaire de connexion -->
-            <form method="POST" action="{% url 'login' %}" class="space-y-6">
+            <form method="POST" action="{% url 'account:login' %}" class="space-y-6">
                 {% csrf_token %}
                 
                 <!-- Champ Email -->

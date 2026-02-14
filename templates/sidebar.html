@@ -16,14 +16,14 @@
     <!-- Navigation Menu -->
     <nav class="p-4 space-y-2 overflow-y-auto flex-1">
         <!-- Dashboard -->
-        <a href="{% url 'dashboard' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600{% endif %}">
+        <a href="{% url 'account:dashboard' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600{% endif %}">
             <i class="fas fa-tachometer-alt w-5"></i>
             <span>Tableau de bord</span>
         </a>
 
         <!-- Utilisateurs (Super Admin uniquement) -->
         {% if user.role == 'super_admin' %}
-        <a href="{% url 'users_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'users_list' %}bg-blue-600{% endif %}">
+        <a href="{% url 'account:users_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'users_list' %}bg-blue-600{% endif %}">
             <i class="fas fa-users w-5"></i>
             <span>Utilisateurs</span>
         </a>
@@ -31,7 +31,7 @@
         
         <!-- Gérants (Admin uniquement) -->
         {% if user.role == 'admin' %}
-        <a href="{% url 'managers_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'managers_list' %}bg-blue-600{% endif %}">
+        <a href="{% url 'account:managers_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'managers_list' %}bg-blue-600{% endif %}">
             <i class="fas fa-user-tie w-5"></i>
             <span>Gérants</span>
         </a>
@@ -39,7 +39,7 @@
         
         <!-- Stations (Admin et Super Admin) -->
         {% if user.role == 'admin' or user.role == 'super_admin' %}
-        <a href="{% url 'stations_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'stations_list' %}bg-blue-600{% endif %}">
+        <a href="{% url 'stations:stations_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'stations_list' %}bg-blue-600{% endif %}">
             <i class="fas fa-building w-5"></i>
             <span>Stations</span>
         </a>
@@ -74,7 +74,7 @@
         <div class="border-t border-gray-800 my-4"></div>
 
         <!-- Mon Profil -->
-        <a href="{% url 'profile' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'profile' %}bg-blue-600{% endif %}">
+        <a href="{% url 'account:profile' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'profile' %}bg-blue-600{% endif %}">
             <i class="fas fa-user-circle w-5"></i>
             <span>Mon profil</span>
         </a>
@@ -86,7 +86,7 @@
         </a>
 
         <!-- Déconnexion -->
-        <form method="POST" action="{% url 'logout' %}" class="w-full">
+            <form method="POST" action="{% url 'account:logout' %}" class="w-full">
             {% csrf_token %}
             <button type="submit" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-red-600 transition-colors text-red-300">
                 <i class="fas fa-sign-out-alt w-5"></i>

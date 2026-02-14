@@ -49,7 +49,7 @@
 
 <!-- Filtres et Recherche -->
 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
-    <form method="GET" action="{% url 'managers_list' %}" class="space-y-4">
+    <form method="GET" action="{% url 'account:managers_list' %}" class="space-y-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Recherche -->
             <div>
@@ -90,7 +90,7 @@
                 <i class="fas fa-filter mr-2"></i> Filtrer
             </button>
             <a 
-                href="{% url 'managers_list' %}" 
+                    href="{% url 'account:managers_list' %}"
                 class="text-gray-600 hover:text-gray-800 font-semibold flex items-center"
             >
                 <i class="fas fa-redo mr-2"></i> Réinitialiser
@@ -208,7 +208,7 @@
                                 </a>
                             {% endif %}
                             <a 
-                                href="{% url 'delete_manager' manager.id %}" 
+                                    href="{% url 'account:delete_manager' manager.id %}"
                                 class="text-red-700 hover:text-red-900 p-2 hover:bg-red-100 rounded-lg transition-colors delete-manager-btn"
                                 title="Supprimer définitivement"
                                 onclick="return confirmDelete(event, '{{ manager.get_full_name }}')"
@@ -252,7 +252,7 @@
         </div>
 
         <!-- Form -->
-        <form id="createManagerForm" method="POST" action="{% url 'create_manager' %}" class="p-6">
+        <form id="createManagerForm" method="POST" action="{% url 'account:create_manager' %}" class="p-6">
             {% csrf_token %}
             
             <div class="space-y-6">
