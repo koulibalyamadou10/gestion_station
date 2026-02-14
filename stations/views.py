@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import JsonResponse
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 
@@ -53,9 +54,14 @@ def stations_list_view(request):
     
     # Récupérer la liste des admins pour le super_admin
     admins = None
+    managers = None
     if request.user.role == 'super_admin':
         from account.models import CustomUser
         admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
+    elif request.user.role == 'admin':
+        # Pour les admins, récupérer leurs gérants
+        from account.models import CustomUser
+        managers = CustomUser.objects.filter(role='manager', created_by=request.user, is_active=True).order_by('first_name', 'last_name')
     
     context = {
         'stations': stations,
@@ -65,9 +71,48 @@ def stations_list_view(request):
         'city_filter': city_filter,
         'cities': cities,
         'admins': admins,
+        'managers': managers,
     }
     
     return render(request, 'stations/stations_list.html', context)
+
+@login_required
+def get_managers_by_owner_view(request, owner_id):
+    """
+    Vue AJAX pour récupérer les gérants d'un propriétaire donné
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
+    
+    try:
+        from account.models import CustomUser
+        owner = CustomUser.objects.get(id=owner_id, role='admin', is_active=True)
+        
+        # Vérifier les permissions
+        if request.user.role == 'admin' and owner != request.user:
+            return JsonResponse({'error': 'Permission refusée'}, status=403)
+        
+        # Récupérer les gérants de ce propriétaire
+        managers = CustomUser.objects.filter(
+            role='manager', 
+            created_by=owner, 
+            is_active=True
+        ).order_by('first_name', 'last_name')
+        
+        managers_list = [
+            {
+                'id': manager.id,
+                'name': manager.get_full_name(),
+                'email': manager.email
+            }
+            for manager in managers
+        ]
+        
+        return JsonResponse({'managers': managers_list}, status=200)
+    except CustomUser.DoesNotExist:
+        return JsonResponse({'error': 'Propriétaire introuvable'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def create_station_view(request):
@@ -119,6 +164,23 @@ def create_station_view(request):
             latitude_decimal = Decimal(latitude)
             longitude_decimal = Decimal(longitude)
             
+            # Récupérer le manager sélectionné
+            manager_id = request.POST.get('manager', '').strip()
+            if not manager_id:
+                messages.error(request, 'Veuillez sélectionner un gérant pour la station.')
+                return redirect('stations:stations_list')
+            
+            from account.models import CustomUser
+            try:
+                manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
+                # Vérifier que le manager appartient bien au propriétaire
+                if manager.created_by != created_by:
+                    messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire choisi.')
+                    return redirect('stations:stations_list')
+            except CustomUser.DoesNotExist:
+                messages.error(request, 'Le gérant sélectionné est invalide.')
+                return redirect('stations:stations_list')
+            
             # Créer la station
             station = Station.objects.create(
                 name=name,
@@ -127,6 +189,13 @@ def create_station_view(request):
                 latitude=latitude_decimal,
                 longitude=longitude_decimal,
                 created_by=created_by
+            )
+            
+            # Créer la relation StationManager
+            from stations.models import StationManager
+            StationManager.objects.create(
+                station=station,
+                manager=manager
             )
             
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
