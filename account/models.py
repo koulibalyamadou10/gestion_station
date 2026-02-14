@@ -22,17 +22,11 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ('admin', 'Administrateur'),
-        ('manager', 'Gérant')
+        ('super_admin', 'Super Administrateur'),
+        ('admin', 'Propriétaire d\'une station-service'),
+        ('manager', 'Gérant d\'une station-service'),
     ]
 
-    SEXE_CHOICES = [
-        ('M', 'Masculin'),
-        ('F', 'Féminin'),
-        ('O', 'Autre'),
-    ]
-
-    
     first_name = models.CharField(max_length=50,blank=False,null=False )
     last_name = models.CharField(max_length=50,blank=False, null=False)
     email = models.EmailField(unique=True, blank=False,null=False, error_messages={
@@ -41,7 +35,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         'blank': _("Veuillez entrer un mail valide"),
         'invalid': _("Veuillez entrer un mail valide"),
     })
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="manager")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="super_admin")
     phone_number = models.CharField(max_length=9,blank=False,null=False)
     phone_code = models.CharField(max_length=9, blank=False, null=False)
     
