@@ -62,24 +62,17 @@
         </div>
     </div>
 
-    <!-- Actions -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-gray-600 text-sm font-medium">Actions</p>
-                <button 
-                    id="createPumpBtn"
-                    class="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
-                >
-                    <i class="fas fa-plus mr-2"></i>
-                    Créer une pompe
-                </button>
-            </div>
-            <div class="bg-purple-100 p-4 rounded-full">
-                <i class="fas fa-plus-circle text-3xl text-purple-600"></i>
-            </div>
-        </div>
-    </div>
+</div>
+
+<!-- Bouton Créer une pompe - En bas à droite -->
+<div class="flex justify-end mb-8">
+    <button 
+        id="createPumpBtn"
+        class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center shadow-lg"
+    >
+        <i class="fas fa-plus mr-2"></i>
+        Créer une pompe
+    </button>
 </div>
 
 <!-- Filtres et Recherche -->
@@ -192,6 +185,14 @@
                                     title="Voir les détails"
                                 >
                                     <i class="fas fa-eye"></i>
+                                </a>
+                                <a 
+                                    href="#" 
+                                    onclick="openReadingModal('{{ pump.pump_uuid }}', '{{ pump.name }}', '{{ pump.current_index }}'); return false;"
+                                    class="text-green-600 hover:text-green-800 transition-colors"
+                                    title="Enregistrer une lecture"
+                                >
+                                    <i class="fas fa-clipboard-list"></i>
                                 </a>
                                 <a 
                                     href="#" 
@@ -444,6 +445,112 @@
     </div>
 </div>
 
+<!-- Modal d'Enregistrement de Lecture -->
+<div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-clipboard-list mr-2 text-green-600"></i>
+                Enregistrer une lecture
+            </h3>
+            <button 
+                id="closeReadingModal"
+                class="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        
+        <form id="readingForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                <p class="text-sm text-blue-800">
+                    <strong>Pompe :</strong> <span id="reading_pump_name"></span>
+                </p>
+                <p class="text-xs text-blue-700 mt-1">
+                    Index actuel de la pompe : <strong id="reading_current_index_display"></strong>
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Index Précédent <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="number" 
+                    name="previous_index" 
+                    id="reading_previous_index"
+                    required
+                    min="0"
+                    step="0.01"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    placeholder="0.00"
+                >
+                <p class="text-xs text-gray-500 mt-1">Index de la dernière lecture enregistrée</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Index Actuel <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="number" 
+                    name="current_index" 
+                    id="reading_current_index_input"
+                    required
+                    min="0"
+                    step="0.01"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                    placeholder="0.00"
+                >
+                <p class="text-xs text-gray-500 mt-1">Nouvel index de la pompe</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Date de lecture <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="date" 
+                    name="reading_date" 
+                    id="reading_date"
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                >
+                <p class="text-xs text-gray-500 mt-1">Date à laquelle la lecture a été effectuée</p>
+            </div>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg">
+                <p class="text-sm text-yellow-800">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    <strong>Quantité vendue :</strong> <span id="reading_quantity_sold" class="font-bold">0.00</span> litres
+                </p>
+                <p class="text-xs text-yellow-700 mt-1">
+                    Calculée automatiquement : Index Actuel - Index Précédent
+                </p>
+            </div>
+
+            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button 
+                    type="button"
+                    id="cancelReading"
+                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit"
+                    class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    Enregistrer la lecture
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     // Gestion du modal de création
     const createPumpBtn = document.getElementById('createPumpBtn');
@@ -519,6 +626,100 @@
         }
         return false;
     }
+
+    // Gestion du modal d'enregistrement de lecture
+    const readingModal = document.getElementById('readingModal');
+    const closeReadingModal = document.getElementById('closeReadingModal');
+    const cancelReading = document.getElementById('cancelReading');
+    const readingForm = document.getElementById('readingForm');
+    const readingPreviousIndex = document.getElementById('reading_previous_index');
+    const readingCurrentIndexInput = document.getElementById('reading_current_index_input');
+    const readingDate = document.getElementById('reading_date');
+    const readingQuantitySold = document.getElementById('reading_quantity_sold');
+    
+    function openReadingModal(pumpUuid, pumpName, currentIndex) {
+        // Remplir les informations
+        document.getElementById('reading_pump_name').textContent = pumpName;
+        document.getElementById('reading_current_index_display').textContent = currentIndex;
+        
+        // Définir l'index précédent par défaut (index actuel de la pompe)
+        readingPreviousIndex.value = currentIndex;
+        
+        // Définir la date d'aujourd'hui par défaut
+        const today = new Date().toISOString().split('T')[0];
+        readingDate.value = today;
+        readingDate.min = today; // Empêcher les dates passées
+        
+        // Mettre à jour l'action du formulaire
+        readingForm.action = `/pumps/${pumpUuid}/reading/`;
+        
+        // Calculer la quantité vendue
+        updateQuantitySold();
+        
+        // Ouvrir le modal
+        readingModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeReadingModalFunc() {
+        readingModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        readingForm.reset();
+        readingQuantitySold.textContent = '0.00';
+    }
+    
+    function updateQuantitySold() {
+        const previous = parseFloat(readingPreviousIndex.value) || 0;
+        const current = parseFloat(readingCurrentIndexInput.value) || 0;
+        const quantity = current - previous;
+        readingQuantitySold.textContent = quantity >= 0 ? quantity.toFixed(2) : '0.00';
+        
+        // Changer la couleur si négatif
+        if (quantity < 0) {
+            readingQuantitySold.parentElement.classList.remove('bg-yellow-50', 'border-yellow-500', 'text-yellow-800');
+            readingQuantitySold.parentElement.classList.add('bg-red-50', 'border-red-500', 'text-red-800');
+        } else {
+            readingQuantitySold.parentElement.classList.remove('bg-red-50', 'border-red-500', 'text-red-800');
+            readingQuantitySold.parentElement.classList.add('bg-yellow-50', 'border-yellow-500', 'text-yellow-800');
+        }
+    }
+    
+    readingPreviousIndex?.addEventListener('input', updateQuantitySold);
+    readingCurrentIndexInput?.addEventListener('input', updateQuantitySold);
+    
+    closeReadingModal?.addEventListener('click', closeReadingModalFunc);
+    cancelReading?.addEventListener('click', closeReadingModalFunc);
+    
+    // Fermer le modal en cliquant en dehors
+    readingModal?.addEventListener('click', function(e) {
+        if (e.target === readingModal) {
+            closeReadingModalFunc();
+        }
+    });
+    
+    // Validation du formulaire
+    readingForm?.addEventListener('submit', function(e) {
+        const previous = parseFloat(readingPreviousIndex.value);
+        const current = parseFloat(readingCurrentIndexInput.value);
+        
+        if (current <= previous) {
+            e.preventDefault();
+            alert('L\'index actuel doit être supérieur à l\'index précédent !');
+            readingCurrentIndexInput.focus();
+            return false;
+        }
+        
+        const date = new Date(readingDate.value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (date < today) {
+            e.preventDefault();
+            alert('La date de lecture ne peut pas être antérieure à aujourd\'hui !');
+            readingDate.focus();
+            return false;
+        }
+    });
 </script>
 {% endblock %}
 

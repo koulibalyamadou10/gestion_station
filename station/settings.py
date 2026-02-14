@@ -44,7 +44,8 @@ INSTALLED_APPS = [
 
     'account',
     'stations',
-    'pumps'
+    'pumps',
+    'stocks',
 ]
 
 MIDDLEWARE = [
