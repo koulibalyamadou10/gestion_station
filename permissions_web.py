@@ -133,7 +133,7 @@ def admin_required(view_func):
 
 def manager_required(view_func):
     """
-    Décorateur pour vérifier que l'utilisateur est manager, admin ou super_admin.
+    Décorateur pour vérifier que l'utilisateur est manager uniquement.
     
     Usage:
         @manager_required
@@ -141,14 +141,14 @@ def manager_required(view_func):
             ...
     """
     @wraps(view_func)
-    @login_required(login_url='login')
+    @login_required(login_url='account:login')
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('account:login')
         
         user_role = getattr(request.user, 'role', None)
-        if user_role not in ['super_admin', 'admin', 'manager']:
-            return redirect('not_access')
+        if user_role != 'manager':
+            return redirect('account:not_access')
         
         return view_func(request, *args, **kwargs)
     return wrapper

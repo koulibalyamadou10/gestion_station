@@ -379,3 +379,69 @@ def delete_station_view(request, station_uuid):
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
     
     return redirect('stations:stations_list')
+
+@login_required
+def assign_manager_view(request, station_uuid):
+    """
+    Vue pour assigner ou changer le gérant d'une station
+    Accessible aux admins et super_admins
+    """
+    if request.user.role not in ['super_admin', 'admin']:
+        messages.error(request, 'Vous n\'avez pas la permission d\'assigner un gérant.')
+        return redirect('account:dashboard')
+    
+    if request.method == 'POST':
+        try:
+            station = get_object_or_404(Station, station_uuid=station_uuid)
+            
+            # Vérifier les permissions
+            if request.user.role == 'admin' and station.created_by != request.user:
+                messages.error(request, 'Vous n\'avez pas la permission d\'assigner un gérant à cette station.')
+                return redirect('stations:station_detail', station_uuid=station_uuid)
+            
+            # Si super_admin, permettre de changer le propriétaire
+            owner_id = None
+            if request.user.role == 'super_admin':
+                owner_id = request.POST.get('owner', '').strip()
+                if owner_id:
+                    from account.models import CustomUser
+                    try:
+                        new_owner = CustomUser.objects.get(id=owner_id, role='admin', is_active=True)
+                        station.created_by = new_owner
+                        station.save()
+                    except CustomUser.DoesNotExist:
+                        pass  # Garder le propriétaire actuel si invalide
+            
+            manager_id = request.POST.get('manager', '').strip()
+            
+            if not manager_id:
+                messages.error(request, 'Veuillez sélectionner un gérant.')
+                return redirect('stations:station_detail', station_uuid=station_uuid)
+            
+            from account.models import CustomUser
+            try:
+                new_manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
+                # Vérifier que le manager appartient bien au propriétaire de la station
+                if new_manager.created_by != station.created_by:
+                    messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire de la station.')
+                    return redirect('stations:station_detail', station_uuid=station_uuid)
+                
+                # Mettre à jour ou créer la relation StationManager
+                from stations.models import StationManager
+                station_manager, created = StationManager.objects.get_or_create(
+                    station=station,
+                    defaults={'manager': new_manager}
+                )
+                if not created:
+                    station_manager.manager = new_manager
+                    station_manager.save()
+                
+                messages.success(request, f'Le gérant "{new_manager.get_full_name}" a été assigné à la station "{station.name}" avec succès.')
+            except CustomUser.DoesNotExist:
+                messages.error(request, 'Le gérant sélectionné est invalide.')
+            except Exception as e:
+                messages.error(request, f'Erreur lors de l\'assignation du gérant : {str(e)}')
+        except Exception as e:
+            messages.error(request, f'Erreur : {str(e)}')
+    
+    return redirect('stations:station_detail', station_uuid=station_uuid)

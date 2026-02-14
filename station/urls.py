@@ -26,4 +26,5 @@ urlpatterns = [
     path('', view_home, name='home'),
     path('', include('account.urls')),
     path('stations/', include('stations.urls')),
+    path('pumps/', include('pumps.urls')),
 ]

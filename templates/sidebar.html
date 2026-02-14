@@ -45,8 +45,16 @@
         </a>
         {% endif %}
         
+        <!-- Pompes (Manager uniquement) -->
+        {% if user.role == 'manager' %}
+        <a href="{% url 'pumps:pumps_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'pumps_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-gas-pump w-5"></i>
+            <span>Pompes</span>
+        </a>
+        {% endif %}
+        
         <!-- Finances -->
-        <div class="space-y-1">
+        {% comment %} <div class="space-y-1">
             <a href="#" id="financeMenuBtn" class="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
                 <div class="flex items-center space-x-3">
                     <i class="fas fa-money-bill-wave w-5"></i>
@@ -68,7 +76,7 @@
                     <span>Versements</span>
                 </a>
             </div>
-        </div>
+        </div> {% endcomment %}
 
         <!-- Séparateur -->
         <div class="border-t border-gray-800 my-4"></div>
@@ -80,10 +88,10 @@
         </a>
 
         <!-- Paramètres -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
+        {% comment %} <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
             <i class="fas fa-cog w-5"></i>
             <span>Paramètres</span>
-        </a>
+        </a> {% endcomment %}
 
         <!-- Déconnexion -->
             <form method="POST" action="{% url 'account:logout' %}" class="w-full">
