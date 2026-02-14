@@ -226,15 +226,32 @@ def station_detail_view(request, station_uuid):
             messages.error(request, 'Vous n\'avez pas la permission de voir cette station.')
             return redirect('stations:stations_list')
         
+        # Récupérer le gérant actuel de la station
+        current_manager = None
+        try:
+            from stations.models import StationManager
+            station_manager = StationManager.objects.filter(station=station).first()
+            if station_manager:
+                current_manager = station_manager.manager
+        except:
+            pass
+        
         # Récupérer la liste des admins pour le super_admin
         admins = None
+        managers = None
         if request.user.role == 'super_admin':
             from account.models import CustomUser
             admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
+        elif request.user.role == 'admin':
+            # Pour les admins, récupérer leurs gérants
+            from account.models import CustomUser
+            managers = CustomUser.objects.filter(role='manager', created_by=request.user, is_active=True).order_by('first_name', 'last_name')
         
         context = {
             'station': station,
+            'current_manager': current_manager,
             'admins': admins,
+            'managers': managers,
         }
         
         return render(request, 'stations/stations_detail.html', context)
@@ -286,6 +303,30 @@ def update_station_view(request, station_uuid):
                         station.created_by = created_by
                     except CustomUser.DoesNotExist:
                         pass  # Garder le created_by actuel si invalide
+            
+            # Gérer le changement de gérant
+            manager_id = request.POST.get('manager', '').strip()
+            if manager_id:
+                from account.models import CustomUser
+                try:
+                    new_manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
+                    # Vérifier que le manager appartient bien au propriétaire
+                    if new_manager.created_by != station.created_by:
+                        messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire de la station.')
+                        return redirect('stations:station_detail', station_uuid=station_uuid)
+                    
+                    # Mettre à jour ou créer la relation StationManager
+                    from stations.models import StationManager
+                    station_manager, created = StationManager.objects.get_or_create(
+                        station=station,
+                        defaults={'manager': new_manager}
+                    )
+                    if not created:
+                        station_manager.manager = new_manager
+                        station_manager.save()
+                except CustomUser.DoesNotExist:
+                    messages.error(request, 'Le gérant sélectionné est invalide.')
+                    return redirect('stations:station_detail', station_uuid=station_uuid)
             
             # Convertir les coordonnées en Decimal
             from decimal import Decimal
