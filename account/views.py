@@ -51,6 +51,7 @@ def dashboard_view(request):
         'user': request.user
     })
 
+@csrf_protect
 def logout_view(request):
     """
     Vue pour déconnecter l'utilisateur

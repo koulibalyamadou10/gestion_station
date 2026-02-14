@@ -83,6 +83,8 @@ def create_station_view(request):
         name = request.POST.get('name', '').strip()
         city = request.POST.get('city', '').strip()
         address = request.POST.get('address', '').strip()
+        latitude = request.POST.get('latitude', '').strip()
+        longitude = request.POST.get('longitude', '').strip()
         
         # Déterminer le created_by selon le rôle
         if request.user.role == 'super_admin':
@@ -107,16 +109,30 @@ def create_station_view(request):
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations_list')
         
+        if not latitude or not longitude:
+            messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
+            return redirect('stations_list')
+        
         try:
+            # Convertir les coordonnées en Decimal
+            from decimal import Decimal
+            latitude_decimal = Decimal(latitude)
+            longitude_decimal = Decimal(longitude)
+            
             # Créer la station
             station = Station.objects.create(
                 name=name,
                 city=city,
                 address=address,
+                latitude=latitude_decimal,
+                longitude=longitude_decimal,
                 created_by=created_by
             )
             
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
+            return redirect('stations_list')
+        except ValueError:
+            messages.error(request, 'Les coordonnées géographiques sont invalides.')
             return redirect('stations_list')
         except Exception as e:
             messages.error(request, f'Erreur lors de la création de la station : {str(e)}')
