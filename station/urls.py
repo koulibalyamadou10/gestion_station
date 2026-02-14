@@ -15,15 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.shortcuts import render
-from account.views import (
-    login_view, dashboard_view, logout_view, 
-    users_list_view, not_access_view, create_user_view, delete_user_view,
-    managers_list_view, create_manager_view, delete_manager_view,
-    profile_view, change_password_view
-)
-from stations.views import stations_list_view, create_station_view, delete_station_view
 
 def view_home(request):
     return render(request, 'home.html')
@@ -31,19 +24,6 @@ def view_home(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', view_home, name='home'),
-    path('login/', login_view, name='login'),
-    path('logout/', logout_view, name='logout'),
-    path('dashboard/', dashboard_view, name='dashboard'),
-    path('users/', users_list_view, name='users_list'),
-    path('users/create/', create_user_view, name='create_user'),
-    path('users/delete/<int:user_id>/', delete_user_view, name='delete_user'),
-    path('managers/', managers_list_view, name='managers_list'),
-    path('managers/create/', create_manager_view, name='create_manager'),
-    path('managers/delete/<int:manager_id>/', delete_manager_view, name='delete_manager'),
-    path('profile/', profile_view, name='profile'),
-    path('profile/change-password/', change_password_view, name='change_password'),
-    path('stations/', stations_list_view, name='stations_list'),
-    path('stations/create/', create_station_view, name='create_station'),
-    path('stations/delete/<int:station_id>/', delete_station_view, name='delete_station'),
-    path('not-access/', not_access_view, name='not_access'),
+    path('', include('account.urls')),
+    path('stations/', include('stations.urls')),
 ]

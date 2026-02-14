@@ -51,6 +51,12 @@ def stations_list_view(request):
     else:
         cities = Station.objects.filter(created_by=request.user).values_list('city', flat=True).distinct().order_by('city')
     
+    # Récupérer la liste des admins pour le super_admin
+    admins = None
+    if request.user.role == 'super_admin':
+        from account.models import CustomUser
+        admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
+    
     context = {
         'stations': stations,
         'total_stations': total_stations,
@@ -58,6 +64,7 @@ def stations_list_view(request):
         'search_query': search_query,
         'city_filter': city_filter,
         'cities': cities,
+        'admins': admins,
     }
     
     return render(request, 'stations/stations_list.html', context)
@@ -77,6 +84,24 @@ def create_station_view(request):
         city = request.POST.get('city', '').strip()
         address = request.POST.get('address', '').strip()
         
+        # Déterminer le created_by selon le rôle
+        if request.user.role == 'super_admin':
+            # Le super_admin peut choisir un admin
+            created_by_id = request.POST.get('created_by', '').strip()
+            if not created_by_id:
+                messages.error(request, 'Veuillez sélectionner un propriétaire de station.')
+                return redirect('stations_list')
+            
+            from account.models import CustomUser
+            try:
+                created_by = CustomUser.objects.get(id=created_by_id, role='admin', is_active=True)
+            except CustomUser.DoesNotExist:
+                messages.error(request, 'Le propriétaire sélectionné est invalide.')
+                return redirect('stations_list')
+        else:
+            # L'admin crée pour lui-même
+            created_by = request.user
+        
         # Validation
         if not name or not city or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
@@ -88,7 +113,7 @@ def create_station_view(request):
                 name=name,
                 city=city,
                 address=address,
-                created_by=request.user
+                created_by=created_by
             )
             
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')

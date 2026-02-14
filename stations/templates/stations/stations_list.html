@@ -124,9 +124,6 @@
                         <i class="fas fa-user mr-2"></i>Créé par
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-calendar mr-2"></i>Date de création
-                    </th>
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         <i class="fas fa-cog mr-2"></i>Actions
                     </th>
                 </tr>
@@ -158,15 +155,6 @@
                                     <span>{{ station.created_by.get_full_name }}</span>
                                 </div>
                                 <div class="text-xs text-gray-500 mt-1">{{ station.created_by.email }}</div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">
-                                <i class="fas fa-calendar-alt mr-2 text-gray-400"></i>
-                                {{ station.created_at|date:"d/m/Y" }}
-                            </div>
-                            <div class="text-xs text-gray-500">
-                                {{ station.created_at|date:"H:i" }}
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -283,6 +271,29 @@
                     placeholder="Ex: Route du Niger, Commune de Matam"
                 ></textarea>
             </div>
+
+            <!-- Champ created_by : visible uniquement pour super_admin -->
+            {% if user.role == 'super_admin' %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Propriétaire de la station <span class="text-red-500">*</span>
+                </label>
+                <select 
+                    name="created_by" 
+                    required
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Sélectionner un propriétaire</option>
+                    {% for admin in admins %}
+                        <option value="{{ admin.id }}">{{ admin.get_full_name }} ({{ admin.email }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Sélectionnez le propriétaire de la station-service</p>
+            </div>
+            {% else %}
+            <!-- Champ caché pour les admins -->
+            <input type="hidden" name="created_by" value="{{ user.id }}">
+            {% endif %}
 
             <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button 
