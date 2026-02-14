@@ -37,30 +37,14 @@
         </a>
         {% endif %}
         
-        <!-- Stations -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
+        <!-- Stations (Admin et Super Admin) -->
+        {% if user.role == 'admin' or user.role == 'super_admin' %}
+        <a href="{% url 'stations_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'stations_list' %}bg-blue-600{% endif %}">
             <i class="fas fa-building w-5"></i>
             <span>Stations</span>
         </a>
-
-        <!-- Pompes -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
-            <i class="fas fa-gas-pump w-5"></i>
-            <span>Pompes</span>
-        </a>
-
-        <!-- Stock -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
-            <i class="fas fa-oil-can w-5"></i>
-            <span>Stock</span>
-        </a>
-
-        <!-- Approvisionnements -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
-            <i class="fas fa-truck w-5"></i>
-            <span>Approvisionnements</span>
-        </a>
-
+        {% endif %}
+        
         <!-- Finances -->
         <div class="space-y-1">
             <a href="#" id="financeMenuBtn" class="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
@@ -85,12 +69,6 @@
                 </a>
             </div>
         </div>
-
-        <!-- Rapports -->
-        <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
-            <i class="fas fa-chart-line w-5"></i>
-            <span>Rapports</span>
-        </a>
 
         <!-- Séparateur -->
         <div class="border-t border-gray-800 my-4"></div>

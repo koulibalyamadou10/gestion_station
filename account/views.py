@@ -321,6 +321,8 @@ def create_manager_view(request):
             try:
                 # Générer un mot de passe sécurisé
                 generated_password = generate_password(16)
+
+                print(generated_password)
                 
                 # Créer le manager
                 manager = CustomUser.objects.create_user(
