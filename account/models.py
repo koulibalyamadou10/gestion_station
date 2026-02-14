@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
 from django.conf import settings
+import uuid
 
 # Create your models here.
 class CustomUserManager(BaseUserManager):
@@ -29,6 +30,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('manager', 'Gérant d\'une station-service'),
     ]
     
+    user_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     first_name = models.CharField(max_length=50,blank=False,null=False )
     last_name = models.CharField(max_length=50,blank=False, null=False)
     email = models.EmailField(unique=True, blank=False,null=False, error_messages={

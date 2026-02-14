@@ -140,7 +140,7 @@ def create_station_view(request):
     return redirect('stations:stations_list')
 
 @login_required
-def station_detail_view(request, station_id):
+def station_detail_view(request, station_uuid):
     """
     Vue pour afficher les détails d'une station
     Accessible aux admins et super_admins
@@ -150,7 +150,7 @@ def station_detail_view(request, station_id):
         return redirect('account:dashboard')
     
     try:
-        station = get_object_or_404(Station, id=station_id)
+        station = get_object_or_404(Station, station_uuid=station_uuid)
         
         # Vérifier les permissions
         if request.user.role == 'admin' and station.created_by != request.user:
@@ -167,7 +167,7 @@ def station_detail_view(request, station_id):
         return redirect('stations:stations_list')
 
 @login_required
-def delete_station_view(request, station_id):
+def delete_station_view(request, station_uuid):
     """
     Vue pour supprimer une station
     Accessible aux admins et super_admins
@@ -178,7 +178,7 @@ def delete_station_view(request, station_id):
     
     if request.method == 'POST':
         try:
-            station = get_object_or_404(Station, id=station_id)
+            station = get_object_or_404(Station, station_uuid=station_uuid)
             
             # Vérifier les permissions
             if request.user.role == 'admin' and station.created_by != request.user:

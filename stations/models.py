@@ -1,7 +1,9 @@
 from django.db import models
+import uuid
 
 # Create your models here.
 class Station(models.Model):
+    station_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     name = models.CharField(max_length=255)
     city = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
