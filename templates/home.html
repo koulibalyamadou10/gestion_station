@@ -1,0 +1,365 @@
+{% extends 'base.html' %}
+
+{% block title %}Accueil - Système de Gestion de Station-Service{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center">
+            <h1 class="text-5xl md:text-6xl font-bold mb-6 animate-fade-in">
+                <i class="fas fa-gas-pump mr-4"></i>
+                Gestion Complète de Station-Service
+            </h1>
+            <p class="text-xl md:text-2xl mb-8 text-blue-100 max-w-3xl mx-auto">
+                Solution professionnelle pour gérer vos stations-service : 
+                carburant, pompes, stock, finances et rapports en un seul endroit.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                {% if not user.is_authenticated %}
+                    <a href="{% url 'register' %}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-rocket mr-2"></i> Commencer maintenant
+                    </a>
+                    <a href="{% url 'login' %}" class="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-all">
+                        <i class="fas fa-sign-in-alt mr-2"></i> Se connecter
+                    </a>
+                {% else %}
+                    <a href="#" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Overview -->
+<section class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-star text-yellow-500 mr-2"></i>
+                Fonctionnalités Principales
+            </h2>
+            <p class="text-xl text-gray-600">Tout ce dont vous avez besoin pour gérer efficacement votre station</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <!-- Feature 1: Pompes -->
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+                <div class="text-4xl text-blue-600 mb-4">
+                    <i class="fas fa-gas-pump"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Gestion des Pompes</h3>
+                <p class="text-gray-600">
+                    Suivez les index, calculez automatiquement les ventes et gérez vos pompes Essence/Gazoil.
+                </p>
+            </div>
+            
+            <!-- Feature 2: Stock -->
+            <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+                <div class="text-4xl text-green-600 mb-4">
+                    <i class="fas fa-oil-can"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Gestion du Stock</h3>
+                <p class="text-gray-600">
+                    Suivi en temps réel du stock avec déduction automatique des ventes et ajout des approvisionnements.
+                </p>
+            </div>
+            
+            <!-- Feature 3: Finances -->
+            <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+                <div class="text-4xl text-yellow-600 mb-4">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Gestion Financière</h3>
+                <p class="text-gray-600">
+                    Caisse, dépenses, versements et classification automatique de toutes vos transactions.
+                </p>
+            </div>
+            
+            <!-- Feature 4: Rapports -->
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-2">
+                <div class="text-4xl text-purple-600 mb-4">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Rapports & Statistiques</h3>
+                <p class="text-gray-600">
+                    Rapports journaliers, mensuels et analyses détaillées pour une meilleure prise de décision.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Architecture Section -->
+<section class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-sitemap text-blue-600 mr-2"></i>
+                Architecture du Système
+            </h2>
+            <p class="text-xl text-gray-600">4 piliers fondamentaux pour une gestion optimale</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-md text-center border-t-4 border-blue-500">
+                <div class="text-5xl text-blue-600 mb-4">
+                    <i class="fas fa-list-ol"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Index</h3>
+                <p class="text-gray-600 text-sm">Calcul automatique des ventes</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-md text-center border-t-4 border-green-500">
+                <div class="text-5xl text-green-600 mb-4">
+                    <i class="fas fa-database"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Stock</h3>
+                <p class="text-gray-600 text-sm">Suivi carburant en temps réel</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-md text-center border-t-4 border-yellow-500">
+                <div class="text-5xl text-yellow-600 mb-4">
+                    <i class="fas fa-wallet"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Finances</h3>
+                <p class="text-gray-600 text-sm">Caisse, dépenses, versements</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-md text-center border-t-4 border-purple-500">
+                <div class="text-5xl text-purple-600 mb-4">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Rapports</h3>
+                <p class="text-gray-600 text-sm">Analyse & décision</p>
+            </div>
+        </div>
+        
+        <div class="mt-12 bg-white p-8 rounded-xl shadow-lg">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">Flux de données</h3>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4">
+                <div class="flex items-center bg-blue-100 px-6 py-3 rounded-lg">
+                    <i class="fas fa-gas-pump text-blue-600 mr-2"></i>
+                    <span class="font-semibold text-gray-800">Index des pompes</span>
+                </div>
+                <i class="fas fa-arrow-right text-gray-400 text-2xl"></i>
+                <div class="flex items-center bg-green-100 px-6 py-3 rounded-lg">
+                    <i class="fas fa-calculator text-green-600 mr-2"></i>
+                    <span class="font-semibold text-gray-800">Calcul des ventes</span>
+                </div>
+                <i class="fas fa-arrow-right text-gray-400 text-2xl"></i>
+                <div class="flex items-center bg-yellow-100 px-6 py-3 rounded-lg">
+                    <i class="fas fa-sync-alt text-yellow-600 mr-2"></i>
+                    <span class="font-semibold text-gray-800">Mise à jour stock</span>
+                </div>
+                <i class="fas fa-arrow-right text-gray-400 text-2xl"></i>
+                <div class="flex items-center bg-purple-100 px-6 py-3 rounded-lg">
+                    <i class="fas fa-chart-bar text-purple-600 mr-2"></i>
+                    <span class="font-semibold text-gray-800">Rapports</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Roles Section -->
+<section class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-users text-blue-600 mr-2"></i>
+                Gestion des Rôles
+            </h2>
+            <p class="text-xl text-gray-600">Deux rôles avec des permissions adaptées</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Admin Card -->
+            <div class="bg-gradient-to-br from-red-50 to-red-100 p-8 rounded-xl shadow-lg border-l-4 border-red-500">
+                <div class="flex items-center mb-6">
+                    <div class="bg-red-500 text-white p-4 rounded-full mr-4">
+                        <i class="fas fa-user-shield text-2xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800">Administrateur</h3>
+                        <p class="text-gray-600">Superviseur global du système</p>
+                    </div>
+                </div>
+                
+                <ul class="space-y-3">
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Créer et gérer les stations</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Gérer les gérants et leurs assignations</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Configurer les pompes et index</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Accéder aux rapports globaux</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Modifier et corriger les données</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <!-- Manager Card -->
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-8 rounded-xl shadow-lg border-l-4 border-blue-500">
+                <div class="flex items-center mb-6">
+                    <div class="bg-blue-500 text-white p-4 rounded-full mr-4">
+                        <i class="fas fa-user-tie text-2xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800">Gérant</h3>
+                        <p class="text-gray-600">Responsable d'une ou plusieurs stations</p>
+                    </div>
+                </div>
+                
+                <ul class="space-y-3">
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Enregistrer les index des pompes</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Gérer le stock actuel</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Enregistrer dépenses et versements</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Gérer les approvisionnements</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-check-circle text-green-600 mr-2 mt-1"></i>
+                        <span class="text-gray-700">Consulter les rapports de sa station</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Key Features Detail -->
+<section class="py-16 bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-cogs text-blue-600 mr-2"></i>
+                Fonctionnalités Détaillées
+            </h2>
+        </div>
+        
+        <div class="space-y-8">
+            <!-- Pompes -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fas fa-gas-pump text-3xl text-blue-600 mr-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-800">Gestion des Pompes</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2"><i class="fas fa-cog text-blue-500 mr-2"></i>Paramétrage initial</h4>
+                        <p class="text-gray-600 text-sm">Définir la date de début et les index initiaux de chaque pompe</p>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-gray-700 mb-2"><i class="fas fa-calculator text-green-500 mr-2"></i>Calcul automatique</h4>
+                        <p class="text-gray-600 text-sm">Calcul automatique des ventes : Index actuel - Index précédent</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stock -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fas fa-oil-can text-3xl text-green-600 mr-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-800">Gestion du Stock</h3>
+                </div>
+                <p class="text-gray-600 mt-4">
+                    Suivi en temps réel avec déduction automatique des ventes et ajout des approvisionnements. 
+                    Le système calcule automatiquement les écarts et maintient l'historique complet.
+                </p>
+            </div>
+            
+            <!-- Approvisionnement -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fas fa-truck text-3xl text-orange-600 mr-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-800">Approvisionnement</h3>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <i class="fas fa-calendar text-2xl text-blue-500 mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-700">Date de réception</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <i class="fas fa-flask text-2xl text-green-500 mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-700">Produit</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <i class="fas fa-ruler text-2xl text-purple-500 mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-700">Quantités</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <i class="fas fa-id-card text-2xl text-red-500 mb-2"></i>
+                        <p class="text-sm font-semibold text-gray-700">Chauffeur</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Finances -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fas fa-money-bill-wave text-3xl text-yellow-600 mr-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-800">Gestion Financière</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                    <div class="p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-500">
+                        <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-cash-register mr-2"></i>Caisse</h4>
+                        <p class="text-sm text-gray-600">Argent issu des ventes, mise à jour automatique</p>
+                    </div>
+                    <div class="p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
+                        <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-arrow-down mr-2"></i>Dépenses</h4>
+                        <p class="text-sm text-gray-600">Classification : Salaire, Maintenance, Transport, etc.</p>
+                    </div>
+                    <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                        <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-arrow-up mr-2"></i>Versements</h4>
+                        <p class="text-sm text-gray-600">Transfert caisse vers banque avec référence</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-16 bg-gradient-to-r from-blue-600 to-blue-800 text-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-4xl font-bold mb-4">Prêt à simplifier votre gestion ?</h2>
+        <p class="text-xl text-blue-100 mb-8">
+            Rejoignez-nous dès aujourd'hui et transformez la façon dont vous gérez votre station-service.
+        </p>
+        {% if not user.is_authenticated %}
+            <a href="{% url 'register' %}" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                <i class="fas fa-rocket mr-2"></i> Créer un compte gratuitement
+            </a>
+        {% else %}
+            <a href="#" class="inline-block bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-all transform hover:scale-105 shadow-lg">
+                <i class="fas fa-tachometer-alt mr-2"></i> Accéder au tableau de bord
+            </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
