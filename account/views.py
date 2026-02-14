@@ -6,6 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from account.models import CustomUser
 from permissions_web import super_admin_required, admin_required
+from django.core.mail import send_mail
+from django.conf import settings
+import secrets
+import string
 
 @csrf_protect
 def login_view(request):
@@ -119,18 +123,25 @@ def not_access_view(request):
     """
     return render(request, 'account/not_access.html')
 
+def generate_password(length=12):
+    """
+    Génère un mot de passe sécurisé aléatoire
+    """
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    password = ''.join(secrets.choice(alphabet) for i in range(length))
+    return password
+
 @super_admin_required
 def create_user_view(request):
     """
     Vue pour créer un nouvel utilisateur (admin uniquement)
     Accessible uniquement aux super_admins
+    Génère automatiquement un mot de passe et l'envoie par email
     """
     if request.method == 'POST':
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         email = request.POST.get('email')
-        password = request.POST.get('password')
-        password_confirm = request.POST.get('password_confirm')
         phone_code = request.POST.get('phone_code')
         phone_number = request.POST.get('phone_number')
         role = request.POST.get('role', 'admin')  # Par défaut admin
@@ -146,12 +157,6 @@ def create_user_view(request):
         elif CustomUser.objects.filter(email=email).exists():
             errors.append('Cet email est déjà utilisé.')
         
-        if not password or len(password) < 8:
-            errors.append('Le mot de passe doit contenir au moins 8 caractères.')
-        
-        if password != password_confirm:
-            errors.append('Les mots de passe ne correspondent pas.')
-        
         if not phone_code or not phone_number:
             errors.append('Le code et le numéro de téléphone sont requis.')
         
@@ -164,10 +169,13 @@ def create_user_view(request):
                 messages.error(request, error)
         else:
             try:
+                # Générer un mot de passe sécurisé
+                generated_password = generate_password(16)
+                
                 # Créer l'utilisateur
                 user = CustomUser.objects.create_user(
                     email=email,
-                    password=password,
+                    password=generated_password,
                     first_name=first_name,
                     last_name=last_name,
                     phone_code=phone_code,
@@ -175,7 +183,49 @@ def create_user_view(request):
                     role='admin',  # Forcé à admin
                     is_active=True
                 )
-                messages.success(request, f'Utilisateur {user.get_full_name()} créé avec succès !')
+                
+                # Envoyer l'email avec le mot de passe
+                try:
+                    subject = 'Bienvenue sur Station Manager - Vos identifiants de connexion'
+                    message = f"""
+Bonjour {user.get_full_name()},
+
+Votre compte a été créé avec succès sur la plateforme Station Manager.
+
+Voici vos identifiants de connexion :
+
+📧 Email : {user.email}
+🔑 Mot de passe : {generated_password}
+
+⚠️ IMPORTANT : Pour des raisons de sécurité, nous vous recommandons fortement de changer ce mot de passe lors de votre première connexion.
+
+Vous pouvez vous connecter en visitant : {request.build_absolute_uri('/login/')}
+
+Cordialement,
+L'équipe Station Manager
+                    """
+                    
+                    send_mail(
+                        subject,
+                        message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [user.email],
+                        fail_silently=False,
+                    )
+                    
+                    messages.success(
+                        request, 
+                        f'Utilisateur {user.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {user.email}.'
+                    )
+                except Exception as email_error:
+                    # Si l'envoi d'email échoue, on crée quand même l'utilisateur mais on affiche un avertissement
+                    messages.warning(
+                        request, 
+                        f'Utilisateur {user.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
+                        f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
+                    )
+                    messages.error(request, f'Erreur email : {str(email_error)}')
+                
                 return redirect('users_list')
             except Exception as e:
                 messages.error(request, f'Erreur lors de la création : {str(e)}')

@@ -367,32 +367,17 @@
                                 placeholder="email@example.com"
                             >
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    Mot de passe <span class="text-red-500">*</span>
-                                </label>
-                                <input 
-                                    type="password" 
-                                    name="password" 
-                                    required
-                                    id="password"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                    placeholder="••••••••"
-                                >
-                            </div>
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    Confirmer le mot de passe <span class="text-red-500">*</span>
-                                </label>
-                                <input 
-                                    type="password" 
-                                    name="password_confirm" 
-                                    required
-                                    id="password_confirm"
-                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                    placeholder="••••••••"
-                                >
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                            <div class="flex items-start">
+                                <i class="fas fa-info-circle text-blue-600 mr-2 mt-1"></i>
+                                <div>
+                                    <p class="text-sm text-blue-800 font-semibold mb-1">
+                                        Mot de passe généré automatiquement
+                                    </p>
+                                    <p class="text-xs text-blue-700">
+                                        Un mot de passe sécurisé sera généré automatiquement et envoyé par email à l'utilisateur.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -501,17 +486,11 @@
 
     // Validation du formulaire
     createUserForm.addEventListener('submit', function(e) {
-        if (password.value !== passwordConfirm.value) {
+        // Validation basique - le mot de passe sera généré côté serveur
+        const email = document.querySelector('input[name="email"]').value;
+        if (!email || !email.includes('@')) {
             e.preventDefault();
-            alert('Les mots de passe ne correspondent pas !');
-            passwordConfirm.focus();
-            return false;
-        }
-
-        if (password.value.length < 8) {
-            e.preventDefault();
-            alert('Le mot de passe doit contenir au moins 8 caractères !');
-            password.focus();
+            alert('Veuillez entrer une adresse email valide !');
             return false;
         }
     });
