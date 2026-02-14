@@ -394,13 +394,13 @@
                             <label class="block text-sm font-semibold text-gray-700 mb-2">
                                 Code téléphone <span class="text-red-500">*</span>
                             </label>
-                            <input 
-                                type="text" 
+                            <select 
                                 name="phone_code" 
                                 required
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                placeholder="+225"
                             >
+                                <option value="224" selected>224</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -409,11 +409,13 @@
                             <input 
                                 type="text" 
                                 name="phone_number" 
+                                id="phone_number"
                                 required
-                                maxlength="9"
+                                maxlength="13"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                                placeholder="012345678"
+                                placeholder="624-52-85-96"
                             >
+                            <p class="text-xs text-gray-500 mt-1">Format : 624-52-85-96</p>
                         </div>
                     </div>
                 </div>
@@ -484,13 +486,55 @@
         }
     });
 
-    // Validation du formulaire
+    // Formatage du numéro de téléphone (format guinéen : 624-52-85-96)
+    const phoneNumberInput = document.getElementById('phone_number');
+    
+    phoneNumberInput.addEventListener('input', function(e) {
+        // Enlever tous les caractères non numériques
+        let value = e.target.value.replace(/\D/g, '');
+        
+        // Limiter à 9 chiffres
+        if (value.length > 9) {
+            value = value.substring(0, 9);
+        }
+        
+        // Formater avec des tirets : 624-52-85-96
+        let formatted = '';
+        if (value.length > 0) {
+            formatted = value.substring(0, 3);
+            if (value.length > 3) {
+                formatted += '-' + value.substring(3, 5);
+            }
+            if (value.length > 5) {
+                formatted += '-' + value.substring(5, 7);
+            }
+            if (value.length > 7) {
+                formatted += '-' + value.substring(7, 9);
+            }
+        }
+        
+        e.target.value = formatted;
+    });
+    
+    // Enlever les séparateurs avant la soumission
     createUserForm.addEventListener('submit', function(e) {
         // Validation basique - le mot de passe sera généré côté serveur
         const email = document.querySelector('input[name="email"]').value;
         if (!email || !email.includes('@')) {
             e.preventDefault();
             alert('Veuillez entrer une adresse email valide !');
+            return false;
+        }
+        
+        // Enlever les tirets du numéro de téléphone avant l'envoi
+        const phoneValue = phoneNumberInput.value.replace(/\D/g, '');
+        phoneNumberInput.value = phoneValue;
+        
+        // Vérifier que le numéro a bien 9 chiffres
+        if (phoneValue.length !== 9) {
+            e.preventDefault();
+            alert('Le numéro de téléphone doit contenir exactement 9 chiffres !');
+            phoneNumberInput.focus();
             return false;
         }
     });
