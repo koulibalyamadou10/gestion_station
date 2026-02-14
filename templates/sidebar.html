@@ -79,6 +79,14 @@
         <!-- Séparateur -->
         <div class="border-t border-gray-800 my-4"></div>
 
+        <!-- Utilisateurs (Super Admin uniquement) -->
+        {% if user.role == 'super_admin' %}
+        <a href="{% url 'users_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'users_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-users w-5"></i>
+            <span>Utilisateurs</span>
+        </a>
+        {% endif %}
+
         <!-- Paramètres -->
         <a href="#" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors">
             <i class="fas fa-cog w-5"></i>

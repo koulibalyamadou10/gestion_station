@@ -118,3 +118,66 @@ def not_access_view(request):
     Vue pour afficher le message d'accès refusé
     """
     return render(request, 'account/not_access.html')
+
+@super_admin_required
+def create_user_view(request):
+    """
+    Vue pour créer un nouvel utilisateur (admin uniquement)
+    Accessible uniquement aux super_admins
+    """
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        password_confirm = request.POST.get('password_confirm')
+        phone_code = request.POST.get('phone_code')
+        phone_number = request.POST.get('phone_number')
+        role = request.POST.get('role', 'admin')  # Par défaut admin
+        
+        # Validation
+        errors = []
+        
+        if not first_name or not last_name:
+            errors.append('Le prénom et le nom sont requis.')
+        
+        if not email:
+            errors.append('L\'email est requis.')
+        elif CustomUser.objects.filter(email=email).exists():
+            errors.append('Cet email est déjà utilisé.')
+        
+        if not password or len(password) < 8:
+            errors.append('Le mot de passe doit contenir au moins 8 caractères.')
+        
+        if password != password_confirm:
+            errors.append('Les mots de passe ne correspondent pas.')
+        
+        if not phone_code or not phone_number:
+            errors.append('Le code et le numéro de téléphone sont requis.')
+        
+        # Le super_admin ne peut créer que des admins
+        if role != 'admin':
+            errors.append('Vous ne pouvez créer que des utilisateurs avec le rôle Admin.')
+        
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+        else:
+            try:
+                # Créer l'utilisateur
+                user = CustomUser.objects.create_user(
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone_code=phone_code,
+                    phone_number=phone_number,
+                    role='admin',  # Forcé à admin
+                    is_active=True
+                )
+                messages.success(request, f'Utilisateur {user.get_full_name()} créé avec succès !')
+                return redirect('users_list')
+            except Exception as e:
+                messages.error(request, f'Erreur lors de la création : {str(e)}')
+    
+    return redirect('users_list')

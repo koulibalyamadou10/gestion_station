@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render
-from account.views import login_view, dashboard_view, logout_view
+from account.views import login_view, dashboard_view, logout_view, users_list_view, not_access_view, create_user_view
 
 def view_home(request):
     return render(request, 'home.html')
@@ -28,4 +28,7 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('logout/', logout_view, name='logout'),
     path('dashboard/', dashboard_view, name='dashboard'),
+    path('users/', users_list_view, name='users_list'),
+    path('users/create/', create_user_view, name='create_user'),
+    path('not-access/', not_access_view, name='not_access'),
 ]

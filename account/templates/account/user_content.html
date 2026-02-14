@@ -1,0 +1,520 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Gestion des Utilisateurs - Système de Gestion de Station-Service{% endblock %}
+
+{% block page_title %}Gestion des Utilisateurs{% endblock %}
+
+{% block content %}
+<!-- Cards Statistiques -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+    <!-- Total Utilisateurs -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Total</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_users }}</p>
+            </div>
+            <div class="bg-blue-100 p-4 rounded-full">
+                <i class="fas fa-users text-3xl text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Utilisateurs Actifs -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Actifs</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ active_users }}</p>
+            </div>
+            <div class="bg-green-100 p-4 rounded-full">
+                <i class="fas fa-user-check text-3xl text-green-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Super Admins -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Super Admins</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ super_admins }}</p>
+            </div>
+            <div class="bg-purple-100 p-4 rounded-full">
+                <i class="fas fa-user-crown text-3xl text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admins -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Admins</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ admins }}</p>
+            </div>
+            <div class="bg-yellow-100 p-4 rounded-full">
+                <i class="fas fa-user-shield text-3xl text-yellow-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Managers -->
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Gérants</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ managers }}</p>
+            </div>
+            <div class="bg-orange-100 p-4 rounded-full">
+                <i class="fas fa-user-tie text-3xl text-orange-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtres et Recherche -->
+<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <form method="GET" action="{% url 'users_list' %}" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Recherche -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-search mr-2 text-blue-600"></i>Rechercher
+                </label>
+                <input 
+                    type="text" 
+                    name="search" 
+                    value="{{ search_query }}"
+                    placeholder="Nom, email, téléphone..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+            </div>
+
+            <!-- Filtre par rôle -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-user-tag mr-2 text-blue-600"></i>Rôle
+                </label>
+                <select 
+                    name="role" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Tous les rôles</option>
+                    {% for role_value, role_label in role_choices %}
+                        <option value="{{ role_value }}" {% if role_filter == role_value %}selected{% endif %}>
+                            {{ role_label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Filtre par statut -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <i class="fas fa-toggle-on mr-2 text-blue-600"></i>Statut
+                </label>
+                <select 
+                    name="status" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Tous les statuts</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Actifs</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactifs</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+            <button 
+                type="submit" 
+                class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+            >
+                <i class="fas fa-filter mr-2"></i> Filtrer
+            </button>
+            <a 
+                href="{% url 'users_list' %}" 
+                class="text-gray-600 hover:text-gray-800 font-semibold flex items-center"
+            >
+                <i class="fas fa-redo mr-2"></i> Réinitialiser
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Liste des Utilisateurs -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800 flex items-center">
+            <i class="fas fa-list mr-2 text-blue-600"></i>
+            Liste des Utilisateurs ({{ users.count }})
+        </h3>
+        <button 
+            id="createUserBtn"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+        >
+            <i class="fas fa-user-plus mr-2"></i>
+            Créer un utilisateur
+        </button>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Utilisateur
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Rôle
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Contact
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Statut
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Date de création
+                    </th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Actions
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for user in users %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-user text-white"></i>
+                            </div>
+                            <div class="ml-4">
+                                <div class="text-sm font-semibold text-gray-900">
+                                    {{ user.get_full_name }}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    {{ user.email }}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if user.role == 'super_admin' %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                <i class="fas fa-user-crown mr-1"></i> Super Admin
+                            </span>
+                        {% elif user.role == 'admin' %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                <i class="fas fa-user-shield mr-1"></i> Admin
+                            </span>
+                        {% elif user.role == 'manager' %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                <i class="fas fa-user-tie mr-1"></i> Gérant
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                {{ user.get_role_display }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <i class="fas fa-phone mr-2 text-gray-400"></i>
+                            {{ user.phone_code }} {{ user.phone_number }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if user.is_active %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                <i class="fas fa-check-circle mr-1"></i> Actif
+                            </span>
+                        {% else %}
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                <i class="fas fa-times-circle mr-1"></i> Inactif
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ user.created_at|date:"d/m/Y" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a 
+                                href="#" 
+                                class="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Voir détails"
+                            >
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a 
+                                href="#" 
+                                class="text-yellow-600 hover:text-yellow-900 p-2 hover:bg-yellow-50 rounded-lg transition-colors"
+                                title="Modifier"
+                            >
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if user.is_active %}
+                                <a 
+                                    href="#" 
+                                    class="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Désactiver"
+                                >
+                                    <i class="fas fa-ban"></i>
+                                </a>
+                            {% else %}
+                                <a 
+                                    href="#" 
+                                    class="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Activer"
+                                >
+                                    <i class="fas fa-check"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center">
+                        <div class="flex flex-col items-center">
+                            <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
+                            <p class="text-gray-600 font-semibold">Aucun utilisateur trouvé</p>
+                            <p class="text-gray-500 text-sm mt-2">Essayez de modifier vos critères de recherche</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Création Utilisateur -->
+<div id="createUserModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-user-plus mr-2 text-blue-600"></i>
+                Créer un utilisateur (Propriétaire de station)
+            </h3>
+            <button 
+                id="closeModalBtn"
+                class="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Form -->
+        <form id="createUserForm" method="POST" action="{% url 'create_user' %}" class="p-6">
+            {% csrf_token %}
+            
+            <div class="space-y-6">
+                <!-- Informations personnelles -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-user mr-2 text-blue-600"></i>
+                        Informations personnelles
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Prénom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="first_name" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="Prénom"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Nom <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="last_name" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="Nom"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations de connexion -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-envelope mr-2 text-blue-600"></i>
+                        Informations de connexion
+                    </h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="email" 
+                                name="email" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="email@example.com"
+                            >
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Mot de passe <span class="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="password" 
+                                    name="password" 
+                                    required
+                                    id="password"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    placeholder="••••••••"
+                                >
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    Confirmer le mot de passe <span class="text-red-500">*</span>
+                                </label>
+                                <input 
+                                    type="password" 
+                                    name="password_confirm" 
+                                    required
+                                    id="password_confirm"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                    placeholder="••••••••"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations de contact -->
+                <div>
+                    <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-phone mr-2 text-blue-600"></i>
+                        Informations de contact
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Code téléphone <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="phone_code" 
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="+225"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Numéro de téléphone <span class="text-red-500">*</span>
+                            </label>
+                            <input 
+                                type="text" 
+                                name="phone_number" 
+                                required
+                                maxlength="9"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                placeholder="012345678"
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rôle (fixé à admin) -->
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                    <div class="flex items-center">
+                        <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                        <p class="text-sm text-blue-800">
+                            <strong>Rôle :</strong> Propriétaire d'une station-service (Admin)
+                        </p>
+                    </div>
+                    <input type="hidden" name="role" value="admin">
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end space-x-4 mt-6 pt-6 border-t border-gray-200">
+                <button 
+                    type="button"
+                    id="cancelBtn"
+                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    Créer l'utilisateur
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Modal management
+    const createUserBtn = document.getElementById('createUserBtn');
+    const createUserModal = document.getElementById('createUserModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const createUserForm = document.getElementById('createUserForm');
+    const password = document.getElementById('password');
+    const passwordConfirm = document.getElementById('password_confirm');
+
+    // Ouvrir le modal
+    createUserBtn.addEventListener('click', function() {
+        createUserModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    });
+
+    // Fermer le modal
+    function closeModal() {
+        createUserModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        createUserForm.reset();
+    }
+
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+
+    // Fermer en cliquant en dehors
+    createUserModal.addEventListener('click', function(e) {
+        if (e.target === createUserModal) {
+            closeModal();
+        }
+    });
+
+    // Validation du formulaire
+    createUserForm.addEventListener('submit', function(e) {
+        if (password.value !== passwordConfirm.value) {
+            e.preventDefault();
+            alert('Les mots de passe ne correspondent pas !');
+            passwordConfirm.focus();
+            return false;
+        }
+
+        if (password.value.length < 8) {
+            e.preventDefault();
+            alert('Le mot de passe doit contenir au moins 8 caractères !');
+            password.focus();
+            return false;
+        }
+    });
+</script>
+{% endblock %}
+
