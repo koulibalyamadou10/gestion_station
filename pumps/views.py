@@ -22,25 +22,41 @@ def pumps_list_view(request):
                 messages.error(request, 'Aucune station ne vous est assignée.')
                 return redirect('account:dashboard')
             station = station_manager.station
-        # Pour les admins : récupérer leurs stations
+            stations = None  # Pas besoin pour les managers
+            
+            # Récupérer toutes les pompes de cette station
+            pumps = Pump.objects.filter(station=station).order_by('-created_at')
+            
+            # Statistiques
+            total_pumps = Pump.objects.filter(station=station).count()
+            essence_pumps = Pump.objects.filter(station=station, type='essence').count()
+            gazole_pumps = Pump.objects.filter(station=station, type='gazole').count()
+        # Pour les admins : récupérer toutes leurs stations et toutes leurs pompes
         elif request.user.role == 'admin':
             from stations.models import Station
-            stations = Station.objects.filter(created_by=request.user)
+            stations = Station.objects.filter(created_by=request.user).order_by('name')
             if not stations.exists():
                 messages.error(request, 'Vous n\'avez aucune station.')
                 return redirect('account:dashboard')
-            # Pour l'instant, on prend la première station (on pourrait ajouter un sélecteur)
-            station = stations.first()
+            
+            # Récupérer toutes les pompes de toutes les stations de l'admin
+            pumps = Pump.objects.filter(station__in=stations).order_by('-created_at')
+            
+            # Statistiques pour toutes les stations
+            total_pumps = Pump.objects.filter(station__in=stations).count()
+            essence_pumps = Pump.objects.filter(station__in=stations, type='essence').count()
+            gazole_pumps = Pump.objects.filter(station__in=stations, type='gazole').count()
+            
+            # Pour la compatibilité avec le template (affichage d'une station)
+            station = stations.first() if stations else None
         else:
             messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
             return redirect('account:dashboard')
         
-        # Récupérer toutes les pompes de cette station
-        pumps = Pump.objects.filter(station=station).order_by('-created_at')
-        
         # Filtres et recherche
         search_query = request.GET.get('search', '')
         type_filter = request.GET.get('type', '')
+        station_filter = request.GET.get('station', '')
         
         # Appliquer les filtres
         if search_query:
@@ -51,21 +67,27 @@ def pumps_list_view(request):
         if type_filter:
             pumps = pumps.filter(type=type_filter)
         
-        # Statistiques
-        total_pumps = Pump.objects.filter(station=station).count()
-        essence_pumps = Pump.objects.filter(station=station, type='essence').count()
-        gazole_pumps = Pump.objects.filter(station=station, type='gazole').count()
+        # Filtre par station (uniquement pour les admins)
+        if request.user.role == 'admin' and station_filter:
+            try:
+                station_id = int(station_filter)
+                pumps = pumps.filter(station_id=station_id)
+            except ValueError:
+                pass
+        
         filtered_count = pumps.count()
         
         context = {
             'pumps': pumps,
-            'station': station,
+            'station': station,  # Pour compatibilité avec le template
+            'stations': stations,  # Liste des stations pour les admins
             'total_pumps': total_pumps,
             'essence_pumps': essence_pumps,
             'gazole_pumps': gazole_pumps,
             'filtered_count': filtered_count,
             'search_query': search_query,
             'type_filter': type_filter,
+            'station_filter': station_filter,
             'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
         }
         
