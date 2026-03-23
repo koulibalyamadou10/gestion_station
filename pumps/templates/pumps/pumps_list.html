@@ -817,6 +817,14 @@
     let currentReadingStationId = null;
     let currentPumpName = '';
 
+    function formatAmount(value) {
+        const n = Number(value || 0);
+        return n.toLocaleString('fr-FR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    }
+
     function openReadingModal(pumpUuid, pumpName, currentIndex, stationId) {
         // Remplir les informations
         document.getElementById('reading_pump_name').textContent = pumpName;
@@ -849,7 +857,7 @@
         readingTotalAmount.textContent = '0.00';
         walletAllocationsContainer.innerHTML = '';
         walletAllocationsInput.value = '[]';
-        walletRemainingAmount.textContent = '0.00';
+        walletRemainingAmount.textContent = formatAmount(0);
         noWalletForStationMessage.classList.add('hidden');
     }
 
@@ -909,7 +917,7 @@
             noWalletForStationMessage.classList.remove('hidden');
             addWalletAllocationBtn.disabled = true;
             walletAllocationsInput.value = '[]';
-            walletRemainingAmount.textContent = totalAmount.toFixed(2);
+            walletRemainingAmount.textContent = formatAmount(totalAmount);
             return;
         }
 
@@ -952,7 +960,7 @@
 
         const totalAmount = getComputedTotalAmount();
         walletAllocationsInput.value = JSON.stringify(allocations);
-        walletRemainingAmount.textContent = (totalAmount - allocatedSum).toFixed(2);
+        walletRemainingAmount.textContent = formatAmount(totalAmount - allocatedSum);
     }
 
     function updateReadingComputedAmounts() {
@@ -961,7 +969,7 @@
         const quantity = current - previous;
         const validQuantity = quantity >= 0 ? quantity : 0;
         readingQuantitySold.textContent = validQuantity.toFixed(2);
-        readingTotalAmount.textContent = getComputedTotalAmount().toFixed(2);
+        readingTotalAmount.textContent = formatAmount(getComputedTotalAmount());
         syncWalletAllocations();
         
         // Changer la couleur si négatif
