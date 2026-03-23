@@ -34,7 +34,7 @@
 
     <div class="bg-white rounded-xl shadow-lg p-6">
         <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="md:col-span-3">
+            <div class="md:col-span-4">
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Recherche</label>
                 <input
                     type="text"
@@ -43,6 +43,30 @@
                     placeholder="Nom, téléphone, poste, station..."
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 >
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Station</label>
+                <select
+                    name="station"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Toutes les stations</option>
+                    {% for station in stations %}
+                        <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Poste</label>
+                <select
+                    name="position"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                    <option value="">Tous les postes</option>
+                    {% for position in positions %}
+                        <option value="{{ position.id }}" {% if position_filter == position.id|stringformat:"s" %}selected{% endif %}>{{ position.title }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="flex items-end gap-2">
                 <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
@@ -65,6 +89,7 @@
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Poste</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date d'embauche</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
@@ -78,10 +103,38 @@
                         <td class="px-6 py-4 text-sm text-gray-800">{{ employee.position.title|default:"Non défini" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-800">{{ employee.station.name|default:"-" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-800">{{ employee.hire_date|date:"d/m/Y"|default:"-" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    class="text-yellow-600 hover:text-yellow-800 transition-colors"
+                                    onclick="openEditEmployeeModal(
+                                        '{{ employee.employee_uuid }}',
+                                        '{{ employee.first_name|escapejs }}',
+                                        '{{ employee.last_name|escapejs }}',
+                                        '{{ employee.phone|default:""|escapejs }}',
+                                        '{{ employee.hire_date|date:"Y-m-d"|default:"" }}',
+                                        '{{ employee.station.id|default:"" }}',
+                                        '{{ employee.position.id|default:"" }}'
+                                    )"
+                                    title="Modifier"
+                                >
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="text-red-600 hover:text-red-800 transition-colors"
+                                    onclick="openDeleteEmployeeModal('{{ employee.employee_uuid }}', '{{ employee.first_name|escapejs }} {{ employee.last_name|escapejs }}')"
+                                    title="Supprimer"
+                                >
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">
                             Aucun employé trouvé.
                         </td>
                     </tr>
@@ -108,6 +161,93 @@
         </div>
     </div>
     {% endif %}
+</div>
+
+<div id="editEmployeeModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-user-edit mr-2 text-yellow-600"></i>
+                Modifier un employé
+            </h3>
+            <button id="closeEditEmployeeModal" type="button" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <form id="editEmployeeForm" method="POST" action="" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Prénom <span class="text-red-500">*</span></label>
+                <input id="edit_employee_first_name" type="text" name="first_name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nom <span class="text-red-500">*</span></label>
+                <input id="edit_employee_last_name" type="text" name="last_name" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Téléphone</label>
+                <input id="edit_employee_phone" type="text" name="phone" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Date d'embauche</label>
+                <input id="edit_employee_hire_date" type="date" name="hire_date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Station <span class="text-red-500">*</span></label>
+                <select id="edit_employee_station" name="station" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                    <option value="">Sélectionner une station</option>
+                    {% for station in stations %}
+                        <option value="{{ station.id }}">{{ station.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Poste</label>
+                <select id="edit_employee_position" name="position" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                    <option value="">Sélectionner un poste</option>
+                    {% for position in positions %}
+                        <option value="{{ position.id }}">{{ position.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="md:col-span-2 flex items-center justify-end gap-3 pt-2">
+                <button id="cancelEditEmployeeModal" type="button" class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">
+                    Annuler
+                </button>
+                <button type="submit" class="bg-yellow-600 text-white px-5 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-semibold">
+                    Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="deleteEmployeeModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-exclamation-triangle text-red-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-2">
+                Voulez-vous vraiment supprimer l'employé <strong id="delete_employee_name"></strong> ?
+            </p>
+            <p class="text-xs text-red-600 mb-5">
+                Si un compte utilisateur est lié, il sera aussi supprimé.
+            </p>
+            <form id="deleteEmployeeForm" method="POST" action="" class="flex items-center justify-end gap-3">
+                {% csrf_token %}
+                <button id="cancelDeleteEmployeeModal" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
+                    Annuler
+                </button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
+                    Supprimer
+                </button>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div id="createEmployeeModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
@@ -197,6 +337,12 @@
     const employeeFirstName = document.getElementById('employee_first_name');
     const employeeLastName = document.getElementById('employee_last_name');
     const employeePhone = document.getElementById('employee_phone');
+    const editEmployeeModal = document.getElementById('editEmployeeModal');
+    const closeEditEmployeeModalBtn = document.getElementById('closeEditEmployeeModal');
+    const cancelEditEmployeeModalBtn = document.getElementById('cancelEditEmployeeModal');
+    const editEmployeeForm = document.getElementById('editEmployeeForm');
+    const deleteEmployeeModal = document.getElementById('deleteEmployeeModal');
+    const cancelDeleteEmployeeModalBtn = document.getElementById('cancelDeleteEmployeeModal');
 
     function setLockedState(locked) {
         [employeeFirstName, employeeLastName, employeePhone].forEach((field) => {
@@ -239,15 +385,63 @@
         document.body.style.overflow = 'auto';
     }
 
+    function closeEditEmployeeModal() {
+        editEmployeeModal?.classList.add('hidden');
+        editEmployeeModal?.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
+
+    function closeDeleteEmployeeModal() {
+        deleteEmployeeModal?.classList.add('hidden');
+        deleteEmployeeModal?.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
+
     openCreateEmployeeModalBtn?.addEventListener('click', openCreateEmployeeModal);
     closeCreateEmployeeModalBtn?.addEventListener('click', closeCreateEmployeeModal);
     cancelCreateEmployeeModalBtn?.addEventListener('click', closeCreateEmployeeModal);
     employeeUserSelect?.addEventListener('change', handleUserSelectChange);
+    closeEditEmployeeModalBtn?.addEventListener('click', closeEditEmployeeModal);
+    cancelEditEmployeeModalBtn?.addEventListener('click', closeEditEmployeeModal);
+    cancelDeleteEmployeeModalBtn?.addEventListener('click', closeDeleteEmployeeModal);
 
     createEmployeeModal?.addEventListener('click', function (e) {
         if (e.target === createEmployeeModal) {
             closeCreateEmployeeModal();
         }
     });
+
+    editEmployeeModal?.addEventListener('click', function (e) {
+        if (e.target === editEmployeeModal) {
+            closeEditEmployeeModal();
+        }
+    });
+
+    deleteEmployeeModal?.addEventListener('click', function (e) {
+        if (e.target === deleteEmployeeModal) {
+            closeDeleteEmployeeModal();
+        }
+    });
+
+    function openEditEmployeeModal(employeeUuid, firstName, lastName, phone, hireDate, stationId, positionId) {
+        document.getElementById('edit_employee_first_name').value = firstName || '';
+        document.getElementById('edit_employee_last_name').value = lastName || '';
+        document.getElementById('edit_employee_phone').value = phone || '';
+        document.getElementById('edit_employee_hire_date').value = hireDate || '';
+        document.getElementById('edit_employee_station').value = stationId || '';
+        document.getElementById('edit_employee_position').value = positionId || '';
+        editEmployeeForm.action = `/employees/${employeeUuid}/update/`;
+        editEmployeeModal.classList.remove('hidden');
+        editEmployeeModal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function openDeleteEmployeeModal(employeeUuid, employeeName) {
+        document.getElementById('delete_employee_name').textContent = employeeName || '';
+        document.getElementById('deleteEmployeeForm').action = `/employees/${employeeUuid}/delete/`;
+        deleteEmployeeModal.classList.remove('hidden');
+        deleteEmployeeModal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
 </script>
 {% endblock %}
