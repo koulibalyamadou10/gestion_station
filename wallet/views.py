@@ -12,16 +12,12 @@ from wallet.models import Account
 
 @login_required
 def wallet_list_view(request):
-    if request.user.role not in ["admin", "super_admin"]:
+    if request.user.role != "admin":
         messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
         return redirect("account:not_access")
 
-    if request.user.role == "super_admin":
-        station_scope = Station.objects.all().order_by("name")
-        wallets_queryset = Account.objects.select_related("station").all().order_by("-created_at")
-    else:
-        station_scope = Station.objects.filter(owner=request.user).order_by("name")
-        wallets_queryset = Account.objects.select_related("station").filter(station__in=station_scope).order_by("-created_at")
+    station_scope = Station.objects.filter(owner=request.user).order_by("name")
+    wallets_queryset = Account.objects.select_related("station").filter(station__in=station_scope).order_by("-created_at")
 
     if request.method == "POST":
         station_id = request.POST.get("station_id", "").strip()
@@ -91,17 +87,17 @@ def wallet_list_view(request):
 
 
 @login_required
-def delete_wallet_view(request, wallet_uuid):
+def delete_wallet_view(request, wallet_id):
     if request.method != "POST":
         return redirect("wallet:wallet_list")
 
-    if request.user.role not in ["admin", "super_admin"]:
+    if request.user.role != "admin":
         messages.error(request, "Vous n'avez pas la permission de supprimer un wallet.")
         return redirect("account:not_access")
 
-    wallet = get_object_or_404(Account, uuid=wallet_uuid)
+    wallet = get_object_or_404(Account, pk=wallet_id)
 
-    if request.user.role == "admin" and wallet.station.owner != request.user:
+    if wallet.station.owner != request.user:
         messages.error(request, "Vous n'avez pas la permission de supprimer ce wallet.")
         return redirect("wallet:wallet_list")
 

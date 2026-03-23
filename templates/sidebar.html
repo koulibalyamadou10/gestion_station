@@ -82,6 +82,13 @@
             <span>Ventes</span>
         </a>
         {% endif %}
+
+        {% if user.role == 'admin' %}
+        <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'wallet_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-wallet w-5"></i>
+            <span>Wallets</span>
+        </a>
+        {% endif %}
         
         <!-- Finances -->
         {% comment %} <div class="space-y-1">

@@ -65,7 +65,7 @@
                                 type="button"
                                 class="text-red-600 hover:text-red-800 transition-colors"
                                 title="Supprimer"
-                                onclick="openDeleteWalletModal('{{ wallet.uuid }}', '{{ wallet.station.name|escapejs }}', '{{ wallet.balance }}')"
+                                onclick="openDeleteWalletModal({{ wallet.id }}, '{{ wallet.station.name|escapejs }}', '{{ wallet.balance|stringformat:"f" }}')"
                             >
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -151,7 +151,7 @@
                 <button type="button" id="cancelDeleteWallet" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                     Annuler
                 </button>
-                <form id="deleteWalletForm" method="POST" action="">
+                <form id="deleteWalletForm" method="POST" action="{% url 'wallet:delete_wallet' 0 %}">
                     {% csrf_token %}
                     <button id="confirmDeleteWalletBtn" type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                         Supprimer
@@ -193,11 +193,12 @@
     const deleteWalletBlockedMessage = document.getElementById('deleteWalletBlockedMessage');
     const confirmDeleteWalletBtn = document.getElementById('confirmDeleteWalletBtn');
 
-    function openDeleteWalletModal(walletUuid, stationName, balance) {
+    function openDeleteWalletModal(walletId, stationName, balance) {
         deleteWalletStationName.textContent = stationName;
-        deleteWalletForm.action = `/wallets/delete/${walletUuid}/`;
+        const baseDeleteUrl = deleteWalletForm.action;
+        deleteWalletForm.action = baseDeleteUrl.replace('/0/', `/${walletId}/`);
 
-        const numericBalance = parseFloat(balance || '0');
+        const numericBalance = parseFloat(String(balance || '0').replace(',', '.'));
         if (numericBalance !== 0) {
             deleteWalletBlockedMessage.classList.remove('hidden');
             confirmDeleteWalletBtn.disabled = true;
