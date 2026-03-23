@@ -43,6 +43,13 @@
             <span>Postes</span>
         </a>
         {% endif %}
+
+        {% if user.role == 'admin' or user.role == 'super_admin' %}
+        <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'city_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-city w-5"></i>
+            <span>Villes</span>
+        </a>
+        {% endif %}
         
         <!-- Gérants (Admin uniquement) -->
         {% if user.role == 'admin' %}
