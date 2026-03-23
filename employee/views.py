@@ -165,7 +165,7 @@ def update_employee_view(request, employee_uuid):
     if employee.user and employee.user.role == "manager":
         StationManager.objects.update_or_create(
             manager=employee.user,
-            station=station,
+            defaults={"station": station},
         )
     messages.success(request, "Employé modifié avec succès.")
     return redirect("employee:employee_list")
