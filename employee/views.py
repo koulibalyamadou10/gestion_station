@@ -1,4 +1,5 @@
 from account.models import CustomUser
+from stations.models import StationManager
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -159,6 +160,13 @@ def update_employee_view(request, employee_uuid):
     employee.station = station
     employee.position = position
     employee.save()
+
+    # si c'est un manager on doit redefinir sa station que il gere quoi en faisant un update or create de StationManager
+    if employee.user and employee.user.role == "manager":
+        StationManager.objects.update_or_create(
+            manager=employee.user,
+            station=station,
+        )
     messages.success(request, "Employé modifié avec succès.")
     return redirect("employee:employee_list")
 

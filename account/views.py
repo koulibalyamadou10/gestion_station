@@ -535,6 +535,7 @@ def reset_manager_password_view(request, user_uuid):
 
         try:
             generated_password = generate_password(8)
+            print(generated_password)
             manager.set_password(generated_password)
             manager.save(update_fields=['password', 'updated_at'])
 
