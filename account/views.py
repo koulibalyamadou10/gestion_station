@@ -8,6 +8,7 @@ from account.models import CustomUser
 from permissions_web import super_admin_required, admin_required
 import secrets
 import string
+from employee.models import Employee
 
 @csrf_protect
 def login_view(request):
@@ -336,6 +337,18 @@ def create_manager_view(request):
                     role='manager',  # Forcé à manager
                     is_active=True,
                     created_by=request.user  # L'admin qui crée le manager
+                )
+
+                # creer l'employé aussi tout simplement quoi 
+                Employee.objects.create(
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone=phone_number,
+                    user=manager,
+                    station=None,
+                    position=None,
+                    hire_date=None,
+                    # owner=request.user
                 )
                 
                 # Envoyer l'email avec le mot de passe via la méthode du modèle

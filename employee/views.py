@@ -47,6 +47,18 @@ def employee_list_view(request):
                 messages.error(request, "L'utilisateur sélectionné est invalide.")
                 return redirect("employee:employee_list")
 
+            # Empêcher qu'un même gérant soit rattaché à plusieurs stations.
+            existing_employee = Employee.objects.filter(user=user).exclude(station=station).first()
+            if existing_employee:
+                messages.error(
+                    request,
+                    (
+                        f"Ce gérant est déjà rattaché à la station "
+                        f"\"{existing_employee.station.name}\"."
+                    ),
+                )
+                return redirect("employee:employee_list")
+
         Employee.objects.create(
             first_name=first_name,
             last_name=last_name,
