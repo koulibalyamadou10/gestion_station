@@ -264,6 +264,11 @@ def pump_detail_view(request, pump_uuid):
         date_filter = request.GET.get('reading_date', '').strip()
         employee_filter = request.GET.get('employee', '').strip()
         page_number = request.GET.get('page')
+        reset_page_number = request.GET.get('reset_page')
+
+        if request.user.role == 'manager':
+            # Le manager ne voit que ses propres lectures
+            readings_queryset = readings_queryset.filter(employee__user=request.user)
 
         if date_filter:
             readings_queryset = readings_queryset.filter(reading_date=date_filter)
@@ -281,6 +286,14 @@ def pump_detail_view(request, pump_uuid):
             .select_related('user')
             .order_by('first_name', 'last_name')
         )
+
+        reset_page_obj = None
+        reset_history = []
+        if request.user.role == 'admin':
+            reset_queryset = PumpReset.objects.filter(pump=pump).select_related('reset_by').order_by('-created_at')
+            reset_paginator = Paginator(reset_queryset, 10)
+            reset_page_obj = reset_paginator.get_page(reset_page_number)
+            reset_history = reset_page_obj.object_list
         
         context = {
             'pump': pump,
@@ -291,6 +304,8 @@ def pump_detail_view(request, pump_uuid):
             'date_filter': date_filter,
             'employee_filter': employee_filter,
             'quantity_sold_total': quantity_sold_total,
+            'reset_history': reset_history,
+            'reset_page_obj': reset_page_obj,
             'is_read_only': request.user.role != 'admin',
             'can_create_pump': request.user.role == 'admin',
         }

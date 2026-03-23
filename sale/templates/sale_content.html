@@ -19,12 +19,6 @@
     </div>
 </div>
 
-<div class="flex justify-end mb-6">
-    <button id="openCreateSaleModal" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-        <i class="fas fa-plus mr-2"></i>Creer une vente
-    </button>
-</div>
-
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
     <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
         <input type="text" name="search" value="{{ search_query }}" placeholder="Station, pompe, utilisateur..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
@@ -92,98 +86,4 @@
     </div>
 </div>
 {% endif %}
-
-<div id="createSaleModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
-        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-lg font-bold text-gray-800">Creer une vente</h3>
-            <button id="closeCreateSaleModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
-        </div>
-        <form method="POST" action="{% url 'sale:sale_list' %}" class="p-6 space-y-4">
-            {% csrf_token %}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Station *</label>
-                    <select id="sale_station_id" name="station_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Selectionner une station</option>
-                        {% for station in stations %}
-                            <option value="{{ station.id }}">{{ station.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Lecture pompe *</label>
-                    <select id="sale_pump_reading_id" name="pump_reading_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Selectionner une lecture</option>
-                        {% for reading in pump_readings %}
-                            <option value="{{ reading.id }}" data-station="{{ reading.pump.station_id }}">
-                                {{ reading.pump.name }} - {{ reading.reading_date|date:"d/m/Y" }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date vente *</label>
-                    <input type="date" name="sale_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté Essence</label>
-                    <input type="number" step="0.01" min="0" name="qty_gasoline" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté Diesel</label>
-                    <input type="number" step="0.01" min="0" name="qty_diesel" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">PU Essence</label>
-                    <input type="number" step="0.01" min="0" name="unit_price_gasoline" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">PU Diesel</label>
-                    <input type="number" step="0.01" min="0" name="unit_price_diesel" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button type="button" id="cancelCreateSaleModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-    const openCreateSaleModalBtn = document.getElementById('openCreateSaleModal');
-    const createSaleModal = document.getElementById('createSaleModal');
-    const closeCreateSaleModalBtn = document.getElementById('closeCreateSaleModal');
-    const cancelCreateSaleModalBtn = document.getElementById('cancelCreateSaleModal');
-    const saleStationSelect = document.getElementById('sale_station_id');
-    const salePumpReadingSelect = document.getElementById('sale_pump_reading_id');
-
-    function openCreateSaleModal() {
-        createSaleModal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeCreateSaleModal() {
-        createSaleModal.classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    function filterPumpReadingsByStation() {
-        const selectedStation = saleStationSelect.value;
-        const options = salePumpReadingSelect.querySelectorAll('option[data-station]');
-        options.forEach(option => {
-            option.hidden = selectedStation && option.dataset.station !== selectedStation;
-        });
-        salePumpReadingSelect.value = '';
-    }
-
-    openCreateSaleModalBtn?.addEventListener('click', openCreateSaleModal);
-    closeCreateSaleModalBtn?.addEventListener('click', closeCreateSaleModal);
-    cancelCreateSaleModalBtn?.addEventListener('click', closeCreateSaleModal);
-    createSaleModal?.addEventListener('click', function(e) {
-        if (e.target === createSaleModal) closeCreateSaleModal();
-    });
-    saleStationSelect?.addEventListener('change', filterPumpReadingsByStation);
-</script>
 {% endblock %}
