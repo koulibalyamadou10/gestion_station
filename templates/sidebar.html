@@ -36,6 +36,13 @@
             <span>Employés</span>
         </a>
         {% endif %}
+
+        {% if user.role == 'admin' %}
+        <a href="{% url 'position:position_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'position_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-briefcase w-5"></i>
+            <span>Postes</span>
+        </a>
+        {% endif %}
         
         <!-- Gérants (Admin uniquement) -->
         {% if user.role == 'admin' %}

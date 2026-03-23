@@ -155,9 +155,9 @@ def delete_user_view(request, user_id):
 
 def generate_password(length=12):
     """
-    Génère un mot de passe sécurisé aléatoire
+    Génère un mot de passe aléatoire (minuscules + chiffres)
     """
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    alphabet = string.ascii_lowercase + string.digits
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
@@ -200,7 +200,7 @@ def create_user_view(request):
         else:
             try:
                 # Générer un mot de passe sécurisé
-                generated_password = generate_password(16)
+                generated_password = generate_password(8)
                 
                 # Créer l'utilisateur
                 user = CustomUser.objects.create_user(
@@ -321,7 +321,7 @@ def create_manager_view(request):
         else:
             try:
                 # Générer un mot de passe sécurisé
-                generated_password = generate_password(16)
+                generated_password = generate_password(8)
 
                 print(generated_password)
                 

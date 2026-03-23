@@ -1,0 +1,264 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Liste des postes{% endblock %}
+{% block page_title %}Postes{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-gray-800">Gestion des postes</h2>
+            <p class="text-sm text-gray-500">Liste, création et modification des postes</p>
+        </div>
+        <button
+            id="openCreatePositionModal"
+            type="button"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center w-full sm:w-auto"
+        >
+            <i class="fas fa-plus mr-2"></i>
+            Créer un poste
+        </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Total postes</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_positions }}</p>
+            </div>
+            <div class="bg-blue-100 p-4 rounded-full">
+                <i class="fas fa-briefcase text-3xl text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="md:col-span-3">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Recherche</label>
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ search_query }}"
+                    placeholder="Titre ou description..."
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                    Filtrer
+                </button>
+                <a href="{% url 'position:position_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Titre</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Description</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Créé le</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for position in positions %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ position.title }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ position.description|default:"-" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">{{ position.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex items-center space-x-3">
+                                <button
+                                    type="button"
+                                    onclick="openEditPositionModal('{{ position.uuid }}', '{{ position.title|escapejs }}', '{{ position.description|default:''|escapejs }}')"
+                                    class="text-yellow-600 hover:text-yellow-800 transition-colors"
+                                    title="Modifier"
+                                >
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    onclick="openDeletePositionModal('{{ position.uuid }}', '{{ position.title|escapejs }}')"
+                                    class="text-red-600 hover:text-red-800 transition-colors"
+                                    title="Supprimer"
+                                >
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-10 text-center text-gray-500">
+                            Aucun poste trouvé.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="bg-white rounded-xl shadow-lg p-4 flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+            Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }}
+        </p>
+        <div class="flex items-center gap-2">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Premier</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Précédent</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Suivant</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Dernier</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal Création -->
+<div id="createPositionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-plus-circle mr-2 text-blue-600"></i>Créer un poste</h3>
+            <button id="closeCreatePositionModal" type="button" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <form method="POST" action="{% url 'position:create_position' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Titre <span class="text-red-500">*</span></label>
+                <input type="text" name="title" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                <textarea name="description" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-end gap-3">
+                <button id="cancelCreatePositionModal" type="button" class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Annuler</button>
+                <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 font-semibold">Créer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Modification -->
+<div id="editPositionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-edit mr-2 text-yellow-600"></i>Modifier un poste</h3>
+            <button id="closeEditPositionModal" type="button" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <form id="editPositionForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Titre <span class="text-red-500">*</span></label>
+                <input id="editPositionTitle" type="text" name="title" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                <textarea id="editPositionDescription" name="description" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-end gap-3">
+                <button id="cancelEditPositionModal" type="button" class="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold">Annuler</button>
+                <button type="submit" class="bg-yellow-600 text-white px-5 py-2 rounded-lg hover:bg-yellow-700 font-semibold">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Confirmation Suppression -->
+<div id="deletePositionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-exclamation-triangle text-red-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-5">
+                Voulez-vous vraiment supprimer le poste <strong id="deletePositionName"></strong> ?
+            </p>
+            <form id="deletePositionForm" method="POST" action="" class="flex items-center justify-end gap-3">
+                {% csrf_token %}
+                <button id="cancelDeletePositionModal" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">Supprimer</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const createModal = document.getElementById('createPositionModal');
+    const editModal = document.getElementById('editPositionModal');
+    const deleteModal = document.getElementById('deletePositionModal');
+
+    const openCreateBtn = document.getElementById('openCreatePositionModal');
+    const closeCreateBtn = document.getElementById('closeCreatePositionModal');
+    const cancelCreateBtn = document.getElementById('cancelCreatePositionModal');
+
+    const closeEditBtn = document.getElementById('closeEditPositionModal');
+    const cancelEditBtn = document.getElementById('cancelEditPositionModal');
+
+    const cancelDeleteBtn = document.getElementById('cancelDeletePositionModal');
+
+    function openModal(modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
+
+    openCreateBtn?.addEventListener('click', () => openModal(createModal));
+    closeCreateBtn?.addEventListener('click', () => closeModal(createModal));
+    cancelCreateBtn?.addEventListener('click', () => closeModal(createModal));
+
+    closeEditBtn?.addEventListener('click', () => closeModal(editModal));
+    cancelEditBtn?.addEventListener('click', () => closeModal(editModal));
+
+    cancelDeleteBtn?.addEventListener('click', () => closeModal(deleteModal));
+
+    createModal?.addEventListener('click', (e) => { if (e.target === createModal) closeModal(createModal); });
+    editModal?.addEventListener('click', (e) => { if (e.target === editModal) closeModal(editModal); });
+    deleteModal?.addEventListener('click', (e) => { if (e.target === deleteModal) closeModal(deleteModal); });
+
+    function openEditPositionModal(positionId, title, description) {
+        const form = document.getElementById('editPositionForm');
+        const titleInput = document.getElementById('editPositionTitle');
+        const descriptionInput = document.getElementById('editPositionDescription');
+
+        form.action = `/positions/${positionId}/update/`;
+        titleInput.value = title || '';
+        descriptionInput.value = description || '';
+        openModal(editModal);
+    }
+
+    function openDeletePositionModal(positionId, positionName) {
+        const form = document.getElementById('deletePositionForm');
+        const nameEl = document.getElementById('deletePositionName');
+
+        form.action = `/positions/${positionId}/delete/`;
+        nameEl.textContent = positionName || '';
+        openModal(deleteModal);
+    }
+</script>
+{% endblock %}
