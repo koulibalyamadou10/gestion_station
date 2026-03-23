@@ -123,17 +123,17 @@ def not_access_view(request):
     return render(request, 'account/not_access.html')
 
 @super_admin_required
-def delete_user_view(request, user_id):
+def delete_user_view(request, user_uuid):
     """
     Vue pour supprimer définitivement un utilisateur
     Accessible uniquement aux super_admins
     """
     if request.method == 'POST':
         try:
-            user_to_delete = CustomUser.objects.get(id=user_id)
+            user_to_delete = CustomUser.objects.get(user_uuid=user_uuid)
             
             # Empêcher la suppression de soi-même
-            if user_to_delete.id == request.user.id:
+            if user_to_delete.user_uuid == request.user.user_uuid:
                 messages.error(request, 'Vous ne pouvez pas supprimer votre propre compte.')
                 return redirect('account:users_list')
             
@@ -360,6 +360,33 @@ def create_manager_view(request):
     
     return redirect('account:managers_list')
 
+@admin_required
+def update_manager_name_view(request, user_uuid):
+    """
+    Met à jour uniquement le prénom/nom d'un manager.
+    Accessible aux admins et super_admins.
+    """
+    if request.method == 'POST':
+        manager = get_object_or_404(CustomUser, user_uuid=user_uuid, role='manager')
+
+        if request.user.role == 'admin' and manager.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de modifier ce gérant.")
+            return redirect('account:managers_list')
+
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+
+        if not first_name or not last_name:
+            messages.error(request, 'Le prénom et le nom sont obligatoires.')
+            return redirect('account:managers_list')
+
+        manager.first_name = first_name
+        manager.last_name = last_name
+        manager.save(update_fields=['first_name', 'last_name', 'updated_at'])
+        messages.success(request, 'Le gérant a été modifié avec succès.')
+
+    return redirect('account:managers_list')
+
 @login_required
 def profile_view(request):
     """
@@ -432,14 +459,14 @@ def change_password_view(request):
     return redirect('account:profile')
 
 @admin_required
-def delete_manager_view(request, manager_id):
+def delete_manager_view(request, user_uuid):
     """
     Vue pour supprimer définitivement un manager
     Accessible aux admins et super_admins
     """
     if request.method == 'POST':
         try:
-            manager_to_delete = get_object_or_404(CustomUser, id=manager_id, role='manager')
+            manager_to_delete = get_object_or_404(CustomUser, user_uuid=user_uuid, role='manager')
             
             # Vérifier que l'admin peut supprimer ce manager
             if request.user.role == 'admin' and manager_to_delete.created_by != request.user:
@@ -457,8 +484,31 @@ def delete_manager_view(request, manager_id):
     
     return redirect('account:managers_list')
 
+@admin_required
+def toggle_manager_status_view(request, user_uuid):
+    """
+    Active ou désactive un manager.
+    Accessible aux admins et super_admins.
+    """
+    if request.method == 'POST':
+        manager = get_object_or_404(CustomUser, user_uuid=user_uuid, role='manager')
+
+        if request.user.role == 'admin' and manager.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de modifier ce gérant.")
+            return redirect('account:managers_list')
+
+        manager.is_active = not manager.is_active
+        manager.save(update_fields=['is_active', 'updated_at'])
+
+        if manager.is_active:
+            messages.success(request, f'Le gérant {manager.get_full_name()} a été activé.')
+        else:
+            messages.success(request, f'Le gérant {manager.get_full_name()} a été désactivé.')
+
+    return redirect('account:managers_list')
+
 @login_required
-def user_detail_view(request, user_id):
+def user_detail_view(request, user_uuid):
     """
     Vue pour afficher les détails d'un utilisateur
     Accessible selon les permissions :
@@ -466,7 +516,7 @@ def user_detail_view(request, user_id):
     - admin : peut voir ses managers et lui-même
     - manager : peut voir seulement lui-même
     """
-    user_detail = get_object_or_404(CustomUser, id=user_id)
+    user_detail = get_object_or_404(CustomUser, user_uuid=user_uuid)
     
     # Vérifier les permissions
     if request.user.role == 'super_admin':
@@ -518,3 +568,41 @@ def user_detail_view(request, user_id):
     }
     
     return render(request, 'account/user_detail.html', context)
+
+@login_required
+def update_user_name_view(request, user_uuid):
+    """
+    Met à jour uniquement prénom/nom d'un utilisateur selon permissions.
+    """
+    if request.method != 'POST':
+        return redirect('account:dashboard')
+
+    user_to_update = get_object_or_404(CustomUser, user_uuid=user_uuid)
+
+    if request.user.role == 'super_admin':
+        pass
+    elif request.user.role == 'admin':
+        if user_to_update == request.user:
+            pass
+        elif user_to_update.role == 'manager' and user_to_update.created_by == request.user:
+            pass
+        else:
+            messages.error(request, "Vous n'avez pas la permission de modifier cet utilisateur.")
+            return redirect('account:dashboard')
+    else:
+        if user_to_update != request.user:
+            messages.error(request, "Vous n'avez pas la permission de modifier cet utilisateur.")
+            return redirect('account:dashboard')
+
+    first_name = request.POST.get('first_name', '').strip()
+    last_name = request.POST.get('last_name', '').strip()
+
+    if not first_name or not last_name:
+        messages.error(request, 'Le prénom et le nom sont obligatoires.')
+        return redirect('account:user_detail', user_uuid=user_uuid)
+
+    user_to_update.first_name = first_name
+    user_to_update.last_name = last_name
+    user_to_update.save(update_fields=['first_name', 'last_name', 'updated_at'])
+    messages.success(request, "Les informations de l'utilisateur ont été modifiées.")
+    return redirect('account:user_detail', user_uuid=user_uuid)

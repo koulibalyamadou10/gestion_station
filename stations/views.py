@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
+from city.models import City
 
 @login_required
 def stations_list_view(request):
@@ -41,27 +42,23 @@ def stations_list_view(request):
         )
     
     if city_filter:
-        stations = stations.filter(city__name__icontains=city_filter)
+        stations = stations.filter(city_id=city_filter)
     
     # Statistiques filtrées
     filtered_count = stations.count()
     
     # Liste des villes uniques pour le filtre
     if request.user.role == 'super_admin':
-        cities = (
-            Station.objects.exclude(city__isnull=True)
-            .values_list('city__name', flat=True)
-            .distinct()
-            .order_by('city__name')
-        )
+        city_ids = Station.objects.exclude(city__isnull=True).values_list('city_id', flat=True).distinct()
     else:
-        cities = (
+        city_ids = (
             Station.objects.filter(owner=request.user)
             .exclude(city__isnull=True)
-            .values_list('city__name', flat=True)
+            .values_list('city_id', flat=True)
             .distinct()
-            .order_by('city__name')
         )
+    cities = City.objects.filter(id__in=city_ids).order_by('name')
+    all_cities = City.objects.order_by('name')
     
     # Récupérer la liste des admins pour le super_admin
     admins = None
@@ -81,6 +78,7 @@ def stations_list_view(request):
         'search_query': search_query,
         'city_filter': city_filter,
         'cities': cities,
+        'all_cities': all_cities,
         'admins': admins,
         'managers': managers,
     }
@@ -137,31 +135,31 @@ def create_station_view(request):
     
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
-        city = request.POST.get('city', '').strip()
+        city_id = request.POST.get('city_id', '').strip()
         address = request.POST.get('address', '').strip()
         latitude = request.POST.get('latitude', '').strip()
         longitude = request.POST.get('longitude', '').strip()
         
-        # Déterminer le created_by selon le rôle
+        # Déterminer le propriétaire selon le rôle
         if request.user.role == 'super_admin':
             # Le super_admin peut choisir un admin
-            created_by_id = request.POST.get('created_by', '').strip()
-            if not created_by_id:
+            owner_id = request.POST.get('owner_id', '').strip()
+            if not owner_id:
                 messages.error(request, 'Veuillez sélectionner un propriétaire de station.')
                 return redirect('stations:stations_list')
             
             from account.models import CustomUser
             try:
-                created_by = CustomUser.objects.get(id=created_by_id, role='admin', is_active=True)
+                owner = CustomUser.objects.get(id=owner_id, role='admin', is_active=True)
             except CustomUser.DoesNotExist:
                 messages.error(request, 'Le propriétaire sélectionné est invalide.')
                 return redirect('stations:stations_list')
         else:
             # L'admin crée pour lui-même
-            created_by = request.user
+            owner = request.user
         
         # Validation
-        if not name or not city or not address:
+        if not name or not city_id or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations:stations_list')
         
@@ -175,6 +173,13 @@ def create_station_view(request):
             latitude_decimal = Decimal(latitude)
             longitude_decimal = Decimal(longitude)
             
+            # Ville sélectionnée
+            try:
+                city = City.objects.get(id=city_id)
+            except City.DoesNotExist:
+                messages.error(request, 'La ville sélectionnée est invalide.')
+                return redirect('stations:stations_list')
+
             # Récupérer le manager sélectionné
             manager_id = request.POST.get('manager', '').strip()
             if not manager_id:
@@ -185,7 +190,7 @@ def create_station_view(request):
             try:
                 manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
                 # Vérifier que le manager appartient bien au propriétaire
-                if manager.created_by != created_by:
+                if manager.created_by != owner:
                     messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire choisi.')
                     return redirect('stations:stations_list')
             except CustomUser.DoesNotExist:
@@ -199,7 +204,7 @@ def create_station_view(request):
                 address=address,
                 latitude=latitude_decimal,
                 longitude=longitude_decimal,
-                created_by=created_by
+                owner=owner
             )
             
             # Créer la relation StationManager

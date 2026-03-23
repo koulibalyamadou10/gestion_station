@@ -85,6 +85,6 @@ def employee_list_view(request):
         "total_employees": employees_queryset.count(),
         "stations": Station.objects.order_by("name"),
         "positions": Position.objects.order_by("title"),
-        "users": CustomUser.objects.filter(is_active=True).order_by("first_name", "last_name"),
+        "users": CustomUser.objects.filter(role="manager", is_active=True).order_by("first_name", "last_name"),
     }
     return render(request, "employee/employee_content.html", context)

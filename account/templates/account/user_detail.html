@@ -27,31 +27,25 @@
                     Informations personnelles
                 </h3>
                 <div class="flex items-center space-x-2">
-                    <a 
-                        href="#" 
+                    <button
+                        type="button"
+                        onclick="openEditUserModal()"
                         class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-semibold flex items-center"
                         title="Modifier"
                     >
                         <i class="fas fa-edit mr-2"></i>
                         Modifier
-                    </a>
+                    </button>
                     {% if user_detail != request.user and user_detail.role != 'super_admin' %}
-                    <form 
-                        method="POST" 
-                        action="{% if user_detail.role == 'manager' %}{% url 'account:delete_manager' user_detail.id %}{% else %}{% url 'account:delete_user' user_detail.id %}{% endif %}" 
-                        class="inline"
-                        onsubmit="return confirmDelete(event, '{{ user_detail.get_full_name }}')"
+                    <button
+                        type="button"
+                        onclick="openDeleteUserModal()"
+                        class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold flex items-center"
+                        title="Supprimer"
                     >
-                        {% csrf_token %}
-                        <button 
-                            type="submit"
-                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold flex items-center"
-                            title="Supprimer"
-                        >
-                            <i class="fas fa-trash mr-2"></i>
-                            Supprimer
-                        </button>
-                    </form>
+                        <i class="fas fa-trash mr-2"></i>
+                        Supprimer
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -228,7 +222,7 @@
                             </p>
                         </div>
                         <a 
-                            href="{% url 'account:user_detail' manager.id %}" 
+                            href="{% url 'account:user_detail' manager.user_uuid %}" 
                             class="text-blue-600 hover:text-blue-800 font-semibold"
                         >
                             Voir <i class="fas fa-arrow-right ml-1"></i>
@@ -273,7 +267,7 @@
                     </div>
                     <div>
                         <a 
-                            href="{% url 'account:user_detail' user_detail.created_by.id %}" 
+                            href="{% url 'account:user_detail' user_detail.created_by.user_uuid %}" 
                             class="font-semibold text-gray-800 hover:text-blue-600 transition-colors"
                         >
                             {{ user_detail.created_by.get_full_name }}
@@ -308,42 +302,106 @@
                 </div>
             </div>
         </div>
-
-        <!-- Actions rapides -->
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <i class="fas fa-bolt mr-2 text-blue-600"></i>
-                Actions rapides
-            </h3>
-            <div class="space-y-2">
-                <a 
-                    href="mailto:{{ user_detail.email }}" 
-                    class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center"
-                >
-                    <i class="fas fa-envelope mr-2"></i>
-                    Envoyer un email
-                </a>
-                <a 
-                    href="tel:{{ user_detail.phone_code }}{{ user_detail.phone_number }}" 
-                    class="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center justify-center"
-                >
-                    <i class="fas fa-phone mr-2"></i>
-                    Appeler
-                </a>
-            </div>
-        </div>
     </div>
 </div>
 
+<!-- Modal modification (nom/prénom) -->
+<div id="editUserModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-edit mr-2 text-yellow-600"></i>
+                Modifier l'utilisateur
+            </h3>
+            <button id="closeEditUserModalBtn" type="button" class="text-gray-500 hover:text-gray-700 text-2xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" action="{% url 'account:update_user_name' user_detail.user_uuid %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Prénom <span class="text-red-500">*</span></label>
+                <input id="edit_user_first_name" type="text" name="first_name" value="{{ user_detail.first_name }}" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nom <span class="text-red-500">*</span></label>
+                <input id="edit_user_last_name" type="text" name="last_name" value="{{ user_detail.last_name }}" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button id="cancelEditUserModalBtn" type="button" class="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold">
+                    Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal confirmation suppression -->
+{% if user_detail != request.user and user_detail.role != 'super_admin' %}
+<div id="deleteUserModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-exclamation-triangle text-red-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-5">
+                Voulez-vous vraiment supprimer définitivement l'utilisateur
+                <strong>{{ user_detail.get_full_name }}</strong> ?
+            </p>
+            <form method="POST" action="{% if user_detail.role == 'manager' %}{% url 'account:delete_manager' user_detail.user_uuid %}{% else %}{% url 'account:delete_user' user_detail.user_uuid %}{% endif %}" class="flex items-center justify-end gap-3">
+                {% csrf_token %}
+                <button id="cancelDeleteUserModalBtn" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
+                    Annuler
+                </button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
+                    Supprimer
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <script>
-    // Fonction de confirmation de suppression
-    function confirmDelete(event, userName) {
-        event.preventDefault();
-        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'utilisateur "${userName}" ?\n\nCette action est irréversible.`)) {
-            event.target.closest('form').submit();
-        }
-        return false;
+    const editUserModal = document.getElementById('editUserModal');
+    const deleteUserModal = document.getElementById('deleteUserModal');
+
+    function openEditUserModal() {
+        editUserModal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
     }
+
+    function closeEditUserModal() {
+        editUserModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    function openDeleteUserModal() {
+        deleteUserModal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDeleteUserModal() {
+        deleteUserModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('closeEditUserModalBtn')?.addEventListener('click', closeEditUserModal);
+    document.getElementById('cancelEditUserModalBtn')?.addEventListener('click', closeEditUserModal);
+    document.getElementById('cancelDeleteUserModalBtn')?.addEventListener('click', closeDeleteUserModal);
+
+    editUserModal?.addEventListener('click', function(e) {
+        if (e.target === editUserModal) closeEditUserModal();
+    });
+    deleteUserModal?.addEventListener('click', function(e) {
+        if (e.target === deleteUserModal) closeDeleteUserModal();
+    });
 </script>
 {% endblock %}
 
