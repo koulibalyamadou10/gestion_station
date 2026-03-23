@@ -5,17 +5,7 @@
 {% block page_title %}Gestion des Pompes{% endblock %}
 
 {% block content %}
-<!-- Indicateur de mode lecture seule (pour les admins) -->
-{% if is_read_only %}
-<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
-    <div class="flex items-center">
-        <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
-        <p class="text-sm text-yellow-800">
-            <strong>Mode lecture seule :</strong> Vous pouvez consulter les pompes mais ne pouvez pas les créer, modifier ou enregistrer des lectures.
-        </p>
-    </div>
-</div>
-{% endif %}
+
 
 <!-- Informations sur la station -->
 {% if is_read_only and stations|length > 1 %}
@@ -45,7 +35,7 @@
             </h3>
             <p class="text-blue-100 text-sm">
                 <i class="fas fa-map-marker-alt mr-2"></i>
-                {{ station.city }} - {{ station.address }}
+                {{ station.city.name|default:"-" }} - {{ station.address }}
             </p>
         </div>
     </div>
@@ -67,28 +57,28 @@
         </div>
     </div>
 
-    <!-- Pompes Essence -->
+    <!-- Pompes avec lectures -->
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-600 text-sm font-medium">Pompes Essence</p>
-                <p class="text-3xl font-bold text-gray-800 mt-2">{{ essence_pumps }}</p>
+                <p class="text-gray-600 text-sm font-medium">Pompes avec lectures</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ pumps_with_readings }}</p>
             </div>
             <div class="bg-yellow-100 p-4 rounded-full">
-                <i class="fas fa-gas-pump text-3xl text-yellow-600"></i>
+                <i class="fas fa-clipboard-list text-3xl text-yellow-600"></i>
             </div>
         </div>
     </div>
 
-    <!-- Pompes Gazole -->
+    <!-- Total lectures -->
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-600 text-sm font-medium">Pompes Gazole</p>
-                <p class="text-3xl font-bold text-gray-800 mt-2">{{ gazole_pumps }}</p>
+                <p class="text-gray-600 text-sm font-medium">Total lectures</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_readings }}</p>
             </div>
             <div class="bg-gray-100 p-4 rounded-full">
-                <i class="fas fa-gas-pump text-3xl text-gray-600"></i>
+                <i class="fas fa-tachometer-alt text-3xl text-gray-600"></i>
             </div>
         </div>
     </div>
@@ -111,7 +101,7 @@
 <!-- Filtres et Recherche -->
 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
     <form method="GET" action="{% url 'pumps:pumps_list' %}" class="space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-{% if is_read_only and stations|length > 1 %}4{% else %}3{% endif %} gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-{% if is_read_only and stations|length > 1 %}3{% else %}2{% endif %} gap-4">
             <!-- Recherche -->
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -143,21 +133,6 @@
                 </select>
             </div>
             {% endif %}
-
-            <!-- Filtre par type -->
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    <i class="fas fa-filter mr-2 text-blue-600"></i>Type
-                </label>
-                <select 
-                    name="type" 
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                    <option value="">Tous les types</option>
-                    <option value="essence" {% if type_filter == 'essence' %}selected{% endif %}>Essence</option>
-                    <option value="gazole" {% if type_filter == 'gazole' %}selected{% endif %}>Gazole</option>
-                </select>
-            </div>
 
             <!-- Boutons -->
             <div class="flex items-end space-x-2">
@@ -195,13 +170,13 @@
                     </th>
                     {% endif %}
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-tag mr-2"></i>Type
+                        <i class="fas fa-calendar mr-2"></i>Date dernière lecture
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Index Initial
+                        <i class="fas fa-tachometer-alt mr-2"></i>Index initial
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Index Actuel
+                        <i class="fas fa-tachometer-alt mr-2"></i>Index actuel
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         <i class="fas fa-cog mr-2"></i>Actions
@@ -228,49 +203,30 @@
                                 <i class="fas fa-building text-blue-500 mr-2"></i>
                                 <span class="text-sm text-gray-900">{{ pump.station.name }}</span>
                             </div>
-                            <p class="text-xs text-gray-500 mt-1">{{ pump.station.city }}</p>
+                            <p class="text-xs text-gray-500 mt-1">{{ pump.station.city.name|default:"-" }}</p>
                         </td>
                         {% endif %}
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 rounded-full text-xs font-semibold {% if pump.type == 'essence' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ pump.get_type_display }}
+                            <span class="text-sm text-gray-900">
+                                {% if pump.latest_reading %}
+                                    {{ pump.latest_reading.reading_date|date:"d/m/Y" }}
+                                {% else %}
+                                    -
+                                {% endif %}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ pump.initial_index }}
+                            {% if pump.latest_reading %}{{ pump.latest_reading.initial_index }}{% else %}-{% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                            {{ pump.current_index }}
+                            {% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}-{% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex items-center space-x-3">
-                                <a 
-                                    href="{% url 'pumps:pump_detail' pump.pump_uuid %}" 
-                                    class="text-blue-600 hover:text-blue-800 transition-colors"
-                                    title="Voir les détails"
-                                >
-                                    <i class="fas fa-eye"></i>
-                                </a>
                                 {% if not is_read_only %}
-                                <a 
-                                    href="#" 
-                                    onclick="openReadingModal('{{ pump.pump_uuid }}', '{{ pump.name }}', '{{ pump.current_index }}'); return false;"
-                                    class="text-green-600 hover:text-green-800 transition-colors"
-                                    title="Enregistrer une lecture"
-                                >
-                                    <i class="fas fa-clipboard-list"></i>
-                                </a>
-                                <a 
-                                    href="#" 
-                                    onclick="openEditPumpModal('{{ pump.pump_uuid }}', '{{ pump.name }}', '{{ pump.type }}', '{{ pump.initial_index }}', '{{ pump.current_index }}'); return false;"
-                                    class="text-yellow-600 hover:text-yellow-800 transition-colors"
-                                    title="Modifier"
-                                >
-                                    <i class="fas fa-edit"></i>
-                                </a>
                                 <form 
                                     method="POST" 
-                                    action="{% url 'pumps:delete_pump' pump.pump_uuid %}" 
+                                    action="{% url 'pumps:delete_pump' pump.id %}" 
                                     class="inline"
                                     onsubmit="return confirmDelete(event, '{{ pump.name }}')"
                                 >
@@ -295,7 +251,7 @@
                                 <i class="fas fa-gas-pump text-6xl text-gray-300 mb-4"></i>
                                 <p class="text-gray-500 text-lg font-semibold">Aucune pompe trouvée</p>
                                 <p class="text-gray-400 text-sm mt-2">
-                                    {% if search_query or type_filter %}
+                                    {% if search_query %}
                                         Essayez de modifier vos critères de recherche
                                     {% else %}
                                         Créez votre première pompe pour commencer
@@ -345,17 +301,14 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Type <span class="text-red-500">*</span>
+                    Première date de lecture <span class="text-red-500">*</span>
                 </label>
-                <select 
-                    name="type" 
+                <input 
+                    type="date"
+                    name="reading_date" 
                     required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 >
-                    <option value="">Sélectionner un type</option>
-                    <option value="essence">Essence</option>
-                    <option value="gazole">Gazole</option>
-                </select>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
@@ -368,7 +321,7 @@
                         name="initial_index" 
                         required
                         min="0"
-                        step="1"
+                        step="0.01"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                         placeholder="0"
                     >
@@ -383,7 +336,7 @@
                         name="current_index" 
                         required
                         min="0"
-                        step="1"
+                        step="0.01"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                         placeholder="0"
                     >

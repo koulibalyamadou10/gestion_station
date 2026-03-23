@@ -2,11 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Max
-from django.utils import timezone
 from decimal import Decimal
 from pumps.models import Pump, PumpReading
 from stations.models import StationManager
 from permissions_web import manager_required
+from employee.models import Employee
 
 @login_required
 def pumps_list_view(request):
@@ -25,27 +25,27 @@ def pumps_list_view(request):
             stations = None  # Pas besoin pour les managers
             
             # Récupérer toutes les pompes de cette station
-            pumps = Pump.objects.filter(station=station).order_by('-created_at')
+            base_pumps = Pump.objects.filter(station=station).select_related('station', 'station__city').order_by('-created_at')
             
             # Statistiques
-            total_pumps = Pump.objects.filter(station=station).count()
-            essence_pumps = Pump.objects.filter(station=station, type='essence').count()
-            gazole_pumps = Pump.objects.filter(station=station, type='gazole').count()
+            total_pumps = base_pumps.count()
+            total_readings = PumpReading.objects.filter(pump__station=station).count()
+            pumps_with_readings = PumpReading.objects.filter(pump__station=station).values('pump_id').distinct().count()
         # Pour les admins : récupérer toutes leurs stations et toutes leurs pompes
         elif request.user.role == 'admin':
             from stations.models import Station
-            stations = Station.objects.filter(created_by=request.user).order_by('name')
+            stations = Station.objects.filter(owner=request.user).order_by('name')
             if not stations.exists():
                 messages.error(request, 'Vous n\'avez aucune station.')
                 return redirect('account:dashboard')
             
             # Récupérer toutes les pompes de toutes les stations de l'admin
-            pumps = Pump.objects.filter(station__in=stations).order_by('-created_at')
+            base_pumps = Pump.objects.filter(station__in=stations).select_related('station', 'station__city').order_by('-created_at')
             
             # Statistiques pour toutes les stations
-            total_pumps = Pump.objects.filter(station__in=stations).count()
-            essence_pumps = Pump.objects.filter(station__in=stations, type='essence').count()
-            gazole_pumps = Pump.objects.filter(station__in=stations, type='gazole').count()
+            total_pumps = base_pumps.count()
+            total_readings = PumpReading.objects.filter(pump__station__in=stations).count()
+            pumps_with_readings = PumpReading.objects.filter(pump__station__in=stations).values('pump_id').distinct().count()
             
             # Pour la compatibilité avec le template (affichage d'une station)
             station = stations.first() if stations else None
@@ -55,17 +55,14 @@ def pumps_list_view(request):
         
         # Filtres et recherche
         search_query = request.GET.get('search', '')
-        type_filter = request.GET.get('type', '')
         station_filter = request.GET.get('station', '')
+        pumps = base_pumps
         
         # Appliquer les filtres
         if search_query:
             pumps = pumps.filter(
                 Q(name__icontains=search_query)
             )
-        
-        if type_filter:
-            pumps = pumps.filter(type=type_filter)
         
         # Filtre par station (uniquement pour les admins)
         if request.user.role == 'admin' and station_filter:
@@ -76,17 +73,20 @@ def pumps_list_view(request):
                 pass
         
         filtered_count = pumps.count()
+
+        # Attacher la dernière lecture à chaque pompe pour l'affichage
+        for pump in pumps:
+            pump.latest_reading = pump.readings.order_by('-reading_date', '-created_at').first()
         
         context = {
             'pumps': pumps,
             'station': station,  # Pour compatibilité avec le template
             'stations': stations,  # Liste des stations pour les admins
             'total_pumps': total_pumps,
-            'essence_pumps': essence_pumps,
-            'gazole_pumps': gazole_pumps,
+            'total_readings': total_readings,
+            'pumps_with_readings': pumps_with_readings,
             'filtered_count': filtered_count,
             'search_query': search_query,
-            'type_filter': type_filter,
             'station_filter': station_filter,
             'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
         }
@@ -114,32 +114,45 @@ def create_pump_view(request):
         
         if request.method == 'POST':
             name = request.POST.get('name', '').strip()
-            pump_type = request.POST.get('type', '').strip()
             initial_index = request.POST.get('initial_index', '').strip()
             current_index = request.POST.get('current_index', '').strip()
+            reading_date = request.POST.get('reading_date', '').strip()
             
             # Validation
-            if not name or not pump_type or not initial_index or not current_index:
-                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
+            if not name or not initial_index or not current_index or not reading_date:
+                messages.error(request, 'Veuillez remplir tous les champs obligatoires, y compris la première lecture.')
                 return redirect('pumps:pumps_list')
             
             try:
-                initial_index_int = int(initial_index)
-                current_index_int = int(current_index)
+                initial_index_decimal = Decimal(initial_index)
+                current_index_decimal = Decimal(current_index)
+
+                if current_index_decimal < initial_index_decimal:
+                    messages.error(request, "L'index actuel doit être supérieur ou égal à l'index initial.")
+                    return redirect('pumps:pumps_list')
                 
                 # Créer la pompe
                 pump = Pump.objects.create(
                     station=station,
                     name=name,
-                    type=pump_type,
-                    initial_index=initial_index_int,
-                    current_index=current_index_int
+                )
+
+                # Associer l'employé correspondant au manager courant si existant
+                employee = Employee.objects.filter(user=request.user, station=station).first()
+                
+                # Créer la première lecture immédiatement
+                PumpReading.objects.create(
+                    pump=pump,
+                    employee=employee,
+                    initial_index=initial_index_decimal,
+                    current_index=current_index_decimal,
+                    reading_date=reading_date
                 )
                 
-                messages.success(request, f'La pompe "{pump.name}" a été créée avec succès.')
+                messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
                 return redirect('pumps:pumps_list')
             except ValueError:
-                messages.error(request, 'Les index doivent être des nombres entiers valides.')
+                messages.error(request, 'Les index doivent être des nombres valides.')
                 return redirect('pumps:pumps_list')
             except Exception as e:
                 messages.error(request, f'Erreur lors de la création de la pompe : {str(e)}')
@@ -150,13 +163,13 @@ def create_pump_view(request):
         return redirect('pumps:pumps_list')
 
 @login_required
-def pump_detail_view(request, pump_uuid):
+def pump_detail_view(request, pump_id):
     """
     Vue pour afficher les détails d'une pompe
     Accessible aux managers (écriture) et aux admins (lecture seule)
     """
     try:
-        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
+        pump = get_object_or_404(Pump, id=pump_id)
         
         # Vérifier les permissions selon le rôle
         if request.user.role == 'manager':
@@ -195,13 +208,13 @@ def pump_detail_view(request, pump_uuid):
 
 @login_required
 @manager_required
-def update_pump_view(request, pump_uuid):
+def update_pump_view(request, pump_id):
     """
     Vue pour modifier une pompe
     Accessible uniquement aux managers
     """
     try:
-        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
+        pump = get_object_or_404(Pump, id=pump_id)
         
         # Vérifier que la pompe appartient à la station du manager
         station_manager = StationManager.objects.filter(manager=request.user).first()
@@ -218,7 +231,7 @@ def update_pump_view(request, pump_uuid):
             # Validation
             if not name or not pump_type or not initial_index or not current_index:
                 messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
             
             try:
                 initial_index_int = int(initial_index)
@@ -232,28 +245,28 @@ def update_pump_view(request, pump_uuid):
                 pump.save()
                 
                 messages.success(request, f'La pompe "{pump.name}" a été modifiée avec succès.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
             except ValueError:
                 messages.error(request, 'Les index doivent être des nombres entiers valides.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
             except Exception as e:
                 messages.error(request, f'Erreur lors de la modification de la pompe : {str(e)}')
         
-        return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+        return redirect('pumps:pump_detail', pump_id=pump_id)
     except Exception as e:
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
 
 @login_required
 @manager_required
-def delete_pump_view(request, pump_uuid):
+def delete_pump_view(request, pump_id):
     """
     Vue pour supprimer une pompe
     Accessible uniquement aux managers
     """
     if request.method == 'POST':
         try:
-            pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
+            pump = get_object_or_404(Pump, id=pump_id)
             
             # Vérifier que la pompe appartient à la station du manager
             station_manager = StationManager.objects.filter(manager=request.user).first()
@@ -272,14 +285,14 @@ def delete_pump_view(request, pump_uuid):
 
 @login_required
 @manager_required
-def create_reading_view(request, pump_uuid):
+def create_reading_view(request, pump_id):
     """
     Vue pour enregistrer une lecture de pompe
     Accessible uniquement aux managers
     Avec validations de sécurité et mise à jour du stock
     """
     try:
-        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
+        pump = get_object_or_404(Pump, id=pump_id)
         
         # Vérifier que la pompe appartient à la station du manager
         station_manager = StationManager.objects.filter(manager=request.user).first()
@@ -295,7 +308,7 @@ def create_reading_view(request, pump_uuid):
             # Validation des champs
             if not previous_index or not current_index or not reading_date:
                 messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
             
             try:
                 previous_index_decimal = Decimal(previous_index)
@@ -304,7 +317,7 @@ def create_reading_view(request, pump_uuid):
                 # Validation 1: current_index doit être > previous_index
                 if current_index_decimal <= previous_index_decimal:
                     messages.error(request, 'L\'index actuel doit être supérieur à l\'index précédent.')
-                    return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                    return redirect('pumps:pump_detail', pump_id=pump_id)
                 
                 # Validation 2: reading_date doit être >= dernière date
                 last_reading = PumpReading.objects.filter(pump=pump).aggregate(Max('reading_date'))
@@ -315,7 +328,7 @@ def create_reading_view(request, pump_uuid):
                     
                     if reading_date_obj <= last_date:
                         messages.error(request, f'La date de lecture doit être postérieure à la dernière date enregistrée ({last_date.strftime("%d/%m/%Y")}).')
-                        return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                        return redirect('pumps:pump_detail', pump_id=pump_id)
                 
                 # Validation 3: Une seule lecture par pompe par jour (optionnel mais conseillé)
                 existing_reading = PumpReading.objects.filter(
@@ -325,7 +338,7 @@ def create_reading_view(request, pump_uuid):
                 
                 if existing_reading:
                     messages.error(request, f'Une lecture existe déjà pour cette pompe à la date du {reading_date}.')
-                    return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                    return redirect('pumps:pump_detail', pump_id=pump_id)
                 
                 # Calculer la quantité vendue
                 quantity_sold = current_index_decimal - previous_index_decimal
@@ -372,15 +385,15 @@ def create_reading_view(request, pump_uuid):
                     stock.quantity = Decimal('0')
                     stock.save()
                 
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
                 
             except ValueError as e:
                 messages.error(request, 'Les index doivent être des nombres valides.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+                return redirect('pumps:pump_detail', pump_id=pump_id)
             except Exception as e:
                 messages.error(request, f'Erreur lors de l\'enregistrement de la lecture : {str(e)}')
         
-        return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
+        return redirect('pumps:pump_detail', pump_id=pump_id)
     except Exception as e:
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
