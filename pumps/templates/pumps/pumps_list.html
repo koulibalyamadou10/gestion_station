@@ -313,7 +313,7 @@
 
 <!-- Modal de Création de Pompe -->
 <div id="createPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
             <h3 class="text-xl font-bold text-gray-800 flex items-center">
                 <i class="fas fa-plus-circle mr-2 text-blue-600"></i>
@@ -542,7 +542,7 @@
 <!-- Modal d'Enregistrement de Lecture -->
 {% if request.user.role == 'manager' %}
 <div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
             <h3 class="text-xl font-bold text-gray-800 flex items-center">
                 <i class="fas fa-clipboard-list mr-2 text-green-600"></i>
@@ -872,6 +872,13 @@
         return stationWalletsMap[currentReadingStationId] || [];
     }
 
+    function parseAmountInput(value) {
+        if (value === null || value === undefined) return 0;
+        const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
     function createWalletAllocationRow(defaultWalletUuid = '', defaultAmount = '') {
         const row = document.createElement('div');
         row.className = 'wallet-allocation-row grid grid-cols-12 gap-2';
@@ -889,7 +896,7 @@
                 </select>
             </div>
             <div class="col-span-5">
-                <input type="number" min="0" step="0.01" value="${defaultAmount}" class="wallet-amount w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Montant">
+                <input type="text" inputmode="decimal" value="${formatAmount(defaultAmount || 0)}" class="wallet-amount w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Montant">
             </div>
             <div class="col-span-1 flex items-center justify-center">
                 <button type="button" class="remove-wallet-row text-red-600 hover:text-red-800" title="Retirer">
@@ -905,7 +912,16 @@
             syncWalletAllocations();
         });
         row.querySelector('.wallet-select').addEventListener('change', syncWalletAllocations);
-        row.querySelector('.wallet-amount').addEventListener('input', syncWalletAllocations);
+        const amountInput = row.querySelector('.wallet-amount');
+        amountInput.addEventListener('input', () => {
+            // Autorise uniquement chiffres, espaces, virgule, point.
+            amountInput.value = amountInput.value.replace(/[^\d\s,\.]/g, '');
+            syncWalletAllocations();
+        });
+        amountInput.addEventListener('blur', () => {
+            amountInput.value = formatAmount(parseAmountInput(amountInput.value));
+            syncWalletAllocations();
+        });
     }
 
     function renderWalletAllocationRows() {
@@ -925,7 +941,7 @@
         addWalletAllocationBtn.disabled = false;
 
         if (wallets.length === 1) {
-            createWalletAllocationRow(wallets[0].uuid, totalAmount.toFixed(2));
+            createWalletAllocationRow(wallets[0].uuid, totalAmount);
         } else {
             createWalletAllocationRow('', '');
         }
@@ -948,7 +964,7 @@
 
         rows.forEach((row) => {
             const walletUuid = row.querySelector('.wallet-select')?.value || '';
-            const amount = parseFloat(row.querySelector('.wallet-amount')?.value || '0');
+            const amount = parseAmountInput(row.querySelector('.wallet-amount')?.value || '0');
             if (walletUuid && amount > 0) {
                 allocations.push({
                     wallet_uuid: walletUuid,
@@ -969,7 +985,19 @@
         const quantity = current - previous;
         const validQuantity = quantity >= 0 ? quantity : 0;
         readingQuantitySold.textContent = validQuantity.toFixed(2);
-        readingTotalAmount.textContent = formatAmount(getComputedTotalAmount());
+        const totalAmount = getComputedTotalAmount();
+        readingTotalAmount.textContent = formatAmount(totalAmount);
+
+        // Si un seul wallet, on remplit automatiquement 100% du total.
+        const wallets = getAvailableWalletsForCurrentStation();
+        if (wallets.length === 1) {
+            const amountInput = walletAllocationsContainer.querySelector('.wallet-amount');
+            const walletSelect = walletAllocationsContainer.querySelector('.wallet-select');
+            if (walletSelect && amountInput) {
+                walletSelect.value = wallets[0].uuid;
+                amountInput.value = formatAmount(totalAmount);
+            }
+        }
         syncWalletAllocations();
         
         // Changer la couleur si négatif

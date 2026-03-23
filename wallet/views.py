@@ -133,3 +133,53 @@ def delete_wallet_view(request, uuid):
     wallet.delete()
     messages.success(request, "Wallet supprime avec succes.")
     return redirect("wallet:wallet_list")
+
+
+@login_required
+def update_wallet_view(request, uuid):
+    """Modification du nom du wallet uniquement (unicité par station)."""
+    if request.method != "POST":
+        return redirect("wallet:wallet_list")
+
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission de modifier ce wallet.")
+        return redirect("account:not_access")
+
+    wallet = get_object_or_404(Account, uuid=uuid)
+
+    if wallet.station.owner != request.user:
+        messages.error(request, "Vous n'avez pas la permission de modifier ce wallet.")
+        return redirect("wallet:wallet_list")
+
+    name_raw = request.POST.get("name", "")
+    name = normalize_account_name(name_raw)
+    if not name:
+        messages.error(request, "Le nom du wallet est obligatoire.")
+        return redirect("wallet:wallet_list")
+    if not re.fullmatch(r"[A-Z ]+", name):
+        messages.error(request, "Le nom ne doit contenir que des lettres et des espaces.")
+        return redirect("wallet:wallet_list")
+
+    if (
+        Account.objects.filter(station=wallet.station, name=name)
+        .exclude(pk=wallet.pk)
+        .exists()
+    ):
+        messages.error(
+            request,
+            f'Un wallet nom "{name}" existe deja pour cette station.',
+        )
+        return redirect("wallet:wallet_list")
+
+    try:
+        wallet.name = name
+        wallet.save(update_fields=["name", "updated_at"])
+    except IntegrityError:
+        messages.error(
+            request,
+            f'Un wallet nom "{name}" existe deja pour cette station.',
+        )
+        return redirect("wallet:wallet_list")
+
+    messages.success(request, "Nom du wallet mis a jour avec succes.")
+    return redirect("wallet:wallet_list")
