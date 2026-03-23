@@ -594,16 +594,25 @@ def user_detail_view(request, user_uuid):
     # Récupérer les stations associées
     stations = None
     managed_stations = None
+    manager_assignment = None
+    assignable_stations = None
     
     if user_detail.role == 'admin':
         # Stations créées par cet admin
         from stations.models import Station
-        stations = Station.objects.filter(created_by=user_detail).order_by('-created_at')
+        stations = Station.objects.filter(owner=user_detail).order_by('-created_at')
     elif user_detail.role == 'manager':
         # Stations gérées par ce manager
         from stations.models import StationManager
-        station_managers = StationManager.objects.filter(manager=user_detail)
+        station_managers = StationManager.objects.filter(manager=user_detail).select_related('station')
         managed_stations = [sm.station for sm in station_managers]
+        manager_assignment = station_managers.first()
+
+        from stations.models import Station
+        if request.user.role == 'super_admin':
+            assignable_stations = Station.objects.all().order_by('name')
+        elif request.user.role == 'admin':
+            assignable_stations = Station.objects.filter(owner=request.user).order_by('name')
     
     # Récupérer les managers créés (si admin)
     created_managers = None
@@ -614,6 +623,8 @@ def user_detail_view(request, user_uuid):
         'user_detail': user_detail,
         'stations': stations,
         'managed_stations': managed_stations,
+        'manager_assignment': manager_assignment,
+        'assignable_stations': assignable_stations,
         'created_managers': created_managers,
     }
     
@@ -655,4 +666,42 @@ def update_user_name_view(request, user_uuid):
     user_to_update.last_name = last_name
     user_to_update.save(update_fields=['first_name', 'last_name', 'updated_at'])
     messages.success(request, "Les informations de l'utilisateur ont été modifiées.")
+    return redirect('account:user_detail', user_uuid=user_uuid)
+
+
+@admin_required
+def update_manager_station_view(request, user_uuid):
+    """
+    Met à jour la station gérée par un manager.
+    Accessible aux admins/super_admins avec vérification de propriété.
+    """
+    if request.method != 'POST':
+        return redirect('account:user_detail', user_uuid=user_uuid)
+
+    manager_user = get_object_or_404(CustomUser, user_uuid=user_uuid, role='manager')
+
+    if request.user.role == 'admin' and manager_user.created_by != request.user:
+        messages.error(request, "Vous n'avez pas la permission de modifier ce gérant.")
+        return redirect('account:managers_list')
+
+    station_id = request.POST.get('station_id', '').strip()
+    if not station_id:
+        messages.error(request, "Veuillez sélectionner une station.")
+        return redirect('account:user_detail', user_uuid=user_uuid)
+
+    from stations.models import Station, StationManager
+    if request.user.role == 'super_admin':
+        station = Station.objects.filter(id=station_id).first()
+    else:
+        station = Station.objects.filter(id=station_id, owner=request.user).first()
+
+    if not station:
+        messages.error(request, "Station invalide.")
+        return redirect('account:user_detail', user_uuid=user_uuid)
+
+    StationManager.objects.update_or_create(
+        manager=manager_user,
+        defaults={'station': station},
+    )
+    messages.success(request, f'Station du gérant {manager_user.get_full_name()} mise à jour avec succès.')
     return redirect('account:user_detail', user_uuid=user_uuid)
