@@ -3,13 +3,16 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+import json
 from pumps.models import Pump, PumpReading, PumpReset
 from sale.models import Sale
 from employee.models import Employee
 from stations.models import StationManager
+from wallet.models import Account
 from permissions_web import manager_required
 
 
@@ -33,7 +36,7 @@ def _create_sale_from_reading(reading, recorded_by):
 
     total_amount = (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
 
-    Sale.objects.create(
+    return Sale.objects.create(
         station=reading.pump.station,
         pump_reading=reading,
         sale_date=reading.reading_date,
@@ -116,6 +119,24 @@ def pumps_list_view(request):
             pump.latest_reading = pump.readings.order_by('-reading_date', '-created_at').first()
             pump.readings_count = pump.readings.count()
         
+        station_wallets = {}
+        station_scope_for_wallets = [station] if request.user.role == "manager" and station else stations
+        if station_scope_for_wallets:
+            wallets_qs = (
+                Account.objects
+                .filter(station__in=station_scope_for_wallets)
+                .select_related("station")
+                .order_by("name")
+            )
+            for wallet in wallets_qs:
+                station_key = str(wallet.station_id)
+                station_wallets.setdefault(station_key, []).append({
+                    "uuid": str(wallet.uuid),
+                    "name": wallet.name,
+                    "currency": wallet.currency,
+                    "balance": str(wallet.balance),
+                })
+
         context = {
             'pumps': pumps,
             'station': station,  # Pour compatibilité avec le template
@@ -127,6 +148,9 @@ def pumps_list_view(request):
             'search_query': search_query,
             'station_filter': station_filter,
             'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
+            'station_wallets': station_wallets,
+            'product_price_essence': Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0))),
+            'product_price_diesel': Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0))),
         }
         
         return render(request, 'pumps/pumps_list.html', context)
@@ -427,6 +451,7 @@ def create_reading_view(request, pump_uuid):
         if request.method == 'POST':
             initial_index = request.POST.get('initial_index', '').strip()
             current_index = request.POST.get('current_index', '').strip()
+            allocations_json = request.POST.get('wallet_allocations', '').strip()
             today = timezone.now().date()
             
             # Validation des champs
@@ -456,21 +481,85 @@ def create_reading_view(request, pump_uuid):
                     return redirect('pumps:pumps_list')
                 
                 employee = Employee.objects.filter(user=request.user, station=pump.station).first()
-                
-                # Créer la lecture
-                reading = PumpReading.objects.create(
-                    pump=pump,
-                    employee=employee,
-                    initial_index=initial_index_decimal,
-                    current_index=current_index_decimal,
-                    reading_date=today,
-                )
-                _create_sale_from_reading(reading, request.user)
+                station_wallets = list(Account.objects.filter(station=pump.station).order_by("name"))
+                if not station_wallets:
+                    messages.error(
+                        request,
+                        "Aucun wallet n'est configuré pour cette station. Veuillez créer au moins un wallet."
+                    )
+                    return redirect('pumps:pumps_list')
+
+                with transaction.atomic():
+                    # Créer la lecture
+                    reading = PumpReading.objects.create(
+                        pump=pump,
+                        employee=employee,
+                        initial_index=initial_index_decimal,
+                        current_index=current_index_decimal,
+                        reading_date=today,
+                    )
+                    sale = _create_sale_from_reading(reading, request.user)
+                    total_amount = sale.total_amount or Decimal("0")
+
+                    allocations = []
+                    if allocations_json:
+                        try:
+                            parsed = json.loads(allocations_json)
+                            if isinstance(parsed, list):
+                                allocations = parsed
+                        except json.JSONDecodeError:
+                            allocations = []
+
+                    allocations_by_uuid = {}
+                    for item in allocations:
+                        wallet_uuid = str(item.get("wallet_uuid", "")).strip()
+                        amount_raw = str(item.get("amount", "")).strip()
+                        if not wallet_uuid:
+                            continue
+                        try:
+                            amount = Decimal(amount_raw)
+                        except (InvalidOperation, ValueError):
+                            messages.error(request, "Montant wallet invalide.")
+                            return redirect('pumps:pumps_list')
+
+                        if amount < 0:
+                            messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
+                            return redirect('pumps:pumps_list')
+                        allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
+
+                    # Auto-répartition si un seul wallet et aucune allocation envoyée
+                    if not allocations_by_uuid and len(station_wallets) == 1:
+                        allocations_by_uuid[str(station_wallets[0].uuid)] = total_amount
+
+                    if not allocations_by_uuid:
+                        messages.error(request, "Veuillez répartir le montant de la vente dans au moins un wallet.")
+                        return redirect('pumps:pumps_list')
+
+                    valid_wallets_map = {str(w.uuid): w for w in station_wallets}
+                    for wallet_uuid in allocations_by_uuid.keys():
+                        if wallet_uuid not in valid_wallets_map:
+                            messages.error(request, "Un wallet sélectionné est invalide pour cette station.")
+                            return redirect('pumps:pumps_list')
+
+                    allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
+                    if allocated_sum.quantize(Decimal("0.01")) != total_amount.quantize(Decimal("0.01")):
+                        messages.error(
+                            request,
+                            "La somme répartie dans les wallets doit être égale au montant total de la vente."
+                        )
+                        return redirect('pumps:pumps_list')
+
+                    for wallet_uuid, amount in allocations_by_uuid.items():
+                        if amount <= 0:
+                            continue
+                        wallet = valid_wallets_map[wallet_uuid]
+                        wallet.balance = (wallet.balance or Decimal("0")) + amount
+                        wallet.save(update_fields=["balance", "updated_at"])
 
                 messages.success(request, 'Lecture enregistrée avec succès.')
                 return redirect('pumps:pumps_list')
                 
-            except ValueError as e:
+            except ValueError:
                 messages.error(request, 'Les index doivent être des nombres valides.')
                 return redirect('pumps:pumps_list')
             except Exception as e:
