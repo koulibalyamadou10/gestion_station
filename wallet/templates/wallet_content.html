@@ -23,7 +23,7 @@
 
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
     <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <input type="text" name="search" value="{{ search_query }}" placeholder="Station, devise..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="Station, nom wallet, devise..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
         <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
             <option value="">Toutes les stations</option>
             {% for station in stations %}
@@ -44,6 +44,7 @@
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Nom du wallet</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Solde</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Devise</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cree le</th>
@@ -55,6 +56,7 @@
                     {% for wallet in wallets %}
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 text-sm text-gray-900">{{ wallet.station.name }}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ wallet.name }}</td>
                         <td class="px-6 py-4 text-sm font-semibold {% if wallet.balance == 0 %}text-green-700{% else %}text-blue-700{% endif %}">
                             {{ wallet.balance|floatformat:2 }}
                         </td>
@@ -65,7 +67,7 @@
                                 type="button"
                                 class="text-red-600 hover:text-red-800 transition-colors"
                                 title="Supprimer"
-                                onclick="openDeleteWalletModal({{ wallet.id }}, '{{ wallet.station.name|escapejs }}', '{{ wallet.balance|stringformat:"f" }}')"
+                                onclick="openDeleteWalletModal('{{ wallet.uuid }}', '{{ wallet.station.name|escapejs }}', '{{ wallet.balance|stringformat:"f" }}')"
                             >
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -74,7 +76,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">Aucun wallet trouve.</td>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">Aucun wallet trouve.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -114,6 +116,13 @@
                     {% endfor %}
                 </select>
             </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nom du wallet *</label>
+                <input type="text" name="name" id="walletNameInput" required maxlength="150" autocomplete="off"
+                       placeholder="Ex. MOBILE MONEY"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg uppercase font-medium">
+                <p class="text-xs text-gray-500 mt-1">Lettres uniquement (affiche en majuscules). Pas deux fois le meme nom pour une meme station.</p>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Solde initial</label>
@@ -121,7 +130,10 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Devise</label>
-                    <input type="text" name="currency" value="GNF" maxlength="10" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <input type="hidden" name="currency" value="GNF">
+                    <input type="text" value="GNF" maxlength="10" disabled
+                           class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                           aria-readonly="true">
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-2">
@@ -151,7 +163,7 @@
                 <button type="button" id="cancelDeleteWallet" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                     Annuler
                 </button>
-                <form id="deleteWalletForm" method="POST" action="{% url 'wallet:delete_wallet' 0 %}">
+                <form id="deleteWalletForm" method="POST" action="{% url 'wallet:delete_wallet' '00000000-0000-0000-0000-000000000000' %}">
                     {% csrf_token %}
                     <button id="confirmDeleteWalletBtn" type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                         Supprimer
@@ -185,6 +197,16 @@
         if (e.target === createWalletModal) closeCreateWalletModal();
     });
 
+    const walletNameInput = document.getElementById('walletNameInput');
+    function sanitizeWalletNameInput() {
+        if (!walletNameInput) return;
+        let v = walletNameInput.value.replace(/[^A-Za-z\s]/g, '');
+        v = v.replace(/\s+/g, ' ').toUpperCase();
+        walletNameInput.value = v;
+    }
+    walletNameInput?.addEventListener('input', sanitizeWalletNameInput);
+    walletNameInput?.addEventListener('blur', sanitizeWalletNameInput);
+
     const deleteWalletModal = document.getElementById('deleteWalletModal');
     const closeDeleteWalletModalBtn = document.getElementById('closeDeleteWalletModal');
     const cancelDeleteWalletBtn = document.getElementById('cancelDeleteWallet');
@@ -193,10 +215,12 @@
     const deleteWalletBlockedMessage = document.getElementById('deleteWalletBlockedMessage');
     const confirmDeleteWalletBtn = document.getElementById('confirmDeleteWalletBtn');
 
-    function openDeleteWalletModal(walletId, stationName, balance) {
+    const DELETE_WALLET_URL_PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
+
+    function openDeleteWalletModal(walletUuid, stationName, balance) {
         deleteWalletStationName.textContent = stationName;
         const baseDeleteUrl = deleteWalletForm.action;
-        deleteWalletForm.action = baseDeleteUrl.replace('/0/', `/${walletId}/`);
+        deleteWalletForm.action = baseDeleteUrl.replace(DELETE_WALLET_URL_PLACEHOLDER, walletUuid);
 
         const numericBalance = parseFloat(String(balance || '0').replace(',', '.'));
         if (numericBalance !== 0) {

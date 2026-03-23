@@ -1,13 +1,15 @@
+import re
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import IntegrityError
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from stations.models import Station
-from wallet.models import Account
+from wallet.models import Account, normalize_account_name
 
 
 @login_required
@@ -21,6 +23,7 @@ def wallet_list_view(request):
 
     if request.method == "POST":
         station_id = request.POST.get("station_id", "").strip()
+        name_raw = request.POST.get("name", "")
         balance_raw = request.POST.get("balance", "0").strip() or "0"
         currency = request.POST.get("currency", "GNF").strip() or "GNF"
 
@@ -33,8 +36,19 @@ def wallet_list_view(request):
             messages.error(request, "Station invalide.")
             return redirect("wallet:wallet_list")
 
-        if Account.objects.filter(station=station).exists():
-            messages.error(request, "Un wallet existe deja pour cette station.")
+        name = normalize_account_name(name_raw)
+        if not name:
+            messages.error(request, "Le nom du wallet est obligatoire.")
+            return redirect("wallet:wallet_list")
+        if not re.fullmatch(r"[A-Z ]+", name):
+            messages.error(request, "Le nom ne doit contenir que des lettres et des espaces.")
+            return redirect("wallet:wallet_list")
+
+        if Account.objects.filter(station=station, name=name).exists():
+            messages.error(
+                request,
+                f'Un wallet nom "{name}" existe deja pour cette station.',
+            )
             return redirect("wallet:wallet_list")
 
         try:
@@ -47,11 +61,20 @@ def wallet_list_view(request):
             messages.error(request, "Le solde initial ne peut pas etre negatif.")
             return redirect("wallet:wallet_list")
 
-        Account.objects.create(
-            station=station,
-            balance=balance,
-            currency=currency,
-        )
+        try:
+            Account.objects.create(
+                station=station,
+                name=name,
+                balance=balance,
+                currency=currency,
+            )
+        except IntegrityError:
+            messages.error(
+                request,
+                f'Un wallet nom "{name}" existe deja pour cette station.',
+            )
+            return redirect("wallet:wallet_list")
+
         messages.success(request, "Wallet cree avec succes.")
         return redirect("wallet:wallet_list")
 
@@ -61,7 +84,9 @@ def wallet_list_view(request):
 
     if search_query:
         wallets_queryset = wallets_queryset.filter(
-            Q(station__name__icontains=search_query) | Q(currency__icontains=search_query)
+            Q(station__name__icontains=search_query)
+            | Q(name__icontains=search_query)
+            | Q(currency__icontains=search_query)
         )
 
     if station_filter:
@@ -87,7 +112,7 @@ def wallet_list_view(request):
 
 
 @login_required
-def delete_wallet_view(request, wallet_id):
+def delete_wallet_view(request, uuid):
     if request.method != "POST":
         return redirect("wallet:wallet_list")
 
@@ -95,7 +120,7 @@ def delete_wallet_view(request, wallet_id):
         messages.error(request, "Vous n'avez pas la permission de supprimer un wallet.")
         return redirect("account:not_access")
 
-    wallet = get_object_or_404(Account, pk=wallet_id)
+    wallet = get_object_or_404(Account, uuid=uuid)
 
     if wallet.station.owner != request.user:
         messages.error(request, "Vous n'avez pas la permission de supprimer ce wallet.")
