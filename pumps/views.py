@@ -1,13 +1,49 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.core.paginator import Paginator
 from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
 from django.utils import timezone
 from decimal import Decimal
-from pumps.models import Pump, PumpReading
+from pumps.models import Pump, PumpReading, PumpReset
+from sale.models import Sale
+from employee.models import Employee
 from stations.models import StationManager
 from permissions_web import manager_required
+
+
+def _create_sale_from_reading(reading, recorded_by):
+    """
+    Crée automatiquement une vente à partir d'une lecture de pompe.
+    Le type de produit est déduit du nom de la pompe.
+    """
+    qty = reading.current_index - reading.initial_index
+    if qty < 0:
+        qty = Decimal("0")
+
+    pump_name = (reading.pump.name or "").lower()
+    is_essence = "essence" in pump_name
+
+    unit_price_essence = Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
+    unit_price_diesel = Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+
+    qty_gasoline = qty if is_essence else Decimal("0")
+    qty_diesel = qty if not is_essence else Decimal("0")
+
+    total_amount = (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
+
+    Sale.objects.create(
+        station=reading.pump.station,
+        pump_reading=reading,
+        sale_date=reading.reading_date,
+        qty_gasoline=qty_gasoline,
+        qty_diesel=qty_diesel,
+        unit_price_gasoline=unit_price_essence,
+        unit_price_diesel=unit_price_diesel,
+        total_amount=total_amount,
+        recorded_by=recorded_by,
+    )
 
 @login_required
 def pumps_list_view(request):
@@ -165,13 +201,14 @@ def create_pump_view(request):
                 )
 
                 # Créer la première lecture immédiatement
-                PumpReading.objects.create(
+                first_reading = PumpReading.objects.create(
                     pump=pump,
                     employee=None,
                     initial_index=initial_index_decimal,
                     current_index=current_index_decimal,
                     reading_date=timezone.now().date()
                 )
+                # _create_sale_from_reading(first_reading, request.user)
                 
                 messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
                 return redirect('pumps:pumps_list')
@@ -288,7 +325,7 @@ def update_pump_view(request, pump_uuid):
             # Validation
             if not name or not pump_type or not initial_index or not current_index:
                 messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
             
             try:
                 initial_index_int = int(initial_index)
@@ -302,14 +339,14 @@ def update_pump_view(request, pump_uuid):
                 pump.save()
                 
                 messages.success(request, f'La pompe "{pump.name}" a été modifiée avec succès.')
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
             except ValueError:
                 messages.error(request, 'Les index doivent être des nombres entiers valides.')
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
             except Exception as e:
                 messages.error(request, f'Erreur lors de la modification de la pompe : {str(e)}')
         
-        return redirect('pumps:pump_detail', pump_id=pump_id)
+        return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
     except Exception as e:
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
@@ -373,99 +410,108 @@ def create_reading_view(request, pump_uuid):
             return redirect('pumps:pumps_list')
         
         if request.method == 'POST':
-            previous_index = request.POST.get('previous_index', '').strip()
+            initial_index = request.POST.get('initial_index', '').strip()
             current_index = request.POST.get('current_index', '').strip()
-            reading_date = request.POST.get('reading_date', '').strip()
+            today = timezone.now().date()
             
             # Validation des champs
-            if not previous_index or not current_index or not reading_date:
+            if not initial_index or not current_index:
                 messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                return redirect('pumps:pumps_list')
             
             try:
-                previous_index_decimal = Decimal(previous_index)
+                initial_index_decimal = Decimal(initial_index)
                 current_index_decimal = Decimal(current_index)
                 
-                # Validation 1: current_index doit être > previous_index
-                if current_index_decimal <= previous_index_decimal:
+                # Validation 1: current_index doit être > initial_index
+                if current_index_decimal <= initial_index_decimal:
                     messages.error(request, 'L\'index actuel doit être supérieur à l\'index précédent.')
-                    return redirect('pumps:pump_detail', pump_id=pump_id)
+                    return redirect('pumps:pumps_list')
                 
-                # Validation 2: reading_date doit être >= dernière date
-                last_reading = PumpReading.objects.filter(pump=pump).aggregate(Max('reading_date'))
-                if last_reading['reading_date__max']:
-                    from datetime import datetime
-                    last_date = last_reading['reading_date__max']
-                    reading_date_obj = datetime.strptime(reading_date, '%Y-%m-%d').date()
-                    
-                    if reading_date_obj <= last_date:
-                        messages.error(request, f'La date de lecture doit être postérieure à la dernière date enregistrée ({last_date.strftime("%d/%m/%Y")}).')
-                        return redirect('pumps:pump_detail', pump_id=pump_id)
-                
-                # Validation 3: Une seule lecture par pompe par jour (optionnel mais conseillé)
+                # Validation 2: une seule lecture/jour/pompe
+                # seulement quand la pompe a deja plus d'une lecture.
+                readings_count = PumpReading.objects.filter(pump=pump).count()
                 existing_reading = PumpReading.objects.filter(
                     pump=pump,
-                    reading_date=reading_date
+                    reading_date=today
                 ).first()
                 
-                if existing_reading:
-                    messages.error(request, f'Une lecture existe déjà pour cette pompe à la date du {reading_date}.')
-                    return redirect('pumps:pump_detail', pump_id=pump_id)
+                if readings_count > 1 and existing_reading:
+                    messages.error(request, 'Une lecture a déjà été enregistrée aujourd\'hui pour cette pompe.')
+                    return redirect('pumps:pumps_list')
                 
-                # Calculer la quantité vendue
-                quantity_sold = current_index_decimal - previous_index_decimal
+                employee = Employee.objects.filter(user=request.user, station=pump.station).first()
                 
                 # Créer la lecture
                 reading = PumpReading.objects.create(
                     pump=pump,
-                    previous_index=previous_index_decimal,
+                    employee=employee,
+                    initial_index=initial_index_decimal,
                     current_index=current_index_decimal,
-                    quantity_sold=quantity_sold,
-                    reading_date=reading_date,
-                    created_by=request.user
+                    reading_date=today,
                 )
-                
-                # Mettre à jour l'index actuel de la pompe
-                pump.current_index = int(current_index_decimal)
-                pump.save()
-                
-                # Mettre à jour le stock automatiquement
-                from stocks.models import Stock
-                stock, created = Stock.objects.get_or_create(
-                    station=pump.station,
-                    type=pump.type,
-                    defaults={'quantity': Decimal('0')}
-                )
-                
-                # Déduire la quantité vendue du stock
-                if stock.quantity >= quantity_sold:
-                    stock.quantity -= quantity_sold
-                    stock.save()
-                    messages.success(
-                        request, 
-                        f'Lecture enregistrée avec succès ! Quantité vendue : {quantity_sold} litres. '
-                        f'Le stock a été mis à jour automatiquement.'
-                    )
-                else:
-                    # Si le stock est insuffisant, on le met à 0 et on enregistre un avertissement
-                    messages.warning(
-                        request, 
-                        f'Attention : Le stock de {pump.get_type_display()} est insuffisant. '
-                        f'Quantité vendue : {quantity_sold}, Stock disponible : {stock.quantity}. '
-                        f'Le stock a été mis à 0.'
-                    )
-                    stock.quantity = Decimal('0')
-                    stock.save()
-                
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                _create_sale_from_reading(reading, request.user)
+
+                messages.success(request, 'Lecture enregistrée avec succès.')
+                return redirect('pumps:pumps_list')
                 
             except ValueError as e:
                 messages.error(request, 'Les index doivent être des nombres valides.')
-                return redirect('pumps:pump_detail', pump_id=pump_id)
+                return redirect('pumps:pumps_list')
             except Exception as e:
                 messages.error(request, f'Erreur lors de l\'enregistrement de la lecture : {str(e)}')
         
-        return redirect('pumps:pump_detail', pump_id=pump_id)
+        return redirect('pumps:pumps_list')
     except Exception as e:
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
+
+
+@login_required
+def reset_pump_view(request, pump_uuid):
+    """
+    Réinitialise une pompe (index initial et actuel à 0).
+    Action autorisée uniquement pour l'admin propriétaire.
+    """
+    if request.method != "POST":
+        return redirect("pumps:pump_detail", pump_uuid=pump_uuid)
+
+    try:
+        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
+
+        if request.user.role != "admin":
+            messages.error(request, "Seul un administrateur peut réinitialiser une pompe.")
+            return redirect("pumps:pump_detail", pump_uuid=pump_uuid)
+
+        if pump.station.owner != request.user:
+            messages.error(request, "Vous n'avez pas la permission de réinitialiser cette pompe.")
+            return redirect("pumps:pumps_list")
+
+        latest_reading = PumpReading.objects.filter(pump=pump).order_by("-reading_date", "-created_at").first()
+        previous_initial = latest_reading.initial_index if latest_reading else Decimal("0")
+        previous_current = latest_reading.current_index if latest_reading else Decimal("0")
+        reason = request.POST.get("reason", "").strip()
+
+        PumpReset.objects.create(
+            pump=pump,
+            previous_initial_index=previous_initial,
+            previous_current_index=previous_current,
+            reset_initial_index=Decimal("0"),
+            reset_current_index=Decimal("0"),
+            reason=reason or None,
+            reset_by=request.user,
+        )
+
+        PumpReading.objects.create(
+            pump=pump,
+            employee=None,
+            initial_index=Decimal("0"),
+            current_index=Decimal("0"),
+            reading_date=timezone.now().date(),
+        )
+
+        messages.success(request, f'La pompe "{pump.name}" a été réinitialisée à 0.')
+    except Exception as e:
+        messages.error(request, f"Erreur lors de la réinitialisation : {str(e)}")
+
+    return redirect("pumps:pump_detail", pump_uuid=pump_uuid)

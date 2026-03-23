@@ -230,6 +230,16 @@
                                 >
                                     <i class="fas fa-eye"></i>
                                 </a>
+                                {% if request.user.role == 'manager' %}
+                                <button
+                                    type="button"
+                                    class="text-green-600 hover:text-green-800 transition-colors"
+                                    title="Faire une lecture"
+                                    onclick="openReadingModal('{{ pump.pump_uuid }}', '{{ pump.name|escapejs }}', '{% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}0{% endif %}')"
+                                >
+                                    <i class="fas fa-clipboard-list"></i>
+                                </button>
+                                {% endif %}
                                 {% if request.user.role == 'admin' %}
                                 <button
                                     type="button"
@@ -530,6 +540,7 @@
 </div>
 
 <!-- Modal d'Enregistrement de Lecture -->
+{% if request.user.role == 'manager' %}
 <div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -563,9 +574,10 @@
                 </label>
                 <input 
                     type="number" 
-                    name="previous_index" 
+                    name="initial_index" 
                     id="reading_previous_index"
                     required
+                    readonly
                     min="0"
                     step="0.01"
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
@@ -589,20 +601,6 @@
                     placeholder="0.00"
                 >
                 <p class="text-xs text-gray-500 mt-1">Nouvel index de la pompe</p>
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Date de lecture <span class="text-red-500">*</span>
-                </label>
-                <input 
-                    type="date" 
-                    name="reading_date" 
-                    id="reading_date"
-                    required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                >
-                <p class="text-xs text-gray-500 mt-1">Date à laquelle la lecture a été effectuée</p>
             </div>
 
             <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg">
@@ -634,6 +632,7 @@
         </form>
     </div>
 </div>
+{% endif %}
 
 <script>
     // Gestion du modal de création
@@ -769,7 +768,6 @@
     const readingForm = document.getElementById('readingForm');
     const readingPreviousIndex = document.getElementById('reading_previous_index');
     const readingCurrentIndexInput = document.getElementById('reading_current_index_input');
-    const readingDate = document.getElementById('reading_date');
     const readingQuantitySold = document.getElementById('reading_quantity_sold');
     
     function openReadingModal(pumpUuid, pumpName, currentIndex) {
@@ -779,11 +777,6 @@
         
         // Définir l'index précédent par défaut (index actuel de la pompe)
         readingPreviousIndex.value = currentIndex;
-        
-        // Définir la date d'aujourd'hui par défaut
-        const today = new Date().toISOString().split('T')[0];
-        readingDate.value = today;
-        readingDate.min = today; // Empêcher les dates passées
         
         // Mettre à jour l'action du formulaire
         readingForm.action = `/pumps/${pumpUuid}/reading/`;
@@ -844,16 +837,6 @@
             return false;
         }
         
-        const date = new Date(readingDate.value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        if (date < today) {
-            e.preventDefault();
-            alert('La date de lecture ne peut pas être antérieure à aujourd\'hui !');
-            readingDate.focus();
-            return false;
-        }
     });
 </script>
 {% endblock %}
