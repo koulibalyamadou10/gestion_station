@@ -170,7 +170,6 @@ def update_employee_view(request, employee_uuid):
     messages.success(request, "Employé modifié avec succès.")
     return redirect("employee:employee_list")
 
-
 @login_required
 def delete_employee_view(request, employee_uuid):
     if request.user.role not in ["admin", "super_admin"]:
