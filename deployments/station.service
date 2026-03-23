@@ -1,0 +1,18 @@
+[Unit]
+Description=station Server for Django Application
+After=network.target
+
+[Service]
+User=station
+Group=www-data
+WorkingDirectory=/var/www/station
+Environment="PATH=/var/www/station/.venv/bin"
+ExecStart=/var/www/station/.venv/bin/gunicorn station.wsgi:application \
+          --workers 3 \
+          --bind unix:/var/www/station/station.sock \
+          --access-logfile /var/log/station/station_access.log \
+          --error-logfile /var/log/station/station_error.log
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -177,7 +177,7 @@
                                 </a>
                                 <a 
                                     href="#" 
-                                    onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name|escapejs }}', '{{ station.city.name|default:""|escapejs }}', '{{ station.address|escapejs }}', '{{ station.latitude|default:"" }}', '{{ station.longitude|default:"" }}', '{{ station.owner.id|default:"" }}'); return false;"
+                                    onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name|escapejs }}', '{{ station.city.id|default:"" }}', '{{ station.address|escapejs }}', '{{ station.latitude|default:"" }}', '{{ station.longitude|default:"" }}', '{{ station.owner.id|default:"" }}'); return false;"
                                     class="text-yellow-600 hover:text-yellow-800 transition-colors"
                                     title="Modifier"
                                 >
@@ -186,11 +186,11 @@
                                 <form 
                                     method="POST" 
                                     action="{% url 'stations:delete_station' station.station_uuid %}" 
-                                    class="inline"
-                                    onsubmit="return confirmDelete(event, '{{ station.name }}')"
+                                    class="inline delete-station-form"
                                 >
                                     {% csrf_token %}
                                     <button 
+                                        data-station-name="{{ station.name|escapejs }}"
                                         type="submit"
                                         class="text-red-600 hover:text-red-800 transition-colors"
                                         title="Supprimer"
@@ -411,14 +411,17 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                     Ville <span class="text-red-500">*</span>
                 </label>
-                <input 
-                    type="text" 
-                    name="city" 
+                <select
+                    name="city_id"
                     id="edit_station_city"
                     required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="Ex: Conakry"
                 >
+                    <option value="">Sélectionner une ville</option>
+                    {% for city in all_cities %}
+                        <option value="{{ city.id }}">{{ city.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div>
@@ -453,14 +456,14 @@
                 <input type="hidden" name="longitude" id="edit_longitude" required>
             </div>
 
-            <!-- Champ created_by : visible uniquement pour super_admin -->
+            <!-- Champ propriétaire : visible uniquement pour super_admin -->
             {% if user.role == 'super_admin' %}
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                     Propriétaire de la station <span class="text-red-500">*</span>
                 </label>
                 <select 
-                    name="created_by" 
+                    name="owner_id" 
                     id="edit_station_created_by"
                     required
                     class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
@@ -491,6 +494,31 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Modal de confirmation suppression -->
+<div id="deleteStationModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-exclamation-triangle text-red-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-5">
+                Voulez-vous vraiment supprimer la station <strong id="deleteStationName"></strong> ?
+            </p>
+            <div class="flex items-center justify-end gap-3">
+                <button id="cancelDeleteStationBtn" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
+                    Annuler
+                </button>
+                <button id="confirmDeleteStationBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
+                    Supprimer
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -696,12 +724,12 @@
     const editLongitudeInput = document.getElementById('edit_longitude');
     const editCoordinatesDisplay = document.getElementById('editCoordinatesDisplay');
     
-    function openEditStationModal(uuid, name, city, address, lat, lng, createdById) {
+    function openEditStationModal(uuid, name, cityId, address, lat, lng, createdById) {
         currentStationUuid = uuid;
         
         // Remplir les champs
         document.getElementById('edit_station_name').value = name;
-        document.getElementById('edit_station_city').value = city;
+        document.getElementById('edit_station_city').value = cityId || '';
         document.getElementById('edit_station_address').value = address;
         if (document.getElementById('edit_station_created_by')) {
             document.getElementById('edit_station_created_by').value = createdById || '';
@@ -812,14 +840,36 @@
         }
     });
     
-    // Fonction de confirmation de suppression
-    function confirmDelete(event, stationName) {
-        event.preventDefault();
-        if (confirm(`Êtes-vous sûr de vouloir supprimer la station "${stationName}" ?\n\nCette action est irréversible.`)) {
-            event.target.closest('form').submit();
-        }
-        return false;
+    const deleteStationModal = document.getElementById('deleteStationModal');
+    const deleteStationNameEl = document.getElementById('deleteStationName');
+    const cancelDeleteStationBtn = document.getElementById('cancelDeleteStationBtn');
+    const confirmDeleteStationBtn = document.getElementById('confirmDeleteStationBtn');
+    let currentDeleteForm = null;
+
+    document.querySelectorAll('.delete-station-form').forEach((form) => {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            currentDeleteForm = form;
+            const btn = form.querySelector('button[data-station-name]');
+            deleteStationNameEl.textContent = btn?.dataset.stationName || '';
+            deleteStationModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    function closeDeleteStationModal() {
+        deleteStationModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        currentDeleteForm = null;
     }
+
+    cancelDeleteStationBtn?.addEventListener('click', closeDeleteStationModal);
+    confirmDeleteStationBtn?.addEventListener('click', function () {
+        if (currentDeleteForm) currentDeleteForm.submit();
+    });
+    deleteStationModal?.addEventListener('click', function (e) {
+        if (e.target === deleteStationModal) closeDeleteStationModal();
+    });
 </script>
 {% endblock %}
 

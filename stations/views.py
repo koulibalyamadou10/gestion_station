@@ -235,10 +235,10 @@ def station_detail_view(request, station_uuid):
         return redirect('account:dashboard')
     
     try:
-        station = get_object_or_404(Station, station_uuid=station_uuid)
+        station = get_object_or_404(Station.objects.select_related('city', 'owner'), station_uuid=station_uuid)
         
         # Vérifier les permissions
-        if request.user.role == 'admin' and station.created_by != request.user:
+        if request.user.role == 'admin' and station.owner != request.user:
             messages.error(request, 'Vous n\'avez pas la permission de voir cette station.')
             return redirect('stations:stations_list')
         
@@ -268,6 +268,7 @@ def station_detail_view(request, station_uuid):
             'current_manager': current_manager,
             'admins': admins,
             'managers': managers,
+            'all_cities': City.objects.order_by('name'),
         }
         
         return render(request, 'stations/stations_detail.html', context)
@@ -290,18 +291,18 @@ def update_station_view(request, station_uuid):
             station = get_object_or_404(Station, station_uuid=station_uuid)
             
             # Vérifier les permissions
-            if request.user.role == 'admin' and station.created_by != request.user:
+            if request.user.role == 'admin' and station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de modifier cette station.')
                 return redirect('stations:stations_list')
             
             name = request.POST.get('name', '').strip()
-            city = request.POST.get('city', '').strip()
+            city_id = request.POST.get('city_id', '').strip()
             address = request.POST.get('address', '').strip()
             latitude = request.POST.get('latitude', '').strip()
             longitude = request.POST.get('longitude', '').strip()
             
             # Validation
-            if not name or not city or not address:
+            if not name or not city_id or not address:
                 messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
                 return redirect('stations:station_detail', station_uuid=station_uuid)
             
@@ -309,16 +310,16 @@ def update_station_view(request, station_uuid):
                 messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
                 return redirect('stations:station_detail', station_uuid=station_uuid)
             
-            # Déterminer le created_by selon le rôle (seulement si super_admin)
+            # Déterminer le propriétaire selon le rôle (seulement si super_admin)
             if request.user.role == 'super_admin':
-                created_by_id = request.POST.get('created_by', '').strip()
-                if created_by_id:
+                owner_id = request.POST.get('owner_id', '').strip()
+                if owner_id:
                     from account.models import CustomUser
                     try:
-                        created_by = CustomUser.objects.get(id=created_by_id, role='admin', is_active=True)
-                        station.created_by = created_by
+                        owner = CustomUser.objects.get(id=owner_id, role='admin', is_active=True)
+                        station.owner = owner
                     except CustomUser.DoesNotExist:
-                        pass  # Garder le created_by actuel si invalide
+                        pass  # Garder le owner actuel si invalide
             
             # Gérer le changement de gérant
             manager_id = request.POST.get('manager', '').strip()
@@ -327,7 +328,7 @@ def update_station_view(request, station_uuid):
                 try:
                     new_manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
                     # Vérifier que le manager appartient bien au propriétaire
-                    if new_manager.created_by != station.created_by:
+                    if new_manager.created_by != station.owner:
                         messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire de la station.')
                         return redirect('stations:station_detail', station_uuid=station_uuid)
                     
@@ -348,6 +349,7 @@ def update_station_view(request, station_uuid):
             from decimal import Decimal
             latitude_decimal = Decimal(latitude)
             longitude_decimal = Decimal(longitude)
+            city = get_object_or_404(City, id=city_id)
             
             # Mettre à jour la station
             station.name = name
@@ -383,7 +385,7 @@ def delete_station_view(request, station_uuid):
             station = get_object_or_404(Station, station_uuid=station_uuid)
             
             # Vérifier les permissions
-            if request.user.role == 'admin' and station.created_by != request.user:
+            if request.user.role == 'admin' and station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de supprimer cette station.')
                 return redirect('stations:stations_list')
             
@@ -411,7 +413,7 @@ def assign_manager_view(request, station_uuid):
             station = get_object_or_404(Station, station_uuid=station_uuid)
             
             # Vérifier les permissions
-            if request.user.role == 'admin' and station.created_by != request.user:
+            if request.user.role == 'admin' and station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission d\'assigner un gérant à cette station.')
                 return redirect('stations:station_detail', station_uuid=station_uuid)
             
@@ -423,7 +425,7 @@ def assign_manager_view(request, station_uuid):
                     from account.models import CustomUser
                     try:
                         new_owner = CustomUser.objects.get(id=owner_id, role='admin', is_active=True)
-                        station.created_by = new_owner
+                        station.owner = new_owner
                         station.save()
                     except CustomUser.DoesNotExist:
                         pass  # Garder le propriétaire actuel si invalide
@@ -438,7 +440,7 @@ def assign_manager_view(request, station_uuid):
             try:
                 new_manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
                 # Vérifier que le manager appartient bien au propriétaire de la station
-                if new_manager.created_by != station.created_by:
+                if new_manager.created_by != station.owner:
                     messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire de la station.')
                     return redirect('stations:station_detail', station_uuid=station_uuid)
                 
