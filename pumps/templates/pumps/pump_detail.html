@@ -5,337 +5,131 @@
 {% block page_title %}Détails de la Pompe{% endblock %}
 
 {% block content %}
-<!-- Indicateur de mode lecture seule (pour les admins) -->
-{% if is_read_only %}
-<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded-lg">
-    <div class="flex items-center">
-        <i class="fas fa-info-circle text-yellow-600 mr-2"></i>
-        <p class="text-sm text-yellow-800">
-            <strong>Mode lecture seule :</strong> Vous pouvez consulter les détails de la pompe mais ne pouvez pas la modifier ou enregistrer des lectures.
-        </p>
-    </div>
-</div>
-{% endif %}
-
-<!-- Bouton Retour -->
 <div class="mb-6">
-    <a 
-        href="{% url 'pumps:pumps_list' %}" 
-        class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors font-semibold"
-    >
+    <a href="{% url 'pumps:pumps_list' %}" class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors font-semibold">
         <i class="fas fa-arrow-left mr-2"></i>
         Retour à la liste
     </a>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Colonne principale - Informations -->
-    <div class="lg:col-span-2 space-y-6">
-        <!-- Informations générales -->
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-info-circle mr-2 text-blue-600"></i>
-                    Informations générales
-                </h3>
-                {% if not is_read_only %}
-                <div class="flex items-center space-x-2">
-                    <a 
-                        href="#" 
-                        onclick="openEditPumpModal('{{ pump.pump_uuid }}', '{{ pump.name }}', '{{ pump.type }}', '{{ pump.initial_index }}', '{{ pump.current_index }}'); return false;"
-                        class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-semibold flex items-center"
-                        title="Modifier"
-                    >
-                        <i class="fas fa-edit mr-2"></i>
-                        Modifier
-                    </a>
-                    <form 
-                        method="POST" 
-                        action="{% url 'pumps:delete_pump' pump.pump_uuid %}" 
-                        class="inline"
-                        onsubmit="return confirmDelete(event, '{{ pump.name }}')"
-                    >
-                        {% csrf_token %}
-                        <button 
-                            type="submit"
-                            class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold flex items-center"
-                            title="Supprimer"
-                        >
-                            <i class="fas fa-trash mr-2"></i>
-                            Supprimer
-                        </button>
-                    </form>
-                </div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <p class="text-sm text-gray-500 mb-1">Nom de la pompe</p>
+        <p class="text-lg font-bold text-gray-900">{{ pump.name }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <p class="text-sm text-gray-500 mb-1">Station</p>
+        <p class="text-lg font-bold text-gray-900">{{ pump.station.name }}</p>
+        <p class="text-xs text-gray-500 mt-1">{{ pump.station.city.name|default:"-" }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <p class="text-sm text-gray-500 mb-1">Quantité vendue totale</p>
+        <p class="text-2xl font-bold text-blue-600">{{ quantity_sold_total|floatformat:2 }}</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-filter mr-2 text-blue-600"></i>
+        Filtres historique
+    </h3>
+    <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Date de lecture</label>
+            <input
+                type="date"
+                name="reading_date"
+                value="{{ date_filter }}"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Employé</label>
+            <select
+                name="employee"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+                <option value="">Tous</option>
+                {% for employee in employees %}
+                    <option value="{{ employee.id }}" {% if employee_filter == employee.id|stringformat:"s" %}selected{% endif %}>
+                        {{ employee.first_name }} {{ employee.last_name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end gap-2 md:col-span-2">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                Filtrer
+            </button>
+            <a href="{% url 'pumps:pump_detail' pump.pump_uuid %}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold">
+                Réinitialiser
+            </a>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6">
+    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+        <i class="fas fa-history mr-2 text-blue-600"></i>
+        Historique des lectures
+    </h3>
+    {% if readings %}
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Index initial</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Index actuel</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quantité vendue</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Employé</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Enregistré le</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for reading in readings %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm text-gray-900">{{ reading.reading_date|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900 font-mono">{{ reading.initial_index }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900 font-mono font-semibold">{{ reading.current_index }}</td>
+                        <td class="px-4 py-3 text-sm text-blue-600 font-semibold">{{ reading.quantity_sold|floatformat:2 }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            {% if reading.employee %}
+                                {{ reading.employee.first_name }} {{ reading.employee.last_name }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-500">{{ reading.created_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="mt-6 flex items-center justify-between">
+            <p class="text-sm text-gray-600">
+                Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+            </p>
+            <div class="flex items-center gap-2">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1{% if date_filter %}&reading_date={{ date_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}" class="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Premier</a>
+                    <a href="?page={{ page_obj.previous_page_number }}{% if date_filter %}&reading_date={{ date_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}" class="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Précédent</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if date_filter %}&reading_date={{ date_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}" class="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Suivant</a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}{% if date_filter %}&reading_date={{ date_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}" class="px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">Dernier</a>
                 {% endif %}
             </div>
-
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Nom de la pompe</label>
-                        <p class="text-lg font-bold text-gray-800">{{ pump.name }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Type</label>
-                        <span class="px-3 py-1 rounded-full text-sm font-semibold {% if pump.type == 'essence' %}bg-yellow-100 text-yellow-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ pump.get_type_display }}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Index Initial</label>
-                        <p class="text-lg text-gray-800 font-mono">{{ pump.initial_index }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-500 mb-1">Index Actuel</label>
-                        <p class="text-lg text-gray-800 font-mono font-bold">{{ pump.current_index }}</p>
-                    </div>
-                </div>
-
-                <div class="pt-4 border-t border-gray-200">
-                    <label class="block text-sm font-semibold text-gray-500 mb-1">Quantité vendue totale</label>
-                    <p class="text-2xl font-bold text-blue-600">{{ quantity_sold_total }}</p>
-                    <p class="text-xs text-gray-500 mt-1">Différence entre l'index actuel ({{ pump.current_index }}) et l'index initial ({{ pump.initial_index }})</p>
-                </div>
-            </div>
         </div>
-
-        <!-- Historique des lectures -->
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                <i class="fas fa-history mr-2 text-blue-600"></i>
-                Historique des lectures
-            </h3>
-            {% if readings %}
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Index Précédent</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Index Actuel</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quantité Vendue</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Créé par</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            {% for reading in readings %}
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-4 py-3 text-sm text-gray-900">{{ reading.reading_date|date:"d/m/Y" }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900 font-mono">{{ reading.previous_index }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-900 font-mono font-semibold">{{ reading.current_index }}</td>
-                                <td class="px-4 py-3 text-sm text-blue-600 font-semibold">{{ reading.quantity_sold }}</td>
-                                <td class="px-4 py-3 text-sm text-gray-500">
-                                    {% if reading.created_by %}
-                                        {{ reading.created_by.get_full_name }}
-                                    {% else %}
-                                        N/A
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% else %}
-                <div class="text-center py-8">
-                    <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
-                    <p class="text-gray-500">Aucune lecture enregistrée</p>
-                </div>
-            {% endif %}
+        {% endif %}
+    {% else %}
+        <div class="text-center py-10">
+            <i class="fas fa-history text-4xl text-gray-300 mb-3"></i>
+            <p class="text-gray-500">Aucune lecture trouvée avec ces filtres.</p>
         </div>
-    </div>
-
-    <!-- Colonne latérale - Informations complémentaires -->
-    <div class="space-y-6">
-        <!-- Informations sur la station -->
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <i class="fas fa-building mr-2 text-blue-600"></i>
-                Station
-            </h3>
-            <div class="space-y-3">
-                <div>
-                    <p class="font-semibold text-gray-800">{{ pump.station.name }}</p>
-                    <p class="text-sm text-gray-500 mt-1">
-                        <i class="fas fa-map-marker-alt mr-1"></i>
-                        {{ pump.station.city }}
-                    </p>
-                    <p class="text-xs text-gray-400 mt-1">{{ pump.station.address }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Dates -->
-        <div class="bg-white rounded-xl shadow-lg p-6">
-            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <i class="fas fa-calendar-alt mr-2 text-blue-600"></i>
-                Dates
-            </h3>
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Créée le</label>
-                    <p class="text-sm text-gray-800">
-                        <i class="fas fa-calendar-plus mr-2 text-green-500"></i>
-                        {{ pump.created_at|date:"d/m/Y à H:i" }}
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% endif %}
 </div>
-
-<!-- Modal de Modification de Pompe -->
-<div id="editPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
-        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                <i class="fas fa-edit mr-2 text-blue-600"></i>
-                Modifier la pompe
-            </h3>
-            <button 
-                id="closeEditPumpModal"
-                class="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-                <i class="fas fa-times text-2xl"></i>
-            </button>
-        </div>
-        
-        <form id="editPumpForm" method="POST" action="" class="p-6 space-y-4">
-            {% csrf_token %}
-            
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Nom de la pompe <span class="text-red-500">*</span>
-                </label>
-                <input 
-                    type="text" 
-                    name="name" 
-                    id="edit_pump_name"
-                    required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="Ex: Pompe Essence 1"
-                >
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Type <span class="text-red-500">*</span>
-                </label>
-                <select 
-                    name="type" 
-                    id="edit_pump_type"
-                    required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                    <option value="">Sélectionner un type</option>
-                    <option value="essence">Essence</option>
-                    <option value="gazole">Gazole</option>
-                </select>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Initial <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="initial_index" 
-                        id="edit_pump_initial_index"
-                        required
-                        min="0"
-                        step="1"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Actuel <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="current_index" 
-                        id="edit_pump_current_index"
-                        required
-                        min="0"
-                        step="1"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
-            </div>
-
-            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
-                <button 
-                    type="button"
-                    id="cancelEditPump"
-                    class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                >
-                    Annuler
-                </button>
-                <button 
-                    type="submit"
-                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
-                >
-                    <i class="fas fa-save mr-2"></i>
-                    Enregistrer les modifications
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<script>
-    // Gestion du modal de modification
-    const editPumpModal = document.getElementById('editPumpModal');
-    const closeEditPumpModal = document.getElementById('closeEditPumpModal');
-    const cancelEditPump = document.getElementById('cancelEditPump');
-    const editPumpForm = document.getElementById('editPumpForm');
-    
-    function openEditPumpModal(uuid, name, type, initialIndex, currentIndex) {
-        // Remplir les champs
-        document.getElementById('edit_pump_name').value = name;
-        document.getElementById('edit_pump_type').value = type;
-        document.getElementById('edit_pump_initial_index').value = initialIndex;
-        document.getElementById('edit_pump_current_index').value = currentIndex;
-        
-        // Mettre à jour l'action du formulaire
-        editPumpForm.action = `/pumps/${uuid}/update/`;
-        
-        // Ouvrir le modal
-        editPumpModal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-    
-    function closeEditPumpModalFunc() {
-        editPumpModal.classList.add('hidden');
-        document.body.style.overflow = 'auto';
-        editPumpForm.reset();
-    }
-    
-    closeEditPumpModal?.addEventListener('click', closeEditPumpModalFunc);
-    cancelEditPump?.addEventListener('click', closeEditPumpModalFunc);
-    
-    // Fermer le modal en cliquant en dehors
-    editPumpModal?.addEventListener('click', function(e) {
-        if (e.target === editPumpModal) {
-            closeEditPumpModalFunc();
-        }
-    });
-    
-    // Fonction de confirmation de suppression
-    function confirmDelete(event, pumpName) {
-        event.preventDefault();
-        if (confirm(`Êtes-vous sûr de vouloir supprimer la pompe "${pumpName}" ?\n\nCette action est irréversible.`)) {
-            event.target.closest('form').submit();
-        }
-        return false;
-    }
-</script>
 {% endblock %}
 

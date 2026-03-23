@@ -1,12 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Max
+from django.core.paginator import Paginator
+from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
+from django.utils import timezone
 from decimal import Decimal
 from pumps.models import Pump, PumpReading
 from stations.models import StationManager
 from permissions_web import manager_required
-from employee.models import Employee
 
 @login_required
 def pumps_list_view(request):
@@ -77,6 +78,7 @@ def pumps_list_view(request):
         # Attacher la dernière lecture à chaque pompe pour l'affichage
         for pump in pumps:
             pump.latest_reading = pump.readings.order_by('-reading_date', '-created_at').first()
+            pump.readings_count = pump.readings.count()
         
         context = {
             'pumps': pumps,
@@ -97,33 +99,58 @@ def pumps_list_view(request):
         return redirect('account:dashboard')
 
 @login_required
-@manager_required
 def create_pump_view(request):
     """
     Vue pour créer une nouvelle pompe
     Accessible uniquement aux managers
     """
-    # Récupérer la station assignée au manager
+    # Création réservée à l'admin propriétaire
     try:
-        station_manager = StationManager.objects.filter(manager=request.user).first()
-        if not station_manager:
-            messages.error(request, 'Aucune station ne vous est assignée.')
+        if request.user.role != 'admin':
+            messages.error(request, "Seul l'administrateur peut créer une pompe.")
+            return redirect('pumps:pumps_list')
+
+        from stations.models import Station
+        stations = Station.objects.filter(owner=request.user).order_by('name')
+        if not stations.exists():
+            messages.error(request, "Vous n'avez aucune station.")
             return redirect('pumps:pumps_list')
         
-        station = station_manager.station
-        
         if request.method == 'POST':
-            name = request.POST.get('name', '').strip()
+            station_id = request.POST.get('station_id', '').strip()
+            pump_type = request.POST.get('pump_type', '').strip().lower()
+            pump_number = request.POST.get('pump_number', '').strip()
             initial_index = request.POST.get('initial_index', '').strip()
             current_index = request.POST.get('current_index', '').strip()
-            reading_date = request.POST.get('reading_date', '').strip()
             
             # Validation
-            if not name or not initial_index or not current_index or not reading_date:
-                messages.error(request, 'Veuillez remplir tous les champs obligatoires, y compris la première lecture.')
+            if not station_id or not pump_type or not pump_number or not initial_index or not current_index:
+                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
                 return redirect('pumps:pumps_list')
             
             try:
+                station = stations.filter(id=station_id).first()
+                if not station:
+                    messages.error(request, "Station invalide pour cet administrateur.")
+                    return redirect('pumps:pumps_list')
+
+                if pump_type not in ('essence', 'gazoil'):
+                    messages.error(request, "Type de pompe invalide. Choisissez Essence ou Gazoil.")
+                    return redirect('pumps:pumps_list')
+
+                pump_number_int = int(pump_number)
+                if pump_number_int <= 0:
+                    messages.error(request, "L'index de la pompe doit être supérieur à 0.")
+                    return redirect('pumps:pumps_list')
+
+                type_label = "Essence" if pump_type == "essence" else "Gazoil"
+                name = f"Pompe {type_label} {pump_number_int}"
+
+                # Empêcher les doublons du même nom sur la même station.
+                if Pump.objects.filter(station=station, name__iexact=name).exists():
+                    messages.error(request, f'La pompe "{name}" existe déjà pour cette station.')
+                    return redirect('pumps:pumps_list')
+
                 initial_index_decimal = Decimal(initial_index)
                 current_index_decimal = Decimal(current_index)
 
@@ -137,16 +164,13 @@ def create_pump_view(request):
                     name=name,
                 )
 
-                # Associer l'employé correspondant au manager courant si existant
-                employee = Employee.objects.filter(user=request.user, station=station).first()
-                
                 # Créer la première lecture immédiatement
                 PumpReading.objects.create(
                     pump=pump,
-                    employee=employee,
+                    employee=None,
                     initial_index=initial_index_decimal,
                     current_index=current_index_decimal,
-                    reading_date=reading_date
+                    reading_date=timezone.now().date()
                 )
                 
                 messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
@@ -163,13 +187,13 @@ def create_pump_view(request):
         return redirect('pumps:pumps_list')
 
 @login_required
-def pump_detail_view(request, pump_id):
+def pump_detail_view(request, pump_uuid):
     """
     Vue pour afficher les détails d'une pompe
     Accessible aux managers (écriture) et aux admins (lecture seule)
     """
     try:
-        pump = get_object_or_404(Pump, id=pump_id)
+        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
         
         # Vérifier les permissions selon le rôle
         if request.user.role == 'manager':
@@ -180,25 +204,58 @@ def pump_detail_view(request, pump_id):
                 return redirect('pumps:pumps_list')
         elif request.user.role == 'admin':
             # Pour les admins : vérifier que la pompe appartient à une de leurs stations
-            from stations.models import Station
-            if pump.station.created_by != request.user:
+            if pump.station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette pompe.')
                 return redirect('pumps:pumps_list')
         else:
             messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
             return redirect('account:dashboard')
         
-        # Récupérer les lectures de la pompe
-        readings = PumpReading.objects.filter(pump=pump).order_by('-reading_date', '-created_at')[:10]
-        
-        # Calculer la quantité vendue totale
-        quantity_sold_total = pump.current_index - pump.initial_index
+        readings_queryset = (
+            PumpReading.objects
+            .filter(pump=pump)
+            .select_related('employee', 'employee__user')
+            .annotate(
+                quantity_sold=ExpressionWrapper(
+                    F('current_index') - F('initial_index'),
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                )
+            )
+            .order_by('-reading_date', '-created_at')
+        )
+
+        date_filter = request.GET.get('reading_date', '').strip()
+        employee_filter = request.GET.get('employee', '').strip()
+        page_number = request.GET.get('page')
+
+        if date_filter:
+            readings_queryset = readings_queryset.filter(reading_date=date_filter)
+        if employee_filter:
+            readings_queryset = readings_queryset.filter(employee_id=employee_filter)
+
+        paginator = Paginator(readings_queryset, 10)
+        page_obj = paginator.get_page(page_number)
+
+        total_aggregate = readings_queryset.aggregate(total=Sum('quantity_sold'))
+        quantity_sold_total = total_aggregate['total'] or Decimal('0')
+        latest_reading = PumpReading.objects.filter(pump=pump).order_by('-reading_date', '-created_at').first()
+        employees = (
+            pump.station.employee_set
+            .select_related('user')
+            .order_by('first_name', 'last_name')
+        )
         
         context = {
             'pump': pump,
-            'readings': readings,
+            'readings': page_obj.object_list,
+            'page_obj': page_obj,
+            'latest_reading': latest_reading,
+            'employees': employees,
+            'date_filter': date_filter,
+            'employee_filter': employee_filter,
             'quantity_sold_total': quantity_sold_total,
-            'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
+            'is_read_only': request.user.role != 'admin',
+            'can_create_pump': request.user.role == 'admin',
         }
         
         return render(request, 'pumps/pump_detail.html', context)
@@ -208,13 +265,13 @@ def pump_detail_view(request, pump_id):
 
 @login_required
 @manager_required
-def update_pump_view(request, pump_id):
+def update_pump_view(request, pump_uuid):
     """
     Vue pour modifier une pompe
     Accessible uniquement aux managers
     """
     try:
-        pump = get_object_or_404(Pump, id=pump_id)
+        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
         
         # Vérifier que la pompe appartient à la station du manager
         station_manager = StationManager.objects.filter(manager=request.user).first()
@@ -258,20 +315,35 @@ def update_pump_view(request, pump_id):
         return redirect('pumps:pumps_list')
 
 @login_required
-@manager_required
-def delete_pump_view(request, pump_id):
+def delete_pump_view(request, pump_uuid):
     """
     Vue pour supprimer une pompe
     Accessible uniquement aux managers
     """
     if request.method == 'POST':
         try:
-            pump = get_object_or_404(Pump, id=pump_id)
+            pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
             
-            # Vérifier que la pompe appartient à la station du manager
-            station_manager = StationManager.objects.filter(manager=request.user).first()
-            if not station_manager or pump.station != station_manager.station:
-                messages.error(request, 'Vous n\'avez pas la permission de supprimer cette pompe.')
+            # Permissions: admin propriétaire ou manager assigné à la station
+            if request.user.role == 'admin':
+                if pump.station.owner != request.user:
+                    messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
+                    return redirect('pumps:pumps_list')
+            elif request.user.role == 'manager':
+                station_manager = StationManager.objects.filter(manager=request.user).first()
+                if not station_manager or pump.station != station_manager.station:
+                    messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
+                    return redirect('pumps:pumps_list')
+            else:
+                messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
+                return redirect('pumps:pumps_list')
+
+            readings_count = PumpReading.objects.filter(pump=pump).count()
+            if readings_count > 1:
+                messages.error(
+                    request,
+                    f'Suppression impossible: la pompe "{pump.name}" possède déjà {readings_count} lectures.'
+                )
                 return redirect('pumps:pumps_list')
             
             pump_name = pump.name
@@ -285,14 +357,14 @@ def delete_pump_view(request, pump_id):
 
 @login_required
 @manager_required
-def create_reading_view(request, pump_id):
+def create_reading_view(request, pump_uuid):
     """
     Vue pour enregistrer une lecture de pompe
     Accessible uniquement aux managers
     Avec validations de sécurité et mise à jour du stock
     """
     try:
-        pump = get_object_or_404(Pump, id=pump_id)
+        pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
         
         # Vérifier que la pompe appartient à la station du manager
         station_manager = StationManager.objects.filter(manager=request.user).first()

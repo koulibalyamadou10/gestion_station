@@ -1,7 +1,9 @@
 from django.db import models
+import uuid
 
 # Create your models here.
 class Pump(models.Model):
+    pump_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     name = models.CharField(max_length=100)
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -15,6 +17,7 @@ class Pump(models.Model):
 
 # historiques
 class PumpReading(models.Model):
+    pump_reading_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     pump = models.ForeignKey(Pump, on_delete=models.CASCADE, related_name='readings')
     employee = models.ForeignKey('employee.Employee', on_delete=models.SET_NULL, null=True, blank=True)
     initial_index = models.DecimalField(max_digits=12, decimal_places=2)
