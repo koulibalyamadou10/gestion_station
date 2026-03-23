@@ -1,0 +1,226 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Gestion des wallets{% endblock %}
+{% block page_title %}Gestion des wallets{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <p class="text-sm text-gray-600">Nombre de wallets</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_wallets }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <p class="text-sm text-gray-600">Solde total</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_balance|floatformat:2 }}</p>
+    </div>
+</div>
+
+<div class="flex justify-end mb-6">
+    <button id="openCreateWalletModal" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+        <i class="fas fa-plus mr-2"></i>Creer un wallet
+    </button>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="Station, devise..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="">Toutes les stations</option>
+            {% for station in stations %}
+                <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
+            {% endfor %}
+        </select>
+        <div></div>
+        <div class="flex gap-2">
+            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
+            <a href="{% url 'wallet:wallet_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Solde</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Devise</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Cree le</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% if wallets %}
+                    {% for wallet in wallets %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ wallet.station.name }}</td>
+                        <td class="px-6 py-4 text-sm font-semibold {% if wallet.balance == 0 %}text-green-700{% else %}text-blue-700{% endif %}">
+                            {{ wallet.balance|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ wallet.currency }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ wallet.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="px-6 py-4 text-sm">
+                            <button
+                                type="button"
+                                class="text-red-600 hover:text-red-800 transition-colors"
+                                title="Supprimer"
+                                onclick="openDeleteWalletModal('{{ wallet.uuid }}', '{{ wallet.station.name|escapejs }}', '{{ wallet.balance }}')"
+                            >
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">Aucun wallet trouve.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="mt-6 flex items-center justify-between">
+    <p class="text-sm text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}">Precedent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}">Suivant</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal creation wallet -->
+<div id="createWalletModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800">Creer un wallet</h3>
+            <button id="closeCreateWalletModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <form method="POST" action="{% url 'wallet:wallet_list' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Station *</label>
+                <select name="station_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Selectionner une station</option>
+                    {% for station in stations %}
+                        <option value="{{ station.id }}">{{ station.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Solde initial</label>
+                    <input type="number" step="0.01" min="0" name="balance" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Devise</label>
+                    <input type="text" name="currency" value="GNF" maxlength="10" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelCreateWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal suppression wallet -->
+<div id="deleteWalletModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
+            <button id="closeDeleteWalletModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-700">
+                Voulez-vous vraiment supprimer le wallet de
+                <span id="deleteWalletStationName" class="font-semibold text-gray-900"></span> ?
+            </p>
+            <div id="deleteWalletBlockedMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                Suppression impossible: le solde du wallet doit etre a 0.
+            </div>
+            <div class="flex items-center justify-end space-x-3 pt-2">
+                <button type="button" id="cancelDeleteWallet" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Annuler
+                </button>
+                <form id="deleteWalletForm" method="POST" action="">
+                    {% csrf_token %}
+                    <button id="confirmDeleteWalletBtn" type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                        Supprimer
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const openCreateWalletModalBtn = document.getElementById('openCreateWalletModal');
+    const createWalletModal = document.getElementById('createWalletModal');
+    const closeCreateWalletModalBtn = document.getElementById('closeCreateWalletModal');
+    const cancelCreateWalletModalBtn = document.getElementById('cancelCreateWalletModal');
+
+    function openCreateWalletModal() {
+        createWalletModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCreateWalletModal() {
+        createWalletModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    openCreateWalletModalBtn?.addEventListener('click', openCreateWalletModal);
+    closeCreateWalletModalBtn?.addEventListener('click', closeCreateWalletModal);
+    cancelCreateWalletModalBtn?.addEventListener('click', closeCreateWalletModal);
+    createWalletModal?.addEventListener('click', function(e) {
+        if (e.target === createWalletModal) closeCreateWalletModal();
+    });
+
+    const deleteWalletModal = document.getElementById('deleteWalletModal');
+    const closeDeleteWalletModalBtn = document.getElementById('closeDeleteWalletModal');
+    const cancelDeleteWalletBtn = document.getElementById('cancelDeleteWallet');
+    const deleteWalletForm = document.getElementById('deleteWalletForm');
+    const deleteWalletStationName = document.getElementById('deleteWalletStationName');
+    const deleteWalletBlockedMessage = document.getElementById('deleteWalletBlockedMessage');
+    const confirmDeleteWalletBtn = document.getElementById('confirmDeleteWalletBtn');
+
+    function openDeleteWalletModal(walletUuid, stationName, balance) {
+        deleteWalletStationName.textContent = stationName;
+        deleteWalletForm.action = `/wallets/delete/${walletUuid}/`;
+
+        const numericBalance = parseFloat(balance || '0');
+        if (numericBalance !== 0) {
+            deleteWalletBlockedMessage.classList.remove('hidden');
+            confirmDeleteWalletBtn.disabled = true;
+            confirmDeleteWalletBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            deleteWalletBlockedMessage.classList.add('hidden');
+            confirmDeleteWalletBtn.disabled = false;
+            confirmDeleteWalletBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        deleteWalletModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDeleteWalletModal() {
+        deleteWalletModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    closeDeleteWalletModalBtn?.addEventListener('click', closeDeleteWalletModal);
+    cancelDeleteWalletBtn?.addEventListener('click', closeDeleteWalletModal);
+    deleteWalletModal?.addEventListener('click', function(e) {
+        if (e.target === deleteWalletModal) closeDeleteWalletModal();
+    });
+</script>
+{% endblock %}
