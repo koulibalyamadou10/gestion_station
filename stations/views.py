@@ -19,9 +19,9 @@ def stations_list_view(request):
     
     # Récupérer toutes les stations pour les statistiques et filtres
     if request.user.role == 'super_admin':
-        all_stations = Station.objects.all()
+        all_stations = Station.objects.select_related('city', 'owner').all()
     else:
-        all_stations = Station.objects.filter(created_by=request.user)
+        all_stations = Station.objects.select_related('city', 'owner').filter(owner=request.user)
     
     # Statistiques
     total_stations = all_stations.count()
@@ -37,20 +37,31 @@ def stations_list_view(request):
         stations = stations.filter(
             Q(name__icontains=search_query) |
             Q(address__icontains=search_query) |
-            Q(city__icontains=search_query)
+            Q(city__name__icontains=search_query)
         )
     
     if city_filter:
-        stations = stations.filter(city__icontains=city_filter)
+        stations = stations.filter(city__name__icontains=city_filter)
     
     # Statistiques filtrées
     filtered_count = stations.count()
     
     # Liste des villes uniques pour le filtre
     if request.user.role == 'super_admin':
-        cities = Station.objects.values_list('city', flat=True).distinct().order_by('city')
+        cities = (
+            Station.objects.exclude(city__isnull=True)
+            .values_list('city__name', flat=True)
+            .distinct()
+            .order_by('city__name')
+        )
     else:
-        cities = Station.objects.filter(created_by=request.user).values_list('city', flat=True).distinct().order_by('city')
+        cities = (
+            Station.objects.filter(owner=request.user)
+            .exclude(city__isnull=True)
+            .values_list('city__name', flat=True)
+            .distinct()
+            .order_by('city__name')
+        )
     
     # Récupérer la liste des admins pour le super_admin
     admins = None

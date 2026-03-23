@@ -54,10 +54,7 @@ Application web Django pour la gestion complète d'une ou plusieurs stations-ser
    python manage.py migrate
    ```
 
-6. **Créer un superutilisateur** :
-   ```bash
-   python manage.py createsuperuser
-   ```
+6. **Créer un utilisateur applicatif avec le rôle `admin` (propriétaire)** via l'interface de gestion des utilisateurs.
 
 7. **Lancer le serveur de développement** :
    ```bash
@@ -124,7 +121,9 @@ Index des pompes → Calcul des ventes → Mise à jour du stock
 
 ## 👥 Gestion des rôles
 
-L'application contient deux rôles principaux avec des permissions distinctes.
+L'application contient uniquement **2 rôles** avec des permissions distinctes :
+- `admin` : propriétaire de station-service
+- `manager` : gérant de station-service
 
 ### 🔐 ADMIN
 

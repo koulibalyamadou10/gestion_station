@@ -5,6 +5,21 @@
 {% block page_title %}Gestion des Stations{% endblock %}
 
 {% block content %}
+<!-- En-tête + Action -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h2 class="text-xl font-bold text-gray-800">Statistiques des stations</h2>
+        <p class="text-sm text-gray-500">Vue d'ensemble rapide</p>
+    </div>
+    <button
+        id="createStationBtn"
+        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center w-full sm:w-auto"
+    >
+        <i class="fas fa-plus mr-2"></i>
+        Créer une station
+    </button>
+</div>
+
 <!-- Cards Statistiques -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
     <!-- Total Stations -->
@@ -33,21 +48,15 @@
         </div>
     </div>
 
-    <!-- Actions -->
+    <!-- Villes -->
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-600 text-sm font-medium">Actions</p>
-                <button 
-                    id="createStationBtn"
-                    class="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
-                >
-                    <i class="fas fa-plus mr-2"></i>
-                    Créer une station
-                </button>
+                <p class="text-gray-600 text-sm font-medium">Villes couvertes</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ cities|length }}</p>
             </div>
             <div class="bg-purple-100 p-4 rounded-full">
-                <i class="fas fa-plus-circle text-3xl text-purple-600"></i>
+                <i class="fas fa-city text-3xl text-purple-600"></i>
             </div>
         </div>
     </div>
@@ -121,7 +130,7 @@
                         <i class="fas fa-map-marker-alt mr-2"></i>Localisation
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-user mr-2"></i>Créé par
+                        <i class="fas fa-user mr-2"></i>Propriétaire
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         <i class="fas fa-cog mr-2"></i>Actions
@@ -144,7 +153,7 @@
                         </td>
                         <td class="px-6 py-4">
                             <div class="text-sm text-gray-900">
-                                <div class="font-medium">{{ station.city }}</div>
+                                <div class="font-medium">{{ station.city.name|default:"Non définie" }}</div>
                                 <div class="text-gray-500 text-xs mt-1">{{ station.address }}</div>
                             </div>
                         </td>
@@ -152,9 +161,9 @@
                             <div class="text-sm text-gray-900">
                                 <div class="flex items-center">
                                     <i class="fas fa-user-circle mr-2 text-gray-400"></i>
-                                    <span>{{ station.created_by.get_full_name }}</span>
+                                    <span>{{ station.owner.get_full_name|default:"Non assigné" }}</span>
                                 </div>
-                                <div class="text-xs text-gray-500 mt-1">{{ station.created_by.email }}</div>
+                                <div class="text-xs text-gray-500 mt-1">{{ station.owner.email|default:"-" }}</div>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -168,7 +177,7 @@
                                 </a>
                                 <a 
                                     href="#" 
-                                    onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name }}', '{{ station.city }}', '{{ station.address }}', '{{ station.latitude }}', '{{ station.longitude }}', '{{ station.created_by.id }}'); return false;"
+                                    onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name|escapejs }}', '{{ station.city.name|default:""|escapejs }}', '{{ station.address|escapejs }}', '{{ station.latitude|default:"" }}', '{{ station.longitude|default:"" }}', '{{ station.owner.id|default:"" }}'); return false;"
                                     class="text-yellow-600 hover:text-yellow-800 transition-colors"
                                     title="Modifier"
                                 >
