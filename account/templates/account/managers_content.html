@@ -191,6 +191,14 @@
                             >
                                 <i class="fas fa-edit"></i>
                             </button>
+                            <button
+                                type="button"
+                                onclick="openResetPasswordModal('{% url 'account:reset_manager_password' manager.user_uuid %}', '{{ manager.get_full_name|escapejs }}')"
+                                class="text-indigo-600 hover:text-indigo-900 p-2 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Réinitialiser le mot de passe"
+                            >
+                                <i class="fas fa-key"></i>
+                            </button>
                             {% if manager.is_active %}
                                 <button
                                     type="button"
@@ -459,6 +467,34 @@
     </div>
 </div>
 
+<!-- Modal Confirmation Réinitialisation Mot de passe -->
+<div id="resetPasswordModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center mb-3">
+                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                    <i class="fas fa-key text-indigo-600"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">Réinitialiser le mot de passe</h3>
+            </div>
+            <p class="text-sm text-gray-600 mb-5">
+                Voulez-vous réinitialiser le mot de passe de
+                <strong id="resetPasswordManagerName"></strong> ?
+                Un nouveau mot de passe sera envoyé par email.
+            </p>
+            <form id="resetPasswordForm" method="POST" action="" class="flex items-center justify-end gap-3">
+                {% csrf_token %}
+                <button id="cancelResetPasswordBtn" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
+                    Annuler
+                </button>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">
+                    Confirmer
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Confirmation Activation/Désactivation -->
 <div id="toggleManagerStatusModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
@@ -496,6 +532,7 @@
     const managerPhoneNumberInput = document.getElementById('manager_phone_number');
     const editManagerModal = document.getElementById('editManagerModal');
     const deleteManagerModal = document.getElementById('deleteManagerModal');
+    const resetPasswordModal = document.getElementById('resetPasswordModal');
     const toggleManagerStatusModal = document.getElementById('toggleManagerStatusModal');
 
     // Ouvrir le modal
@@ -536,9 +573,15 @@
         document.body.style.overflow = 'auto';
     }
 
+    function closeResetPasswordModal() {
+        resetPasswordModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
     document.getElementById('closeEditManagerModalBtn')?.addEventListener('click', closeEditManagerModal);
     document.getElementById('cancelEditManagerBtn')?.addEventListener('click', closeEditManagerModal);
     document.getElementById('cancelDeleteManagerBtn')?.addEventListener('click', closeDeleteManagerModal);
+    document.getElementById('cancelResetPasswordBtn')?.addEventListener('click', closeResetPasswordModal);
     document.getElementById('cancelToggleManagerStatusBtn')?.addEventListener('click', closeToggleManagerStatusModal);
 
     editManagerModal?.addEventListener('click', function(e) {
@@ -546,6 +589,9 @@
     });
     deleteManagerModal?.addEventListener('click', function(e) {
         if (e.target === deleteManagerModal) closeDeleteManagerModal();
+    });
+    resetPasswordModal?.addEventListener('click', function(e) {
+        if (e.target === resetPasswordModal) closeResetPasswordModal();
     });
     toggleManagerStatusModal?.addEventListener('click', function(e) {
         if (e.target === toggleManagerStatusModal) closeToggleManagerStatusModal();
@@ -566,6 +612,15 @@
         form.action = deleteUrl;
         managerNameEl.textContent = managerName || '';
         deleteManagerModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function openResetPasswordModal(actionUrl, managerName) {
+        const form = document.getElementById('resetPasswordForm');
+        const managerNameEl = document.getElementById('resetPasswordManagerName');
+        form.action = actionUrl;
+        managerNameEl.textContent = managerName || '';
+        resetPasswordModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 

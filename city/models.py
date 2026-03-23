@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+
 class City(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     name = models.CharField(max_length=150, unique=True)

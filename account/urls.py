@@ -4,7 +4,8 @@ from account.views import (
     users_list_view, not_access_view, create_user_view, delete_user_view,
     managers_list_view, create_manager_view, delete_manager_view,
     profile_view, change_password_view, user_detail_view,
-    update_manager_name_view, update_user_name_view, toggle_manager_status_view
+    update_manager_name_view, update_user_name_view, toggle_manager_status_view,
+    reset_manager_password_view
 )
 
 app_name = 'account'
@@ -21,6 +22,7 @@ urlpatterns = [
     path('managers/create/', create_manager_view, name='create_manager'),
     path('managers/update/<uuid:user_uuid>/', update_manager_name_view, name='update_manager_name'),
     path('managers/toggle-status/<uuid:user_uuid>/', toggle_manager_status_view, name='toggle_manager_status'),
+    path('managers/reset-password/<uuid:user_uuid>/', reset_manager_password_view, name='reset_manager_password'),
     path('managers/delete/<uuid:user_uuid>/', delete_manager_view, name='delete_manager'),
     path('users/update/<uuid:user_uuid>/', update_user_name_view, name='update_user_name'),
     path('profile/', profile_view, name='profile'),

@@ -507,6 +507,42 @@ def toggle_manager_status_view(request, user_uuid):
 
     return redirect('account:managers_list')
 
+@admin_required
+def reset_manager_password_view(request, user_uuid):
+    """
+    Réinitialise le mot de passe d'un manager et l'envoie par email.
+    Accessible aux admins et super_admins.
+    """
+    if request.method == 'POST':
+        manager = get_object_or_404(CustomUser, user_uuid=user_uuid, role='manager')
+
+        if request.user.role == 'admin' and manager.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de réinitialiser ce mot de passe.")
+            return redirect('account:managers_list')
+
+        try:
+            generated_password = generate_password(8)
+            manager.set_password(generated_password)
+            manager.save(update_fields=['password', 'updated_at'])
+
+            login_url = request.build_absolute_uri('/login/')
+            email_sent = manager.send_credentials_email(generated_password, login_url)
+
+            if email_sent:
+                messages.success(
+                    request,
+                    f"Mot de passe de {manager.get_full_name()} réinitialisé et envoyé par email."
+                )
+            else:
+                messages.warning(
+                    request,
+                    f"Mot de passe réinitialisé mais email non envoyé. Nouveau mot de passe: {generated_password}"
+                )
+        except Exception as e:
+            messages.error(request, f"Erreur lors de la réinitialisation: {str(e)}")
+
+    return redirect('account:managers_list')
+
 @login_required
 def user_detail_view(request, user_uuid):
     """
