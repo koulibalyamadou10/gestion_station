@@ -85,6 +85,18 @@
 
 </div>
 
+{% if request.user.role == 'manager' %}
+<div class="flex justify-end mb-8">
+    <a
+        href="{% url 'pumps:bulk_pump_reading' %}"
+        class="bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center shadow-lg"
+    >
+        <i class="fas fa-layer-group mr-2"></i>
+        Saisie groupée des lectures
+    </a>
+</div>
+{% endif %}
+
 <!-- Bouton Créer une pompe -->
 {% if request.user.role == 'admin' %}
 <div class="flex justify-end mb-8">

@@ -1,0 +1,340 @@
+{% extends 'base_authenticated.html' %}
+
+{% block title %}Saisie groupée des lectures{% endblock %}
+{% block page_title %}Saisie groupée des lectures{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <a href="{% url 'pumps:pumps_list' %}" class="text-blue-600 hover:text-blue-800 text-sm font-semibold">
+            <i class="fas fa-arrow-left mr-2"></i>Retour à la liste des pompes
+        </a>
+        <h2 class="text-xl font-bold text-gray-800 mt-2">Station : {{ station.name }}</h2>
+        <p class="text-sm text-gray-600">Ajoutez une ligne par pompe, saisissez l’index actuel, puis répartissez le montant total sur les wallets.</p>
+    </div>
+</div>
+
+{% if not pumps_data %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-yellow-800">
+    Aucune pompe disponible pour cette station.
+</div>
+{% else %}
+<form id="bulkReadingForm" method="POST" action="{% url 'pumps:bulk_pump_reading' %}" class="space-y-6">
+    {% csrf_token %}
+    <input type="hidden" name="readings_json" id="readingsJsonInput" value="[]">
+    <input type="hidden" name="wallet_allocations" id="walletAllocationsInput" value="[]">
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-gas-pump mr-2 text-blue-600"></i>Lectures
+            </h3>
+            <button type="button" id="addReadingRowBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-semibold">
+                <i class="fas fa-plus mr-2"></i>Ajouter une pompe
+            </button>
+        </div>
+        <div id="readingRowsContainer" class="space-y-3"></div>
+        <p id="emptyRowsHint" class="text-sm text-gray-500 mt-2">Cliquez sur « Ajouter une pompe » pour commencer.</p>
+    </div>
+
+    <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+        <p class="text-sm text-green-800">
+            <strong>Montant total des ventes (batch) :</strong>
+            <span id="batchTotalAmount" class="font-bold">0,00</span> GNF
+        </p>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 max-h-[50vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-wallet mr-2 text-green-600"></i>Répartition vers les wallets
+            </h3>
+            <button type="button" id="addWalletAllocationBtn" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">
+                + Ajouter wallet
+            </button>
+        </div>
+        <div id="walletAllocationsContainer" class="space-y-2"></div>
+        <p id="noWalletMessage" class="hidden text-sm text-red-600 mt-2">Aucun wallet configuré pour cette station.</p>
+        <div class="mt-3 text-xs text-gray-600">
+            Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0,00</span> GNF
+        </div>
+    </div>
+
+    <div class="flex justify-end gap-3">
+        <a href="{% url 'pumps:pumps_list' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Annuler</a>
+        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-semibold">
+            <i class="fas fa-save mr-2"></i>Enregistrer tout
+        </button>
+    </div>
+</form>
+{% endif %}
+
+{{ pumps_data|json_script:"pumps-data" }}
+{{ station_wallets|json_script:"station-wallets-data" }}
+
+<script>
+(function() {
+    const PUMPS_DATA = JSON.parse(document.getElementById('pumps-data')?.textContent || '[]');
+    const STATION_WALLETS = JSON.parse(document.getElementById('station-wallets-data')?.textContent || '[]');
+    const PRODUCT_PRICE_ESSENCE = parseFloat('{{ product_price_essence }}') || 0;
+    const PRODUCT_PRICE_DIESEL = parseFloat('{{ product_price_diesel }}') || 0;
+
+    const readingRowsContainer = document.getElementById('readingRowsContainer');
+    const addReadingRowBtn = document.getElementById('addReadingRowBtn');
+    const emptyRowsHint = document.getElementById('emptyRowsHint');
+    const readingsJsonInput = document.getElementById('readingsJsonInput');
+    const batchTotalAmount = document.getElementById('batchTotalAmount');
+    const walletAllocationsContainer = document.getElementById('walletAllocationsContainer');
+    const walletAllocationsInput = document.getElementById('walletAllocationsInput');
+    const walletRemainingAmount = document.getElementById('walletRemainingAmount');
+    const addWalletAllocationBtn = document.getElementById('addWalletAllocationBtn');
+    const noWalletMessage = document.getElementById('noWalletMessage');
+    const bulkForm = document.getElementById('bulkReadingForm');
+
+    function formatAmount(value) {
+        const n = Number(value || 0);
+        return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function parseAmountInput(value) {
+        if (value === null || value === undefined) return 0;
+        const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function getPumpMeta(pumpUuid) {
+        return PUMPS_DATA.find((p) => p.pump_uuid === pumpUuid);
+    }
+
+    function lineSaleAmount(pumpUuid, currentIndexStr) {
+        const meta = getPumpMeta(pumpUuid);
+        if (!meta || !currentIndexStr) return 0;
+        const prev = parseFloat(meta.previous_index) || 0;
+        const cur = parseFloat(String(currentIndexStr).replace(',', '.')) || 0;
+        const qty = cur - prev;
+        if (qty <= 0) return 0;
+        const name = (meta.name || '').toLowerCase();
+        const unit = name.includes('essence') ? PRODUCT_PRICE_ESSENCE : PRODUCT_PRICE_DIESEL;
+        return qty * unit;
+    }
+
+    function getSelectedPumpUuids() {
+        return Array.from(readingRowsContainer.querySelectorAll('.reading-pump-select'))
+            .map((el) => el.value)
+            .filter(Boolean);
+    }
+
+    function buildPumpOptions(excludeUuid) {
+        const taken = new Set(getSelectedPumpUuids());
+        if (excludeUuid) taken.delete(excludeUuid);
+        return PUMPS_DATA.filter((p) => p.pump_uuid && !taken.has(p.pump_uuid));
+    }
+
+    function refreshAllPumpSelects() {
+        readingRowsContainer.querySelectorAll('.reading-pump-select').forEach((sel) => {
+            const current = sel.value;
+            const opts = buildPumpOptions(current);
+            sel.innerHTML = '<option value="">Choisir une pompe</option>';
+            opts.forEach((p) => {
+                const o = document.createElement('option');
+                o.value = p.pump_uuid;
+                o.textContent = p.name;
+                if (p.pump_uuid === current) o.selected = true;
+                sel.appendChild(o);
+            });
+            if (current && !opts.find((x) => x.pump_uuid === current)) {
+                const meta = getPumpMeta(current);
+                if (meta) {
+                    const o = document.createElement('option');
+                    o.value = meta.pump_uuid;
+                    o.textContent = meta.name;
+                    o.selected = true;
+                    sel.appendChild(o);
+                }
+            }
+        });
+    }
+
+    function syncReadingsJson() {
+        const rows = readingRowsContainer.querySelectorAll('.reading-row');
+        const payload = [];
+        rows.forEach((row) => {
+            const uuid = row.querySelector('.reading-pump-select')?.value || '';
+            const cur = row.querySelector('.reading-current-index')?.value?.trim() || '';
+            if (uuid && cur) payload.push({ pump_uuid: uuid, current_index: cur });
+        });
+        readingsJsonInput.value = JSON.stringify(payload);
+        emptyRowsHint.classList.toggle('hidden', payload.length > 0);
+
+        let total = 0;
+        rows.forEach((row) => {
+            const uuid = row.querySelector('.reading-pump-select')?.value || '';
+            const cur = row.querySelector('.reading-current-index')?.value || '';
+            const amt = lineSaleAmount(uuid, cur);
+            total += amt;
+            const lineEl = row.querySelector('.reading-line-amount');
+            if (lineEl) lineEl.textContent = formatAmount(amt);
+        });
+        batchTotalAmount.textContent = formatAmount(total);
+        if (STATION_WALLETS.length === 1) {
+            const wInput = walletAllocationsContainer.querySelector('.wallet-amount');
+            if (wInput) wInput.value = formatAmount(total);
+        }
+        syncWalletAllocations();
+    }
+
+    function addReadingRow() {
+        const row = document.createElement('div');
+        row.className = 'reading-row border border-gray-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-12 gap-2 items-end';
+        row.innerHTML = `
+            <div class="md:col-span-5">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Pompe</label>
+                <select class="reading-pump-select w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Index précédent</label>
+                <span class="reading-prev-display block text-sm font-medium text-gray-800 py-2">—</span>
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Index actuel</label>
+                <input type="text" inputmode="decimal" class="reading-current-index w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0">
+            </div>
+            <div class="md:col-span-1 flex items-center justify-between md:flex-col md:items-end">
+                <span class="text-xs text-gray-500">Ligne</span>
+                <span class="reading-line-amount text-sm font-bold text-gray-900">0,00</span>
+            </div>
+        `;
+        readingRowsContainer.appendChild(row);
+        const sel = row.querySelector('.reading-pump-select');
+        sel.addEventListener('change', () => {
+            const meta = getPumpMeta(sel.value);
+            row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
+            syncReadingsJson();
+            refreshAllPumpSelects();
+        });
+        row.querySelector('.reading-current-index').addEventListener('input', syncReadingsJson);
+        refreshAllPumpSelects();
+        syncReadingsJson();
+    }
+
+    function syncWalletAllocations() {
+        if (!STATION_WALLETS.length) {
+            noWalletMessage.classList.remove('hidden');
+            walletAllocationsInput.value = '[]';
+            walletRemainingAmount.textContent = formatAmount(0);
+            return;
+        }
+        noWalletMessage.classList.add('hidden');
+        const rows = walletAllocationsContainer.querySelectorAll('.wallet-allocation-row');
+        const allocations = [];
+        let allocatedSum = 0;
+        rows.forEach((row) => {
+            const walletUuid = row.querySelector('.wallet-select')?.value || '';
+            const amount = parseAmountInput(row.querySelector('.wallet-amount')?.value || '0');
+            if (walletUuid && amount > 0) {
+                allocations.push({ wallet_uuid: walletUuid, amount: amount.toFixed(2) });
+                allocatedSum += amount;
+            }
+        });
+        walletAllocationsInput.value = JSON.stringify(allocations);
+        const batchTotal = parseAmountInput(batchTotalAmount.textContent);
+        walletRemainingAmount.textContent = formatAmount(batchTotal - allocatedSum);
+    }
+
+    function createWalletRow(defaultUuid = '', defaultAmount = '') {
+        const row = document.createElement('div');
+        row.className = 'wallet-allocation-row grid grid-cols-12 gap-2 items-center';
+        const opts = STATION_WALLETS.map((w) => {
+            const sel = w.uuid === defaultUuid ? 'selected' : '';
+            return `<option value="${w.uuid}" ${sel}>${w.name} (${w.currency})</option>`;
+        }).join('');
+        row.innerHTML = `
+            <div class="col-span-6">
+                <select class="wallet-select w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="">Wallet</option>
+                    ${opts}
+                </select>
+            </div>
+            <div class="col-span-5">
+                <input type="text" inputmode="decimal" class="wallet-amount w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${defaultAmount ? formatAmount(defaultAmount) : ''}" placeholder="Montant">
+            </div>
+            <div class="col-span-1 flex justify-center">
+                <button type="button" class="remove-wallet-row text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            </div>
+        `;
+        walletAllocationsContainer.appendChild(row);
+        row.querySelector('.remove-wallet-row').addEventListener('click', () => {
+            row.remove();
+            syncWalletAllocations();
+        });
+        row.querySelector('.wallet-select').addEventListener('change', syncWalletAllocations);
+        const amtInput = row.querySelector('.wallet-amount');
+        amtInput.addEventListener('input', () => {
+            amtInput.value = amtInput.value.replace(/[^\d\s,\.]/g, '');
+            syncWalletAllocations();
+        });
+        amtInput.addEventListener('blur', () => {
+            amtInput.value = formatAmount(parseAmountInput(amtInput.value));
+            syncWalletAllocations();
+        });
+    }
+
+    function renderWalletSection() {
+        walletAllocationsContainer.innerHTML = '';
+        if (!STATION_WALLETS.length) {
+            syncWalletAllocations();
+            return;
+        }
+        const batchTotal = parseAmountInput(batchTotalAmount.textContent);
+        if (STATION_WALLETS.length === 1) {
+            createWalletRow(STATION_WALLETS[0].uuid, batchTotal);
+        } else {
+            createWalletRow('', '');
+        }
+        syncWalletAllocations();
+    }
+
+    addReadingRowBtn?.addEventListener('click', () => {
+        if (!PUMPS_DATA.length) return;
+        if (buildPumpOptions(null).length === 0 && getSelectedPumpUuids().length >= PUMPS_DATA.length) {
+            alert('Toutes les pompes sont déjà ajoutées.');
+            return;
+        }
+        addReadingRow();
+    });
+
+    addWalletAllocationBtn?.addEventListener('click', () => {
+        createWalletRow('', '');
+        syncWalletAllocations();
+    });
+
+    bulkForm?.addEventListener('submit', function(e) {
+        const readings = JSON.parse(readingsJsonInput.value || '[]');
+        if (!readings.length) {
+            e.preventDefault();
+            alert('Ajoutez au moins une lecture.');
+            return;
+        }
+        const batchTotal = parseAmountInput(batchTotalAmount.textContent);
+        const allocations = JSON.parse(walletAllocationsInput.value || '[]');
+        const allocatedSum = allocations.reduce((acc, x) => acc + parseFloat(x.amount || 0), 0);
+        if (batchTotal > 0 && !allocations.length) {
+            e.preventDefault();
+            alert('Répartissez le montant sur au moins un wallet.');
+            return;
+        }
+        if (Math.abs(allocatedSum - batchTotal) > 0.01) {
+            e.preventDefault();
+            alert('La somme des wallets doit être égale au montant total.');
+            return;
+        }
+    });
+
+    if (PUMPS_DATA.length && bulkForm) {
+        addReadingRow();
+        renderWalletSection();
+    }
+})();
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
 from django.utils import timezone
 from decimal import Decimal, InvalidOperation
@@ -47,6 +47,78 @@ def _create_sale_from_reading(reading, recorded_by):
         total_amount=total_amount,
         recorded_by=recorded_by,
     )
+
+
+def _compute_sale_total_for_pump_reading(pump, initial_index, current_index):
+    """Montant de vente (GNF) pour une lecture, sans créer d'objet en base."""
+    qty = current_index - initial_index
+    if qty < 0:
+        qty = Decimal("0")
+    pump_name = (pump.name or "").lower()
+    is_essence = "essence" in pump_name
+    unit_price_essence = Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
+    unit_price_diesel = Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+    qty_gasoline = qty if is_essence else Decimal("0")
+    qty_diesel = qty if not is_essence else Decimal("0")
+    return (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
+
+
+def _parse_and_validate_wallet_allocations(
+    request, allocations_json, station_wallets, total_expected
+):
+    """
+    Retourne (dict wallet_uuid -> Decimal, None) ou (None, redirect_response).
+    total_expected : Decimal
+    """
+    allocations = []
+    if allocations_json:
+        try:
+            parsed = json.loads(allocations_json)
+            if isinstance(parsed, list):
+                allocations = parsed
+        except json.JSONDecodeError:
+            allocations = []
+
+    allocations_by_uuid = {}
+    for item in allocations:
+        wallet_uuid = str(item.get("wallet_uuid", "")).strip()
+        amount_raw = str(item.get("amount", "")).strip()
+        if not wallet_uuid:
+            continue
+        try:
+            amount = Decimal(amount_raw)
+        except (InvalidOperation, ValueError):
+            messages.error(request, "Montant wallet invalide.")
+            return None, redirect("pumps:bulk_pump_reading")
+
+        if amount < 0:
+            messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
+            return None, redirect("pumps:bulk_pump_reading")
+        allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
+
+    if not allocations_by_uuid and len(station_wallets) == 1:
+        allocations_by_uuid[str(station_wallets[0].uuid)] = total_expected
+
+    if not allocations_by_uuid:
+        messages.error(request, "Veuillez répartir le montant dans au moins un wallet.")
+        return None, redirect("pumps:bulk_pump_reading")
+
+    valid_wallets_map = {str(w.uuid): w for w in station_wallets}
+    for wallet_uuid in allocations_by_uuid.keys():
+        if wallet_uuid not in valid_wallets_map:
+            messages.error(request, "Un wallet sélectionné est invalide pour cette station.")
+            return None, redirect("pumps:bulk_pump_reading")
+
+    allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
+    if allocated_sum.quantize(Decimal("0.01")) != total_expected.quantize(Decimal("0.01")):
+        messages.error(
+            request,
+            "La somme répartie dans les wallets doit être égale au montant total des ventes.",
+        )
+        return None, redirect("pumps:bulk_pump_reading")
+
+    return allocations_by_uuid, None
+
 
 @login_required
 def pumps_list_view(request):
@@ -569,6 +641,195 @@ def create_reading_view(request, pump_uuid):
     except Exception as e:
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
+
+
+@login_required
+@manager_required
+def bulk_pump_reading_view(request):
+    """
+    Saisie groupée des lectures pour toutes les pompes de la station du gérant.
+    Toutes les écritures (lectures, ventes, wallets) sont faites dans une seule transaction.
+    """
+    station_manager = StationManager.objects.filter(manager=request.user).first()
+    if not station_manager:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+
+    station = station_manager.station
+    pumps_qs = (
+        Pump.objects.filter(station=station)
+        .select_related("station")
+        .order_by("name")
+    )
+    station_wallets_list = list(
+        Account.objects.filter(station=station, uuid__isnull=False).order_by("name")
+    )
+
+    pumps_data = []
+    for p in pumps_qs:
+        if not p.pump_uuid:
+            continue
+        lr = p.readings.order_by("-reading_date", "-created_at").first()
+        prev = lr.current_index if lr else Decimal("0")
+        pumps_data.append(
+            {
+                "pump_uuid": str(p.pump_uuid),
+                "name": p.name,
+                "previous_index": str(prev),
+            }
+        )
+
+    if request.method == "POST":
+        readings_json = request.POST.get("readings_json", "").strip()
+        allocations_json = request.POST.get("wallet_allocations", "").strip()
+        today = timezone.now().date()
+
+        try:
+            readings_data = json.loads(readings_json) if readings_json else []
+        except json.JSONDecodeError:
+            messages.error(request, "Données de lecture invalides.")
+            return redirect("pumps:bulk_pump_reading")
+
+        if not isinstance(readings_data, list) or not readings_data:
+            messages.error(request, "Ajoutez au moins une lecture de pompe.")
+            return redirect("pumps:bulk_pump_reading")
+
+        if not station_wallets_list:
+            messages.error(
+                request,
+                "Aucun wallet n'est configuré pour cette station.",
+            )
+            return redirect("pumps:bulk_pump_reading")
+
+        employee = Employee.objects.filter(user=request.user, station=station).first()
+        seen_uuids = set()
+        prepared = []
+
+        for idx, item in enumerate(readings_data):
+            pu = str(item.get("pump_uuid", "")).strip()
+            ci_raw = str(item.get("current_index", "")).strip()
+            if not pu or not ci_raw:
+                messages.error(
+                    request,
+                    f"Lecture {idx + 1} : pompe et index actuel obligatoires.",
+                )
+                return redirect("pumps:bulk_pump_reading")
+            if pu in seen_uuids:
+                messages.error(
+                    request,
+                    "Vous ne pouvez pas saisir deux fois la même pompe dans une même saisie.",
+                )
+                return redirect("pumps:bulk_pump_reading")
+            seen_uuids.add(pu)
+
+            pump = Pump.objects.filter(pump_uuid=pu, station=station).first()
+            if not pump:
+                messages.error(request, "Pompe invalide ou non autorisée.")
+                return redirect("pumps:bulk_pump_reading")
+
+            try:
+                current_index_decimal = Decimal(ci_raw)
+            except (InvalidOperation, ValueError):
+                messages.error(
+                    request,
+                    f'Index actuel invalide pour "{pump.name}".',
+                )
+                return redirect("pumps:bulk_pump_reading")
+
+            latest = (
+                PumpReading.objects.filter(pump=pump)
+                .order_by("-reading_date", "-created_at")
+                .first()
+            )
+            initial_index_decimal = latest.current_index if latest else Decimal("0")
+
+            if current_index_decimal <= initial_index_decimal:
+                messages.error(
+                    request,
+                    f'L\'index actuel doit être supérieur à l\'index précédent pour "{pump.name}".',
+                )
+                return redirect("pumps:bulk_pump_reading")
+
+            readings_count = PumpReading.objects.filter(pump=pump).count()
+            existing_today = PumpReading.objects.filter(
+                pump=pump, reading_date=today
+            ).first()
+            if readings_count > 1 and existing_today:
+                messages.error(
+                    request,
+                    f'Une lecture a déjà été enregistrée aujourd\'hui pour "{pump.name}".',
+                )
+                return redirect("pumps:bulk_pump_reading")
+
+            prepared.append(
+                {
+                    "pump": pump,
+                    "initial_index": initial_index_decimal,
+                    "current_index": current_index_decimal,
+                }
+            )
+
+        total_batch = Decimal("0")
+        for row in prepared:
+            total_batch += _compute_sale_total_for_pump_reading(
+                row["pump"], row["initial_index"], row["current_index"]
+            )
+
+        allocations_by_uuid, err_resp = _parse_and_validate_wallet_allocations(
+            request, allocations_json, station_wallets_list, total_batch
+        )
+        if err_resp is not None:
+            return err_resp
+
+        try:
+            with transaction.atomic():
+                for row in prepared:
+                    reading = PumpReading.objects.create(
+                        pump=row["pump"],
+                        employee=employee,
+                        initial_index=row["initial_index"],
+                        current_index=row["current_index"],
+                        reading_date=today,
+                    )
+                    _create_sale_from_reading(reading, request.user)
+
+                for wallet_uuid, amount in allocations_by_uuid.items():
+                    if amount <= 0:
+                        continue
+                    w = Account.objects.select_for_update().get(
+                        uuid=wallet_uuid, station=station
+                    )
+                    w.balance = (w.balance or Decimal("0")) + amount
+                    w.save(update_fields=["balance", "updated_at"])
+        except IntegrityError as exc:
+            messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
+            return redirect("pumps:bulk_pump_reading")
+
+        messages.success(
+            request,
+            f"{len(prepared)} lecture(s) enregistrée(s) et montants répartis sur les wallets.",
+        )
+        return redirect("pumps:pumps_list")
+
+    context = {
+        "station": station,
+        "pumps_data": pumps_data,
+        "station_wallets": [
+            {
+                "uuid": str(w.uuid),
+                "name": w.name,
+                "currency": w.currency,
+            }
+            for w in station_wallets_list
+        ],
+        "product_price_essence": str(
+            Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
+        ),
+        "product_price_diesel": str(
+            Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+        ),
+    }
+    return render(request, "pumps/bulk_pump_reading.html", context)
 
 
 @login_required
