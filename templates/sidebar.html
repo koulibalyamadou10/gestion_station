@@ -103,6 +103,13 @@
             <span>Dépenses</span>
         </a>
         {% endif %}
+
+        {% if user.role == 'admin' or user.role == 'manager' %}
+        <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'deposit_list' %}bg-blue-600{% endif %}">
+            <i class="fas fa-arrow-up w-5"></i>
+            <span>Versements</span>
+        </a>
+        {% endif %}
         
         <!-- Finances -->
         {% comment %} <div class="space-y-1">
