@@ -96,6 +96,149 @@
             </h3>
             <div id="map" class="w-full h-96 rounded-lg border border-gray-300 overflow-hidden"></div>
         </div>
+
+        <!-- Pompes de cette station -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-gas-pump mr-2 text-blue-600"></i>
+                    Pompes de la station
+                    <span class="ml-2 text-sm font-normal text-gray-500">({{ station_pumps_total }} résultat{{ station_pumps_total|pluralize }})</span>
+                </h3>
+                {% if can_manage_pumps %}
+                <button
+                    type="button"
+                    id="stationDetailCreatePumpBtn"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center shadow"
+                >
+                    <i class="fas fa-plus mr-2"></i>
+                    Créer une pompe
+                </button>
+                {% endif %}
+            </div>
+
+            <div class="px-6 py-4 border-b border-gray-100">
+                <form method="get" action="{% url 'stations:station_detail' station.station_uuid %}" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+                    <div class="flex-1">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-search mr-2 text-blue-600"></i>Rechercher
+                        </label>
+                        <input
+                            type="text"
+                            name="search"
+                            value="{{ search_query }}"
+                            placeholder="Nom de la pompe..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        >
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center">
+                            <i class="fas fa-filter mr-2"></i>Filtrer
+                        </button>
+                        <a href="{% url 'stations:station_detail' station.station_uuid %}" class="bg-gray-500 text-white px-5 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold flex items-center">
+                            <i class="fas fa-redo mr-2"></i>Réinitialiser
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-gas-pump mr-2"></i>Pompe
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-calendar mr-2"></i>Dernière lecture
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Index initial
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-tachometer-alt mr-2"></i>Index actuel
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-cog mr-2"></i>Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for pump in station_pumps_page %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="bg-blue-100 p-2 rounded-lg mr-3">
+                                        <i class="fas fa-gas-pump text-blue-600"></i>
+                                    </div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ pump.name }}</div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {% if pump.latest_reading %}
+                                    {{ pump.latest_reading.reading_date|date:"d/m/Y" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {% if pump.latest_reading %}{{ pump.latest_reading.initial_index }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                                {% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex items-center space-x-3">
+                                    <a href="{% url 'pumps:pump_detail' pump.pump_uuid %}" class="text-blue-600 hover:text-blue-800 transition-colors" title="Détails">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_manage_pumps %}
+                                    <button
+                                        type="button"
+                                        class="text-red-600 hover:text-red-800 transition-colors"
+                                        title="Supprimer"
+                                        onclick="openStationDetailDeletePumpModal('{{ pump.pump_uuid }}', '{{ pump.name|escapejs }}', '{{ pump.readings_count }}')"
+                                    >
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center justify-center">
+                                    <i class="fas fa-gas-pump text-6xl text-gray-300 mb-4"></i>
+                                    <p class="text-gray-500 text-lg font-semibold">Aucune pompe trouvée</p>
+                                    <p class="text-gray-400 text-sm mt-2">
+                                        {% if search_query %}Essayez d'autres critères de recherche{% else %}Créez une pompe pour cette station{% endif %}
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if station_pumps_page.paginator.num_pages > 1 %}
+            <div class="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p class="text-sm text-gray-600">
+                    Page {{ station_pumps_page.number }} / {{ station_pumps_page.paginator.num_pages }}
+                </p>
+                <div class="flex flex-wrap gap-2">
+                    {% if station_pumps_page.has_previous %}
+                    <a href="?page={{ station_pumps_page.previous_page_number }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium">Précédent</a>
+                    {% endif %}
+                    {% if station_pumps_page.has_next %}
+                    <a href="?page={{ station_pumps_page.next_page_number }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium">Suivant</a>
+                    <a href="?page={{ station_pumps_page.paginator.num_pages }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium">Dernière</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Colonne latérale - Informations complémentaires -->
@@ -470,6 +613,102 @@
         </form>
     </div>
 </div>
+
+{% if can_manage_pumps %}
+<!-- Modal suppression pompe (même URL que la liste des pompes) -->
+<div id="stationDetailDeletePumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>
+                Confirmer la suppression
+            </h3>
+            <button type="button" id="stationDetailCloseDeletePumpModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-700">
+                Voulez-vous vraiment supprimer la pompe
+                <span id="stationDetailDeletePumpName" class="font-semibold text-gray-900"></span> ?
+            </p>
+            <div id="stationDetailDeletePumpBlockedMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                Suppression impossible : cette pompe possède plus d'une lecture.
+            </div>
+            <div class="flex items-center justify-end space-x-3 pt-2">
+                <button type="button" id="stationDetailCancelDeletePump" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Annuler</button>
+                <form id="stationDetailDeletePumpForm" method="POST" action="" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button id="stationDetailConfirmDeletePumpBtn" type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Supprimer</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal création pompe (POST vers pumps:create_pump) -->
+<div id="stationDetailCreatePumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-plus-circle mr-2 text-blue-600"></i>
+                Créer une nouvelle pompe
+            </h3>
+            <button type="button" id="stationDetailCloseCreatePumpModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <form id="stationDetailCreatePumpForm" method="POST" action="{% url 'pumps:create_pump' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="station_id" value="{{ station.id }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <i class="fas fa-building mr-2"></i>Station : <strong>{{ station.name }}</strong>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Type <span class="text-red-500">*</span></label>
+                    <select name="pump_type" id="station_detail_create_pump_type" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                        <option value="">Sélectionner un type</option>
+                        <option value="essence">Essence</option>
+                        <option value="gazoil">Gazoil</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Index pompe <span class="text-red-500">*</span></label>
+                    <input type="number" name="pump_number" id="station_detail_create_pump_number" min="1" step="1" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="Ex: 1">
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-xs text-blue-700 mb-1">Nom généré automatiquement</p>
+                <p class="text-sm font-semibold text-blue-900" id="station_detail_generated_pump_name_preview">Pompe -</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Index initial <span class="text-red-500">*</span></label>
+                    <input type="number" name="initial_index" required min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Index actuel <span class="text-red-500">*</span></label>
+                    <input type="number" name="current_index" required min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" placeholder="0">
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button type="button" id="stationDetailCancelCreatePump" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">Annuler</button>
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center">
+                    <i class="fas fa-save mr-2"></i>Créer la pompe
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <!-- Mapbox GL JS -->
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
@@ -905,6 +1144,93 @@
             }
         });
     }
+
+    {% if can_manage_pumps %}
+    (function () {
+        const createBtn = document.getElementById('stationDetailCreatePumpBtn');
+        const createModal = document.getElementById('stationDetailCreatePumpModal');
+        const closeCreate = document.getElementById('stationDetailCloseCreatePumpModal');
+        const cancelCreate = document.getElementById('stationDetailCancelCreatePump');
+        const createForm = document.getElementById('stationDetailCreatePumpForm');
+        const createType = document.getElementById('station_detail_create_pump_type');
+        const createNumber = document.getElementById('station_detail_create_pump_number');
+        const namePreview = document.getElementById('station_detail_generated_pump_name_preview');
+
+        function updatePumpNamePreview() {
+            const typeValue = createType?.value || '';
+            const numberValue = createNumber?.value || '';
+            const typeLabel = typeValue === 'essence' ? 'Essence' : (typeValue === 'gazoil' ? 'Gazoil' : '');
+            if (typeLabel && numberValue) {
+                namePreview.textContent = 'Pompe ' + numberValue + ' / ' + typeLabel;
+            } else {
+                namePreview.textContent = 'Pompe -';
+            }
+        }
+
+        function openCreatePumpModal() {
+            if (!createModal) return;
+            createModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCreatePumpModalFunc() {
+            if (!createModal || !createForm) return;
+            createModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            createForm.reset();
+            updatePumpNamePreview();
+        }
+
+        createBtn?.addEventListener('click', openCreatePumpModal);
+        closeCreate?.addEventListener('click', closeCreatePumpModalFunc);
+        cancelCreate?.addEventListener('click', closeCreatePumpModalFunc);
+        createType?.addEventListener('change', updatePumpNamePreview);
+        createNumber?.addEventListener('input', updatePumpNamePreview);
+        updatePumpNamePreview();
+
+        createModal?.addEventListener('click', function (e) {
+            if (e.target === createModal) closeCreatePumpModalFunc();
+        });
+
+        const deleteModal = document.getElementById('stationDetailDeletePumpModal');
+        const deleteForm = document.getElementById('stationDetailDeletePumpForm');
+        const deleteNameEl = document.getElementById('stationDetailDeletePumpName');
+        const deleteBlocked = document.getElementById('stationDetailDeletePumpBlockedMessage');
+        const deleteConfirmBtn = document.getElementById('stationDetailConfirmDeletePumpBtn');
+
+        window.openStationDetailDeletePumpModal = function (pumpUuid, pumpName, readingsCount) {
+            if (!deleteModal || !deleteForm || !deleteNameEl) return;
+            deleteNameEl.textContent = '"' + pumpName + '"';
+            deleteForm.action = '/pumps/delete/' + pumpUuid + '/';
+
+            const count = parseInt(readingsCount || '0', 10);
+            if (count > 1) {
+                deleteBlocked.classList.remove('hidden');
+                deleteConfirmBtn.disabled = true;
+                deleteConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                deleteBlocked.classList.add('hidden');
+                deleteConfirmBtn.disabled = false;
+                deleteConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            deleteModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        function closeDeletePumpModalFunc() {
+            if (!deleteModal) return;
+            deleteModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        document.getElementById('stationDetailCloseDeletePumpModal')?.addEventListener('click', closeDeletePumpModalFunc);
+        document.getElementById('stationDetailCancelDeletePump')?.addEventListener('click', closeDeletePumpModalFunc);
+        deleteModal?.addEventListener('click', function (e) {
+            if (e.target === deleteModal) closeDeletePumpModalFunc();
+        });
+    })();
+    {% endif %}
 </script>
 {% endblock %}
 

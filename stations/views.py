@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.core.paginator import Paginator
+from django.db.models import Q, Count
 from django.http import JsonResponse
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
@@ -262,13 +263,43 @@ def station_detail_view(request, station_uuid):
             # Pour les admins, récupérer leurs gérants
             from account.models import CustomUser
             managers = CustomUser.objects.filter(role='manager', created_by=request.user, is_active=True).order_by('first_name', 'last_name')
-        
+
+        from pumps.models import Pump, PumpReading
+
+        can_manage_pumps = request.user.role == 'super_admin' or (
+            request.user.role == 'admin' and station.owner_id == request.user.id
+        )
+
+        search_query = request.GET.get('search', '').strip()
+        pumps_qs = (
+            Pump.objects.filter(station=station)
+            .select_related('station', 'station__city')
+            .annotate(readings_count=Count('readings'))
+            .order_by('-created_at')
+        )
+        if search_query:
+            pumps_qs = pumps_qs.filter(Q(name__icontains=search_query))
+
+        station_pumps_total = pumps_qs.count()
+        paginator = Paginator(pumps_qs, 15)
+        page_obj = paginator.get_page(request.GET.get('page') or 1)
+        for pump in page_obj:
+            pump.latest_reading = (
+                PumpReading.objects.filter(pump_id=pump.id)
+                .order_by('-reading_date', '-created_at')
+                .first()
+            )
+
         context = {
             'station': station,
             'current_manager': current_manager,
             'admins': admins,
             'managers': managers,
             'all_cities': City.objects.order_by('name'),
+            'can_manage_pumps': can_manage_pumps,
+            'search_query': search_query,
+            'station_pumps_page': page_obj,
+            'station_pumps_total': station_pumps_total,
         }
         
         return render(request, 'stations/stations_detail.html', context)

@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from decimal import Decimal, InvalidOperation
 import json
 from pumps.models import Pump, PumpReading, PumpReset
@@ -147,6 +148,18 @@ def _parse_and_validate_wallet_allocations(
     return allocations_by_uuid, None
 
 
+def _redirect_after_pump_form(request):
+    """Redirige vers `next` (POST) si URL interne autorisée, sinon vers la liste des pompes."""
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("pumps:pumps_list")
+
+
 @login_required
 def pumps_list_view(request):
     """
@@ -260,91 +273,97 @@ def pumps_list_view(request):
 @login_required
 def create_pump_view(request):
     """
-    Vue pour créer une nouvelle pompe
-    Accessible uniquement aux managers
+    Création d'une pompe (admin propriétaire ou super_admin).
+    Redirection après succès/erreur : paramètre POST `next` (URL du même site) ou liste des pompes.
     """
-    # Création réservée à l'admin propriétaire
+    from stations.models import Station
+
     try:
-        if request.user.role != 'admin':
+        if request.user.role not in ("admin", "super_admin"):
             messages.error(request, "Seul l'administrateur peut créer une pompe.")
-            return redirect('pumps:pumps_list')
+            return redirect("pumps:pumps_list")
 
-        from stations.models import Station
-        stations = Station.objects.filter(owner=request.user).order_by('name')
-        if not stations.exists():
-            messages.error(request, "Vous n'avez aucune station.")
-            return redirect('pumps:pumps_list')
-        
-        if request.method == 'POST':
-            station_id = request.POST.get('station_id', '').strip()
-            pump_type = request.POST.get('pump_type', '').strip().lower()
-            pump_number = request.POST.get('pump_number', '').strip()
-            initial_index = request.POST.get('initial_index', '').strip()
-            current_index = request.POST.get('current_index', '').strip()
-            
-            # Validation
-            if not station_id or not pump_type or not pump_number or not initial_index or not current_index:
-                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
-                return redirect('pumps:pumps_list')
-            
-            try:
-                station = stations.filter(id=station_id).first()
-                if not station:
-                    messages.error(request, "Station invalide pour cet administrateur.")
-                    return redirect('pumps:pumps_list')
+        if request.user.role == "admin":
+            owned_stations = Station.objects.filter(owner=request.user).order_by("name")
+            if not owned_stations.exists():
+                messages.error(request, "Vous n'avez aucune station.")
+                return redirect("pumps:pumps_list")
+        else:
+            owned_stations = Station.objects.all().order_by("name")
+            if not owned_stations.exists():
+                messages.error(request, "Aucune station en base.")
+                return redirect("pumps:pumps_list")
 
-                if pump_type not in ('essence', 'gazoil'):
-                    messages.error(request, "Type de pompe invalide. Choisissez Essence ou Gazoil.")
-                    return redirect('pumps:pumps_list')
+        if request.method != "POST":
+            return redirect("pumps:pumps_list")
 
-                pump_number_int = int(pump_number)
-                if pump_number_int <= 0:
-                    messages.error(request, "L'index de la pompe doit être supérieur à 0.")
-                    return redirect('pumps:pumps_list')
+        station_id = request.POST.get("station_id", "").strip()
+        pump_type = request.POST.get("pump_type", "").strip().lower()
+        pump_number = request.POST.get("pump_number", "").strip()
+        initial_index = request.POST.get("initial_index", "").strip()
+        current_index = request.POST.get("current_index", "").strip()
 
-                type_label = "Essence" if pump_type == "essence" else "Gazoil"
-                name = f"Pompe {type_label} {pump_number_int}"
+        if not station_id or not pump_type or not pump_number or not initial_index or not current_index:
+            messages.error(request, "Veuillez remplir tous les champs obligatoires.")
+            return _redirect_after_pump_form(request)
 
-                # Empêcher les doublons du même nom sur la même station.
-                if Pump.objects.filter(station=station, name__iexact=name).exists():
-                    messages.error(request, f'La pompe "{name}" existe déjà pour cette station.')
-                    return redirect('pumps:pumps_list')
+        try:
+            if request.user.role == "admin":
+                station = owned_stations.filter(id=station_id).first()
+            else:
+                station = Station.objects.filter(id=station_id).first()
 
-                initial_index_decimal = Decimal(initial_index)
-                current_index_decimal = Decimal(current_index)
+            if not station:
+                messages.error(request, "Station invalide pour cet utilisateur.")
+                return _redirect_after_pump_form(request)
 
-                if current_index_decimal < initial_index_decimal:
-                    messages.error(request, "L'index actuel doit être supérieur ou égal à l'index initial.")
-                    return redirect('pumps:pumps_list')
-                
-                # Créer la pompe
-                pump = Pump.objects.create(
-                    station=station,
-                    name=name,
-                )
+            if pump_type not in ("essence", "gazoil"):
+                messages.error(request, "Type de pompe invalide. Choisissez Essence ou Gazoil.")
+                return _redirect_after_pump_form(request)
 
-                # Créer la première lecture immédiatement
-                first_reading = PumpReading.objects.create(
-                    pump=pump,
-                    employee=None,
-                    initial_index=initial_index_decimal,
-                    current_index=current_index_decimal,
-                    reading_date=timezone.now().date()
-                )
-                # _create_sale_from_reading(first_reading, request.user)
-                
-                messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
-                return redirect('pumps:pumps_list')
-            except ValueError:
-                messages.error(request, 'Les index doivent être des nombres valides.')
-                return redirect('pumps:pumps_list')
-            except Exception as e:
-                messages.error(request, f'Erreur lors de la création de la pompe : {str(e)}')
-        
-        return redirect('pumps:pumps_list')
+            pump_number_int = int(pump_number)
+            if pump_number_int <= 0:
+                messages.error(request, "L'index de la pompe doit être supérieur à 0.")
+                return _redirect_after_pump_form(request)
+
+            type_label = "Essence" if pump_type == "essence" else "Gazoil"
+            name = f"Pompe {pump_number_int} / {type_label}"
+
+            if Pump.objects.filter(station=station, name__iexact=name).exists():
+                messages.error(request, f'La pompe "{name}" existe déjà pour cette station.')
+                return _redirect_after_pump_form(request)
+
+            initial_index_decimal = Decimal(initial_index)
+            current_index_decimal = Decimal(current_index)
+
+            if current_index_decimal < initial_index_decimal:
+                messages.error(request, "L'index actuel doit être supérieur ou égal à l'index initial.")
+                return _redirect_after_pump_form(request)
+
+            pump = Pump.objects.create(
+                station=station,
+                name=name,
+            )
+
+            PumpReading.objects.create(
+                pump=pump,
+                employee=None,
+                initial_index=initial_index_decimal,
+                current_index=current_index_decimal,
+                reading_date=timezone.now().date(),
+            )
+
+            messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
+            return _redirect_after_pump_form(request)
+        except ValueError:
+            messages.error(request, "Les index doivent être des nombres valides.")
+            return _redirect_after_pump_form(request)
+        except Exception as e:
+            messages.error(request, f"Erreur lors de la création de la pompe : {str(e)}")
+            return _redirect_after_pump_form(request)
     except Exception as e:
-        messages.error(request, f'Erreur : {str(e)}')
-        return redirect('pumps:pumps_list')
+        messages.error(request, f"Erreur : {str(e)}")
+        return redirect("pumps:pumps_list")
 
 @login_required
 def pump_detail_view(request, pump_uuid):
@@ -367,6 +386,8 @@ def pump_detail_view(request, pump_uuid):
             if pump.station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette pompe.')
                 return redirect('pumps:pumps_list')
+        elif request.user.role == 'super_admin':
+            pass
         else:
             messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
             return redirect('account:dashboard')
@@ -412,7 +433,7 @@ def pump_detail_view(request, pump_uuid):
 
         reset_page_obj = None
         reset_history = []
-        if request.user.role == 'admin':
+        if request.user.role in ('admin', 'super_admin'):
             reset_queryset = PumpReset.objects.filter(pump=pump).select_related('reset_by').order_by('-created_at')
             reset_paginator = Paginator(reset_queryset, 10)
             reset_page_obj = reset_paginator.get_page(reset_page_number)
@@ -429,8 +450,8 @@ def pump_detail_view(request, pump_uuid):
             'quantity_sold_total': quantity_sold_total,
             'reset_history': reset_history,
             'reset_page_obj': reset_page_obj,
-            'is_read_only': request.user.role != 'admin',
-            'can_create_pump': request.user.role == 'admin',
+            'is_read_only': request.user.role not in ('admin', 'super_admin'),
+            'can_create_pump': request.user.role in ('admin', 'super_admin'),
         }
         
         return render(request, 'pumps/pump_detail.html', context)
@@ -503,15 +524,17 @@ def delete_pump_view(request, pump_uuid):
             if request.user.role == 'admin':
                 if pump.station.owner != request.user:
                     messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
-                    return redirect('pumps:pumps_list')
+                    return _redirect_after_pump_form(request)
+            elif request.user.role == 'super_admin':
+                pass
             elif request.user.role == 'manager':
                 station_manager = StationManager.objects.filter(manager=request.user).first()
                 if not station_manager or pump.station != station_manager.station:
                     messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
-                    return redirect('pumps:pumps_list')
+                    return _redirect_after_pump_form(request)
             else:
                 messages.error(request, "Vous n'avez pas la permission de supprimer cette pompe.")
-                return redirect('pumps:pumps_list')
+                return _redirect_after_pump_form(request)
 
             readings_count = PumpReading.objects.filter(pump=pump).count()
             if readings_count > 1:
@@ -519,14 +542,16 @@ def delete_pump_view(request, pump_uuid):
                     request,
                     f'Suppression impossible: la pompe "{pump.name}" possède déjà {readings_count} lectures.'
                 )
-                return redirect('pumps:pumps_list')
+                return _redirect_after_pump_form(request)
             
             pump_name = pump.name
             pump.delete()
             
             messages.success(request, f'La pompe "{pump_name}" a été supprimée avec succès.')
+            return _redirect_after_pump_form(request)
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression de la pompe : {str(e)}')
+            return _redirect_after_pump_form(request)
     
     return redirect('pumps:pumps_list')
 
