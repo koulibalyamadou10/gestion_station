@@ -155,7 +155,7 @@
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 {% endif %}
-                                {% if can_create_order and order.status == 'pending' and line %}
+                                {% if can_edit_order_quantities and order.status == 'pending' and line %}
                                 <button
                                     type="button"
                                     class="p-1.5 rounded-lg text-yellow-600 hover:bg-yellow-50 transition-colors"
@@ -248,7 +248,9 @@
         </form>
     </div>
 </div>
+{% endif %}
 
+{% if can_edit_order_quantities %}
 <div id="editOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -348,15 +350,26 @@
 </div>
 {% endif %}
 
+{% if can_create_order or can_edit_order_quantities %}
 <script>
+    function decimalValue(input) {
+        const parsed = parseFloat((input?.value || '0').toString().replace(',', '.'));
+        return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    function formatNumberFr(value) {
+        return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
+    }
+
+    {% if can_create_order %}
     const createOrderModal = document.getElementById('createOrderModal');
     const openCreateOrderModal = document.getElementById('openCreateOrderModal');
     const closeCreateOrderModal = document.getElementById('closeCreateOrderModal');
     const cancelCreateOrderModal = document.getElementById('cancelCreateOrderModal');
-    const createQtyGasoline = document.querySelector('input[name="qty_gasoline"]');
-    const createQtyDiesel = document.querySelector('input[name="qty_diesel"]');
-    const createPriceGasoline = document.querySelector('input[name="unit_price_gasoline"]');
-    const createPriceDiesel = document.querySelector('input[name="unit_price_diesel"]');
+    const createQtyGasoline = document.querySelector('#createOrderModal input[name="qty_gasoline"]');
+    const createQtyDiesel = document.querySelector('#createOrderModal input[name="qty_diesel"]');
+    const createPriceGasoline = document.querySelector('#createOrderModal input[name="unit_price_gasoline"]');
+    const createPriceDiesel = document.querySelector('#createOrderModal input[name="unit_price_diesel"]');
     const createOrderTotal = document.getElementById('createOrderTotal');
 
     function openOrderModal() {
@@ -376,15 +389,6 @@
         if (e.target === createOrderModal) closeOrderModal();
     });
 
-    function decimalValue(input) {
-        const parsed = parseFloat((input?.value || '0').toString().replace(',', '.'));
-        return Number.isNaN(parsed) ? 0 : parsed;
-    }
-
-    function formatNumberFr(value) {
-        return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(value);
-    }
-
     function refreshCreateTotal() {
         const total = (decimalValue(createQtyGasoline) * decimalValue(createPriceGasoline))
             + (decimalValue(createQtyDiesel) * decimalValue(createPriceDiesel));
@@ -394,7 +398,9 @@
     createQtyGasoline?.addEventListener('input', refreshCreateTotal);
     createQtyDiesel?.addEventListener('input', refreshCreateTotal);
     refreshCreateTotal();
+    {% endif %}
 
+    {% if can_edit_order_quantities %}
     const editOrderModal = document.getElementById('editOrderModal');
     const closeEditOrderModal = document.getElementById('closeEditOrderModal');
     const cancelEditOrderModal = document.getElementById('cancelEditOrderModal');
@@ -440,7 +446,9 @@
     editOrderModal?.addEventListener('click', function(e) {
         if (e.target === editOrderModal) closeEditModal();
     });
+    {% endif %}
 </script>
+{% endif %}
 
 {% if can_admin_orders %}
 <script>

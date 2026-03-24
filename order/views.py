@@ -175,6 +175,7 @@ def order_list_view(request):
         "show_station_filter": show_station_filter,
         "show_station_column": show_station_column,
         "can_create_order": request.user.role == "manager",
+        "can_edit_order_quantities": request.user.role in ("admin", "manager"),
         "manager_station": manager_station,
         "status_choices": Order.STATUS_CHOICES,
         "pending_count": pending_count,
@@ -224,7 +225,7 @@ def order_detail_view(request, order_uuid):
         "order_supplier": order_supplier,
         "manager_station": manager_station,
         "total_estimated": total_estimated,
-        "can_edit_order": request.user.role == "manager"
+        "can_edit_order": request.user.role in ("admin", "manager")
         and order.status == Order.STATUS_PENDING,
     }
     return render(request, "order_detail.html", context)
@@ -235,8 +236,11 @@ def update_order_quantities_view(request, order_uuid):
     if request.method != "POST":
         return redirect("order:order_list")
 
-    if request.user.role != "manager":
-        messages.error(request, "Seul un gérant peut modifier une commande.")
+    if request.user.role not in ("admin", "manager"):
+        messages.error(
+            request,
+            "Seuls l’administrateur ou le gérant peuvent modifier une commande.",
+        )
         return redirect("order:order_list")
 
     scoped_qs, _ = _order_scope_for_user(request.user)
