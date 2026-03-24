@@ -5,9 +5,9 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from delivery.models import Delivery
 from order.models import Order, OrderSupplier
@@ -190,6 +190,8 @@ def order_list_view(request):
         ),
         "can_admin_orders": request.user.role == "admin",
         "suppliers_for_confirm": suppliers_for_confirm,
+        "can_deliver_order": request.user.role == "manager",
+        "can_cancel_confirmed_order": request.user.role in ("admin", "manager"),
     }
     return render(request, "order_content.html", context)
 
@@ -220,9 +222,31 @@ def order_detail_view(request, order_uuid):
             * (order_supplier.unit_price_diesel or Decimal("0"))
         )
 
+    if order_supplier:
+        deliveries = order_supplier.delivery_set.all().order_by(
+            "-delivery_date", "-id"
+        )
+        agg = order_supplier.delivery_set.aggregate(
+            sg=Sum("delivered_qty_gasoline"),
+            sd=Sum("delivered_qty_diesel"),
+        )
+        delivered_g = agg["sg"] or Decimal("0")
+        delivered_d = agg["sd"] or Decimal("0")
+        ordered_g = order_supplier.qty_gasoline or Decimal("0")
+        ordered_d = order_supplier.qty_diesel or Decimal("0")
+        qty_to_deliver_gasoline = max(Decimal("0"), ordered_g - delivered_g)
+        qty_to_deliver_diesel = max(Decimal("0"), ordered_d - delivered_d)
+    else:
+        deliveries = Delivery.objects.none()
+        qty_to_deliver_gasoline = None
+        qty_to_deliver_diesel = None
+
     context = {
         "order": order,
         "order_supplier": order_supplier,
+        "deliveries": deliveries,
+        "qty_to_deliver_gasoline": qty_to_deliver_gasoline,
+        "qty_to_deliver_diesel": qty_to_deliver_diesel,
         "manager_station": manager_station,
         "total_estimated": total_estimated,
         "can_edit_order": request.user.role in ("admin", "manager")
@@ -354,24 +378,139 @@ def order_confirm_view(request, order_uuid):
 
     supplier = get_object_or_404(Supplier, pk=supplier_id)
 
-    if Delivery.objects.filter(order_supplier=order_supplier).exists():
-        messages.error(request, "Une livraison est déjà enregistrée pour cette commande.")
-        return redirect("order:order_list")
-
     with transaction.atomic():
         order_supplier.supplier = supplier
         order_supplier.save(update_fields=["supplier", "updated_at"])
         order.status = Order.STATUS_CONFIRMED
         order.save(update_fields=["status", "updated_at"])
-        Delivery.objects.create(
-            order_supplier=order_supplier,
-            delivered_qty_gasoline=order_supplier.qty_gasoline,
-            delivered_qty_diesel=order_supplier.qty_diesel,
-            delivery_date=timezone.now().date(),
-        )
 
     messages.success(
         request,
-        f"Commande #{order.id} confirmée avec le fournisseur « {supplier.name} ».",
+        f"Commande #{order.id} confirmée avec le fournisseur « {supplier.name} ». "
+        "Le gérant pourra enregistrer la livraison depuis la liste des commandes.",
     )
+    return redirect("order:order_list")
+
+
+@login_required
+def order_mark_delivered_view(request, order_uuid):
+    if request.method != "POST":
+        return redirect("order:order_list")
+
+    if request.user.role != "manager":
+        messages.error(request, "Seul le gérant peut enregistrer une livraison.")
+        return redirect("order:order_list")
+
+    scoped_qs, _ = _order_scope_for_user(request.user)
+    if scoped_qs is None:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+
+    order = get_object_or_404(
+        scoped_qs.prefetch_related("order_suppliers"),
+        order_uuid=order_uuid,
+    )
+    if order.status != Order.STATUS_CONFIRMED:
+        messages.error(request, "Seules les commandes confirmées peuvent être livrées.")
+        return redirect("order:order_list")
+
+    order_supplier = order.order_suppliers.first()
+    if not order_supplier:
+        messages.error(request, "Aucune ligne de commande trouvée.")
+        return redirect("order:order_list")
+
+    try:
+        delivered_qty_gasoline = _clean_decimal(
+            request.POST.get("delivered_qty_gasoline", "0")
+        )
+        delivered_qty_diesel = _clean_decimal(
+            request.POST.get("delivered_qty_diesel", "0")
+        )
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Les quantités doivent être numériques.")
+        return redirect("order:order_list")
+
+    if delivered_qty_gasoline < 0 or delivered_qty_diesel < 0:
+        messages.error(request, "Les quantités négatives ne sont pas autorisées.")
+        return redirect("order:order_list")
+
+    if delivered_qty_gasoline == 0 and delivered_qty_diesel == 0:
+        messages.error(
+            request, "Indiquez au moins une quantité livrée (essence ou gasoil)."
+        )
+        return redirect("order:order_list")
+
+    delivery_date = parse_date((request.POST.get("delivery_date") or "").strip())
+    if not delivery_date:
+        messages.error(request, "La date de livraison est obligatoire.")
+        return redirect("order:order_list")
+
+    truck_number = (request.POST.get("truck_number") or "").strip() or None
+    driver_name = (request.POST.get("driver_name") or "").strip() or None
+    delivery_notes = (request.POST.get("delivery_notes") or "").strip() or None
+
+    with transaction.atomic():
+        delivery = order_supplier.delivery_set.order_by("-id").first()
+        if delivery:
+            delivery.delivered_qty_gasoline = delivered_qty_gasoline
+            delivery.delivered_qty_diesel = delivered_qty_diesel
+            delivery.delivery_date = delivery_date
+            delivery.truck_number = truck_number
+            delivery.driver_name = driver_name
+            delivery.delivery_notes = delivery_notes
+            delivery.save(
+                update_fields=[
+                    "delivered_qty_gasoline",
+                    "delivered_qty_diesel",
+                    "delivery_date",
+                    "truck_number",
+                    "driver_name",
+                    "delivery_notes",
+                    "updated_at",
+                ]
+            )
+        else:
+            Delivery.objects.create(
+                order_supplier=order_supplier,
+                delivered_qty_gasoline=delivered_qty_gasoline,
+                delivered_qty_diesel=delivered_qty_diesel,
+                delivery_date=delivery_date,
+                truck_number=truck_number,
+                driver_name=driver_name,
+                delivery_notes=delivery_notes,
+            )
+        order.status = Order.STATUS_DELIVERED
+        order.save(update_fields=["status", "updated_at"])
+
+    messages.success(request, f"Commande #{order.id} enregistrée comme livrée.")
+    return redirect("order:order_list")
+
+
+@login_required
+def order_cancel_confirmed_view(request, order_uuid):
+    if request.method != "POST":
+        return redirect("order:order_list")
+
+    if request.user.role not in ("admin", "manager"):
+        messages.error(
+            request, "Vous n'avez pas la permission d'annuler cette commande."
+        )
+        return redirect("order:order_list")
+
+    scoped_qs, _ = _order_scope_for_user(request.user)
+    if scoped_qs is None:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+
+    order = get_object_or_404(scoped_qs, order_uuid=order_uuid)
+    if order.status != Order.STATUS_CONFIRMED:
+        messages.error(
+            request,
+            "Seules les commandes confirmées peuvent être annulées avec cette action.",
+        )
+        return redirect("order:order_list")
+
+    order.status = Order.STATUS_CANCELLED
+    order.save(update_fields=["status", "updated_at"])
+    messages.success(request, f"Commande #{order.id} annulée.")
     return redirect("order:order_list")

@@ -165,6 +165,31 @@
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 {% endif %}
+                                {% if order.status == 'confirmed' and line %}
+                                    {% if can_deliver_order %}
+                                    <button
+                                        type="button"
+                                        class="js-open-deliver-order p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                        title="Enregistrer la livraison"
+                                        data-order-uuid="{{ order.order_uuid }}"
+                                        data-qty-gasoline="{{ line.qty_gasoline }}"
+                                        data-qty-diesel="{{ line.qty_diesel }}"
+                                    >
+                                        <i class="fas fa-truck"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if can_cancel_confirmed_order %}
+                                    <button
+                                        type="button"
+                                        class="js-open-cancel-confirmed-order p-1.5 rounded-lg text-orange-600 hover:bg-orange-50 transition-colors"
+                                        title="Annuler la commande"
+                                        data-order-uuid="{{ order.order_uuid }}"
+                                        data-order-id="{{ order.id }}"
+                                    >
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                    {% endif %}
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -340,12 +365,78 @@
                 <p class="text-sm text-red-600">Aucun fournisseur en base. Créez-en un dans Paramétrages &gt; Achats.</p>
                 {% endif %}
             </div>
-            <p class="text-xs text-gray-500">La commande passera en statut <strong>Confirmé</strong>. Une ligne de livraison sera créée avec les quantités commandées (essence / gasoil) ; vous pourrez les ajuster plus tard.</p>
+            <p class="text-xs text-gray-500">La commande passera en statut <strong>Confirmé</strong>. Le gérant enregistrera ensuite la livraison (quantités, date, camion, chauffeur) depuis la liste des commandes.</p>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelConfirmOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" {% if not suppliers_for_confirm %}disabled{% endif %}>Confirmer</button>
             </div>
         </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_deliver_order %}
+<div id="deliverOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-truck mr-2 text-emerald-600"></i>Enregistrer la livraison</h3>
+            <button type="button" id="closeDeliverOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <form id="deliverOrderForm" method="POST" action="{% url 'order:order_mark_delivered' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <p class="text-xs text-gray-500">La commande passera en statut <strong>Livrée</strong>. Renseignez au moins une quantité livrée (&gt; 0) parmi essence ou gasoil.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité livrée essence</label>
+                    <input type="number" name="delivered_qty_gasoline" id="deliver_qty_gasoline" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité livrée gasoil</label>
+                    <input type="number" name="delivered_qty_diesel" id="deliver_qty_diesel" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Date de livraison <span class="text-red-500">*</span></label>
+                <input type="date" name="delivery_date" id="deliver_delivery_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">N° camion</label>
+                    <input type="text" name="truck_number" id="deliver_truck_number" maxlength="50" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Optionnel">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Chauffeur</label>
+                    <input type="text" name="driver_name" id="deliver_driver_name" maxlength="100" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Optionnel">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Réf. / bon de livraison</label>
+                <input type="text" name="delivery_notes" id="deliver_delivery_notes" maxlength="255" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Optionnel">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelDeliverOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Fermer</button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Valider la livraison</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_cancel_confirmed_order %}
+<div id="cancelConfirmedOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-ban mr-2 text-orange-600"></i>Annuler la commande</h3>
+            <button type="button" id="closeCancelConfirmedOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="p-6">
+            <p class="text-gray-700">Annuler la commande confirmée <strong id="cancelConfirmedOrderModalRef"></strong> ? Le statut passera à <strong>Annulé</strong>.</p>
+            <form id="cancelConfirmedOrderForm" method="POST" action="{% url 'order:order_cancel_confirmed' '00000000-0000-4000-8000-000000000001' %}" class="flex justify-end gap-2 mt-6">
+                {% csrf_token %}
+                <button type="button" id="cancelCancelConfirmedOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Retour</button>
+                <button type="submit" class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Annuler la commande</button>
+            </form>
+        </div>
     </div>
 </div>
 {% endif %}
@@ -517,6 +608,103 @@
             openDeleteOrderModal(btn.dataset.orderUuid, btn.dataset.orderId);
         });
     });
+</script>
+{% endif %}
+
+{% if can_deliver_order or can_cancel_confirmed_order %}
+<script>
+(function() {
+    const orderUrlPlaceholderUuid = '00000000-0000-4000-8000-000000000001';
+    {% if can_deliver_order %}
+    const orderMarkDeliveredUrlTemplate = '{% url 'order:order_mark_delivered' '00000000-0000-4000-8000-000000000001' %}';
+    const deliverOrderModal = document.getElementById('deliverOrderModal');
+    const deliverOrderForm = document.getElementById('deliverOrderForm');
+    const deliverQtyGasoline = document.getElementById('deliver_qty_gasoline');
+    const deliverQtyDiesel = document.getElementById('deliver_qty_diesel');
+    const deliverDeliveryDate = document.getElementById('deliver_delivery_date');
+    const deliverTruckNumber = document.getElementById('deliver_truck_number');
+    const deliverDriverName = document.getElementById('deliver_driver_name');
+    const deliverDeliveryNotes = document.getElementById('deliver_delivery_notes');
+
+    function parseQty(raw) {
+        const n = parseFloat(String(raw || '0').replace(',', '.'));
+        return Number.isNaN(n) ? 0 : n;
+    }
+
+    function openDeliverOrderModal(orderUuid, qtyGasoline, qtyDiesel) {
+        if (!deliverOrderModal || !deliverOrderForm) return;
+        deliverOrderForm.action = orderMarkDeliveredUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
+        if (deliverQtyGasoline) deliverQtyGasoline.value = parseQty(qtyGasoline);
+        if (deliverQtyDiesel) deliverQtyDiesel.value = parseQty(qtyDiesel);
+        if (deliverDeliveryDate) {
+            deliverDeliveryDate.value = new Date().toISOString().slice(0, 10);
+        }
+        if (deliverTruckNumber) deliverTruckNumber.value = '';
+        if (deliverDriverName) deliverDriverName.value = '';
+        if (deliverDeliveryNotes) deliverDeliveryNotes.value = '';
+        deliverOrderModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDeliverOrderModalFn() {
+        deliverOrderModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    deliverOrderForm?.addEventListener('submit', function(e) {
+        const g = parseQty(deliverQtyGasoline?.value);
+        const d = parseQty(deliverQtyDiesel?.value);
+        if (g <= 0 && d <= 0) {
+            e.preventDefault();
+            alert('Indiquez au moins une quantité livrée (essence ou gasoil).');
+        }
+    });
+
+    document.getElementById('closeDeliverOrderModal')?.addEventListener('click', closeDeliverOrderModalFn);
+    document.getElementById('cancelDeliverOrderModal')?.addEventListener('click', closeDeliverOrderModalFn);
+    deliverOrderModal?.addEventListener('click', function(e) {
+        if (e.target === deliverOrderModal) closeDeliverOrderModalFn();
+    });
+
+    document.querySelectorAll('.js-open-deliver-order').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openDeliverOrderModal(btn.dataset.orderUuid, btn.dataset.qtyGasoline, btn.dataset.qtyDiesel);
+        });
+    });
+    {% endif %}
+
+    {% if can_cancel_confirmed_order %}
+    const orderCancelConfirmedUrlTemplate = '{% url 'order:order_cancel_confirmed' '00000000-0000-4000-8000-000000000001' %}';
+    const cancelConfirmedOrderModal = document.getElementById('cancelConfirmedOrderModal');
+    const cancelConfirmedOrderForm = document.getElementById('cancelConfirmedOrderForm');
+    const cancelConfirmedOrderModalRef = document.getElementById('cancelConfirmedOrderModalRef');
+
+    function openCancelConfirmedOrderModal(orderUuid, orderId) {
+        if (!cancelConfirmedOrderModal || !cancelConfirmedOrderForm) return;
+        cancelConfirmedOrderForm.action = orderCancelConfirmedUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
+        if (cancelConfirmedOrderModalRef) cancelConfirmedOrderModalRef.textContent = '#' + orderId;
+        cancelConfirmedOrderModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeCancelConfirmedOrderModalFn() {
+        cancelConfirmedOrderModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('closeCancelConfirmedOrderModal')?.addEventListener('click', closeCancelConfirmedOrderModalFn);
+    document.getElementById('cancelCancelConfirmedOrderModal')?.addEventListener('click', closeCancelConfirmedOrderModalFn);
+    cancelConfirmedOrderModal?.addEventListener('click', function(e) {
+        if (e.target === cancelConfirmedOrderModal) closeCancelConfirmedOrderModalFn();
+    });
+
+    document.querySelectorAll('.js-open-cancel-confirmed-order').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openCancelConfirmedOrderModal(btn.dataset.orderUuid, btn.dataset.orderId);
+        });
+    });
+    {% endif %}
+})();
 </script>
 {% endif %}
 {% endblock %}

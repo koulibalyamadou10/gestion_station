@@ -9,8 +9,7 @@ class Delivery(models.Model):
     delivery_date = models.DateField()
     truck_number = models.CharField(max_length=50, null=True, blank=True)
     driver_name = models.CharField(max_length=100, null=True, blank=True)
-    delivery_note = models.CharField(max_length=100, null=True, blank=True)
-    notes = models.TextField(null=True, blank=True)
+    delivery_notes = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

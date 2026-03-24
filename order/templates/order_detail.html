@@ -10,7 +10,7 @@
         <i class="fas fa-arrow-left mr-2"></i>Retour aux commandes
     </a>
 </div>
- ,
+
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
         <p class="text-xs uppercase text-gray-500">Station</p>
@@ -62,4 +62,34 @@
     <p class="text-gray-500">Aucune ligne fournisseur associée à cette commande.</p>
     {% endif %}
 </div>
+
+{% if order.status == 'confirmed' and order_supplier %}
+<div class="bg-white rounded-xl shadow-lg p-6 mt-6 border-l-4 border-emerald-500">
+    <h3 class="text-lg font-bold text-gray-800 mb-2">Quantités à livrer</h3>
+    <p class="text-xs uppercase text-gray-500 mb-4">Restant par rapport aux livraisons enregistrées</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div><span class="text-gray-500">Quantité à livrer essence :</span> <span class="font-semibold text-gray-800">{{ qty_to_deliver_gasoline|money_fr }}</span></div>
+        <div><span class="text-gray-500">Quantité à livrer gasoil :</span> <span class="font-semibold text-gray-800">{{ qty_to_deliver_diesel|money_fr }}</span></div>
+    </div>
+</div>
+{% endif %}
+
+{% if deliveries %}
+<div class="bg-white rounded-xl shadow-lg p-6 mt-6 border-l-4 border-emerald-500">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">Livraison{% if deliveries|length > 1 %}s{% endif %}</h3>
+    {% for d in deliveries %}
+    <div class="{% if not forloop.first %}mt-6 pt-6 border-t border-gray-100{% endif %}">
+        <p class="text-xs uppercase text-gray-500 mb-3">Livraison du {{ d.delivery_date|date:"d/m/Y" }}</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">Quantité livrée essence :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_gasoline|money_fr }}</span></div>
+            <div><span class="text-gray-500">Quantité livrée gasoil :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_diesel|money_fr }}</span></div>
+            <div><span class="text-gray-500">Camion :</span> <span class="font-semibold text-gray-800">{{ d.truck_number|default:"—" }}</span></div>
+            <div><span class="text-gray-500">Chauffeur :</span> <span class="font-semibold text-gray-800">{{ d.driver_name|default:"—" }}</span></div>
+            <div class="md:col-span-2"><span class="text-gray-500">Réf. / bon :</span> <span class="font-semibold text-gray-800">{{ d.delivery_notes|default:"—" }}</span></div>
+            <div><span class="text-gray-500">Enregistrée le :</span> <span class="font-semibold text-gray-800">{{ d.created_at|date:"d/m/Y H:i" }}</span></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
