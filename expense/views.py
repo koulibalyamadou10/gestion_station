@@ -87,6 +87,8 @@ def expense_list_view(request):
             messages.error(request, "Wallet, montant et date sont obligatoires.")
             return redirect("expense:expense_list")
 
+        amount_raw = amount_raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
+
         account = accounts_qs.filter(pk=account_id).first()
         if not account:
             messages.error(request, "Wallet invalide pour votre station.")
