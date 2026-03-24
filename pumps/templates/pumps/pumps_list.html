@@ -42,10 +42,10 @@
 </div>
 {% endif %}
 
-<!-- Cards Statistiques -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<!-- Cards Statistiques : 3 cartes sur une ligne, pleine largeur -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8 w-full">
     <!-- Total Pompes -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 min-w-0 w-full">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Total Pompes</p>
@@ -58,7 +58,7 @@
     </div>
 
     <!-- Pompes avec lectures -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 min-w-0 w-full">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Pompes avec lectures</p>
@@ -71,7 +71,7 @@
     </div>
 
     <!-- Total lectures -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-gray-500 min-w-0 w-full">
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Total lectures</p>
