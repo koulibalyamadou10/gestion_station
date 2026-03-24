@@ -21,6 +21,9 @@
 {% else %}
 <form id="bulkReadingForm" method="POST" action="{% url 'pumps:bulk_pump_reading' %}" class="space-y-6">
     {% csrf_token %}
+    {% if bulk_reading_station_uuid %}
+    <input type="hidden" name="station_uuid" value="{{ bulk_reading_station_uuid }}">
+    {% endif %}
     <input type="hidden" name="readings_json" id="readingsJsonInput" value="[]">
     <input type="hidden" name="wallet_allocations" id="walletAllocationsInput" value="[]">
 

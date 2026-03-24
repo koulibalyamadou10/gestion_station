@@ -108,9 +108,9 @@
                     <span class="ml-2 text-sm font-normal text-gray-500">({{ station_pumps_total }} résultat{{ station_pumps_total|pluralize }})</span>
                 </h3>
                 <div class="flex flex-wrap items-center gap-2 justify-end">
-                    {% if is_station_manager %}
+                    {% if can_record_pump_readings %}
                     <a
-                        href="{% url 'pumps:bulk_pump_reading' %}"
+                        href="{% url 'pumps:bulk_pump_reading' %}?station_uuid={{ station.station_uuid }}"
                         class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center shadow"
                     >
                         <i class="fas fa-layer-group mr-2"></i>
@@ -199,7 +199,7 @@
                                     <a href="{% url 'pumps:pump_detail' pump.pump_uuid %}" class="text-blue-600 hover:text-blue-800 transition-colors" title="Détails">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    {% if is_station_manager %}
+                                    {% if can_record_pump_readings %}
                                     <button
                                         type="button"
                                         class="text-green-600 hover:text-green-800 transition-colors"
@@ -724,7 +724,7 @@
 </div>
 {% endif %}
 
-{% if is_station_manager %}
+{% if can_record_pump_readings %}
 <!-- Modal enregistrement lecture (identique à la liste des pompes) -->
 <div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -1320,7 +1320,7 @@
     })();
     {% endif %}
 
-    {% if is_station_manager %}
+    {% if can_record_pump_readings %}
     (function () {
         const readingModal = document.getElementById('readingModal');
         const closeReadingModal = document.getElementById('closeReadingModal');

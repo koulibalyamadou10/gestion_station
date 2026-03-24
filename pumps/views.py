@@ -12,7 +12,7 @@ import json
 from pumps.models import Pump, PumpReading, PumpReset
 from sale.models import Sale
 from employee.models import Employee
-from stations.models import StationManager
+from stations.models import Station, StationManager
 from wallet.models import Account
 from daily_stock.models import DailyStock
 from permissions_web import manager_required
@@ -565,19 +565,22 @@ def delete_pump_view(request, pump_uuid):
     return redirect('pumps:pumps_list')
 
 @login_required
-@manager_required
 def create_reading_view(request, pump_uuid):
     """
-    Vue pour enregistrer une lecture de pompe
-    Accessible uniquement aux managers
-    Avec validations de sécurité et mise à jour du stock
+    Enregistrement d'une lecture : gérant de la station, ou admin propriétaire, ou super_admin.
     """
     try:
         pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
-        
-        # Vérifier que la pompe appartient à la station du manager
-        station_manager = StationManager.objects.filter(manager=request.user).first()
-        if not station_manager or pump.station != station_manager.station:
+
+        allowed = False
+        if request.user.role == 'manager':
+            station_manager = StationManager.objects.filter(manager=request.user).first()
+            allowed = bool(station_manager and pump.station_id == station_manager.station_id)
+        elif request.user.role == 'admin':
+            allowed = pump.station.owner_id == request.user.id
+        elif request.user.role == 'super_admin':
+            allowed = True
+        if not allowed:
             messages.error(request, 'Vous n\'avez pas la permission d\'enregistrer une lecture pour cette pompe.')
             return redirect('pumps:pumps_list')
         
@@ -716,18 +719,52 @@ def create_reading_view(request, pump_uuid):
 
 
 @login_required
-@manager_required
 def bulk_pump_reading_view(request):
     """
-    Saisie groupée des lectures pour toutes les pompes de la station du gérant.
-    Toutes les écritures (lectures, ventes, wallets) sont faites dans une seule transaction.
+    Saisie groupée des lectures pour une station.
+    Gérant : sa station assignée. Admin : station_uuid (query/POST) ou station unique possédée.
+    Super_admin : station_uuid obligatoire.
     """
-    station_manager = StationManager.objects.filter(manager=request.user).first()
-    if not station_manager:
-        messages.error(request, "Aucune station ne vous est assignée.")
-        return redirect("account:dashboard")
+    station = None
+    bulk_station_uuid_for_form = None
 
-    station = station_manager.station
+    if request.user.role == "manager":
+        station_manager = StationManager.objects.filter(manager=request.user).select_related("station").first()
+        if not station_manager:
+            messages.error(request, "Aucune station ne vous est assignée.")
+            return redirect("account:dashboard")
+        station = station_manager.station
+    elif request.user.role == "admin":
+        owned = Station.objects.filter(owner=request.user)
+        station_uuid = (request.GET.get("station_uuid") or request.POST.get("station_uuid") or "").strip()
+        if station_uuid:
+            station = owned.filter(station_uuid=station_uuid).first()
+        elif owned.count() == 1:
+            station = owned.first()
+        if station:
+            bulk_station_uuid_for_form = str(station.station_uuid)
+        else:
+            messages.error(
+                request,
+                "Pour la saisie groupée, ouvrez cette page depuis la fiche de l'une de vos stations "
+                "(ou ajoutez ?station_uuid=… à l'URL).",
+            )
+            return redirect("stations:stations_list")
+    elif request.user.role == "super_admin":
+        station_uuid = (request.GET.get("station_uuid") or request.POST.get("station_uuid") or "").strip()
+        if station_uuid:
+            station = Station.objects.filter(station_uuid=station_uuid).first()
+        if not station:
+            messages.error(
+                request,
+                "Pour la saisie groupée, ouvrez cette page depuis la fiche d'une station "
+                "(paramètre station_uuid).",
+            )
+            return redirect("stations:stations_list")
+        bulk_station_uuid_for_form = str(station.station_uuid)
+    else:
+        messages.error(request, "Accès refusé.")
+        return redirect("account:dashboard")
     pumps_qs = (
         Pump.objects.filter(station=station)
         .select_related("station")
@@ -888,6 +925,7 @@ def bulk_pump_reading_view(request):
 
     context = {
         "station": station,
+        "bulk_reading_station_uuid": bulk_station_uuid_for_form,
         "pumps_data": pumps_data,
         "station_wallets": [
             {

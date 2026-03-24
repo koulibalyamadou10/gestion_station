@@ -278,6 +278,7 @@ def station_detail_view(request, station_uuid):
         can_manage_pumps = request.user.role == 'super_admin' or (
             request.user.role == 'admin' and station.owner_id == request.user.id
         )
+        can_record_pump_readings = is_station_manager or can_manage_pumps
 
         search_query = request.GET.get('search', '').strip()
         pumps_qs = (
@@ -302,7 +303,7 @@ def station_detail_view(request, station_uuid):
         from wallet.models import Account
 
         station_wallets = {}
-        if is_station_manager:
+        if can_record_pump_readings:
             for w in Account.objects.filter(station=station).order_by('name'):
                 station_wallets.setdefault(str(station.id), []).append({
                     'uuid': str(w.uuid),
@@ -318,6 +319,7 @@ def station_detail_view(request, station_uuid):
             'managers': managers,
             'all_cities': City.objects.order_by('name'),
             'can_manage_pumps': can_manage_pumps,
+            'can_record_pump_readings': can_record_pump_readings,
             'is_station_manager': is_station_manager,
             'search_query': search_query,
             'station_pumps_page': page_obj,
