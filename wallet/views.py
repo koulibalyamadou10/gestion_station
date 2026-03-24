@@ -26,6 +26,7 @@ def wallet_list_view(request):
         name_raw = request.POST.get("name", "")
         balance_raw = request.POST.get("balance", "0").strip() or "0"
         currency = request.POST.get("currency", "GNF").strip() or "GNF"
+        balance_raw = balance_raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
 
         if not station_id:
             messages.error(request, "La station est obligatoire.")
