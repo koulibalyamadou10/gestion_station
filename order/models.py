@@ -1,5 +1,7 @@
-from django.db import models
 import uuid
+from decimal import Decimal
+
+from django.db import models
 
 class Order(models.Model):
     STATUS_PENDING = "pending"
@@ -27,6 +29,26 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order #{self.id} - {self.station.name}"
+
+    @property
+    def estimated_line_total(self):
+        """Total estimé (première ligne order_suppliers), pour listes / récap."""
+        line = self.order_suppliers.first()
+        if not line:
+            return Decimal("0")
+        qg = line.qty_gasoline if line.qty_gasoline is not None else Decimal("0")
+        qd = line.qty_diesel if line.qty_diesel is not None else Decimal("0")
+        pg = (
+            line.unit_price_gasoline
+            if line.unit_price_gasoline is not None
+            else Decimal("0")
+        )
+        pd = (
+            line.unit_price_diesel
+            if line.unit_price_diesel is not None
+            else Decimal("0")
+        )
+        return qg * pg + qd * pd
 
 
 class OrderSupplier(models.Model):
