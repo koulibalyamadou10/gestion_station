@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from supplier.models import Supplier
 
@@ -12,7 +12,7 @@ def supplier_list_view(request):
     """
     Liste des fournisseurs + création (modal).
     Réservé aux administrateurs (propriétaires).
-    Pas de modification ni suppression pour le moment.
+    Modification / suppression : vues dédiées + modales sur cette page.
     """
     if request.user.role != "admin":
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
@@ -63,3 +63,60 @@ def supplier_list_view(request):
         "total_suppliers": suppliers_qs.count(),
     }
     return render(request, "supplier_content.html", context)
+
+
+@login_required
+def supplier_update_view(request, supplier_id):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    supplier = get_object_or_404(Supplier, pk=supplier_id)
+
+    if request.method != "POST":
+        return redirect("supplier:supplier_list")
+
+    name = request.POST.get("name", "").strip()
+    contact = request.POST.get("contact", "").strip() or None
+    address = request.POST.get("address", "").strip() or None
+    phone = request.POST.get("phone", "").strip() or None
+
+    if not name:
+        messages.error(request, "Le nom du fournisseur est obligatoire.")
+        return redirect("supplier:supplier_list")
+
+    if Supplier.objects.filter(name__iexact=name).exclude(pk=supplier.pk).exists():
+        messages.error(request, "Un autre fournisseur porte déjà ce nom.")
+        return redirect("supplier:supplier_list")
+
+    supplier.name = name
+    supplier.contact = contact
+    supplier.address = address
+    supplier.phone = phone
+    supplier.save()
+    messages.success(request, "Fournisseur modifié avec succès.")
+    return redirect("supplier:supplier_list")
+
+
+@login_required
+def supplier_delete_view(request, supplier_id):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    supplier = get_object_or_404(Supplier, pk=supplier_id)
+
+    if request.method != "POST":
+        return redirect("supplier:supplier_list")
+
+    if supplier.order_suppliers.exists():
+        messages.error(
+            request,
+            "Impossible de supprimer ce fournisseur : il est lié à une ou plusieurs commandes.",
+        )
+        return redirect("supplier:supplier_list")
+
+    nom = supplier.name
+    supplier.delete()
+    messages.success(request, f'Fournisseur « {nom} » supprimé.')
+    return redirect("supplier:supplier_list")
