@@ -1,4 +1,15 @@
-<!-- Sidebar : Tableau de bord | Activités (déroulant) | Paramétrages (déroulant) -->
+<!-- Sidebar : Tableau de bord | Activités / Paramétrages (déroulants, sous-groupes ; défaut : Activités pour admin/gérant, Paramétrages pour super admin) -->
+<style>
+    #sidebarNav {
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE / Edge ancien */
+    }
+    #sidebarNav::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        background: transparent;
+    }
+</style>
 <aside class="w-64 bg-gray-900 text-white h-screen fixed left-0 top-0 z-30 transition-all duration-300 flex flex-col" id="sidebar">
     <div class="p-6 border-b border-gray-800 flex-shrink-0">
         <div class="flex items-center space-x-3">
@@ -12,7 +23,7 @@
         </div>
     </div>
 
-    <nav class="p-4 space-y-2 overflow-y-auto flex-1">
+    <nav id="sidebarNav" class="p-4 space-y-2 overflow-y-auto flex-1">
         <a href="{% url 'account:dashboard' %}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-blue-600{% endif %}">
             <i class="fas fa-tachometer-alt w-5"></i>
             <span>Tableau de bord</span>
@@ -20,97 +31,120 @@
 
         {% with ns=request.resolver_match.namespace|default:'' urln=request.resolver_match.url_name|default:'' %}
         <div class="space-y-1">
-            <button type="button" id="activitesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}bg-gray-800{% endif %}">
+            <button type="button" id="activitesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}bg-gray-800{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'admin' or user.role == 'manager' %}bg-gray-800{% endif %}">
                 <span class="flex items-center space-x-3">
                     <i class="fas fa-briefcase w-5"></i>
                     <span>Activités</span>
                 </span>
-                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}rotate-180{% endif %}" id="activitesChevron"></i>
+                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}rotate-180{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'admin' or user.role == 'manager' %}rotate-180{% endif %}" id="activitesChevron"></i>
             </button>
-            <div id="activitesSubmenu" class="pl-2 space-y-1 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}{% else %}hidden{% endif %}">
+            <div id="activitesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}hidden{% elif user.role == 'admin' or user.role == 'manager' %}{% else %}hidden{% endif %}">
                 {% if user.role == 'admin' %}
-                <a href="{% url 'sale:sale_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'sale' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-shopping-cart w-4"></i>
-                    <span>Ventes</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Commercial</p>
+                    <a href="{% url 'sale:sale_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'sale' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-shopping-cart w-4"></i>
+                        <span>Ventes</span>
+                    </a>
+                </div>
                 {% endif %}
                 {% if user.role == 'admin' or user.role == 'manager' %}
-                <a href="{% url 'pumps:bulk_pump_reading' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'bulk_pump_reading' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-boxes w-4"></i>
-                    <span>Stock</span>
-                </a>
-                <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'deposit' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-arrow-up w-4"></i>
-                    <span>Versements</span>
-                </a>
-                <a href="{% url 'expense:expense_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'expense' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-file-invoice-dollar w-4"></i>
-                    <span>Dépenses</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Exploitation</p>
+                    <a href="{% url 'pumps:bulk_pump_reading' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'bulk_pump_reading' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-boxes w-4"></i>
+                        <span>Stock</span>
+                    </a>
+                    <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'deposit' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-arrow-up w-4"></i>
+                        <span>Versements</span>
+                    </a>
+                    <a href="{% url 'expense:expense_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'expense' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-file-invoice-dollar w-4"></i>
+                        <span>Dépenses</span>
+                    </a>
+                </div>
                 {% endif %}
             </div>
         </div>
 
         <div class="space-y-1">
-            <button type="button" id="parametragesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}bg-gray-800{% endif %}">
+            <button type="button" id="parametragesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}bg-gray-800{% elif user.role == 'super_admin' %}bg-gray-800{% endif %}">
                 <span class="flex items-center space-x-3">
                     <i class="fas fa-sliders-h w-5"></i>
                     <span>Paramétrages</span>
                 </span>
-                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}rotate-180{% endif %}" id="parametragesChevron"></i>
+                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}rotate-180{% elif user.role == 'super_admin' %}rotate-180{% endif %}" id="parametragesChevron"></i>
             </button>
-            <div id="parametragesSubmenu" class="pl-2 space-y-1 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}hidden{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}{% else %}hidden{% endif %}">
+            <div id="parametragesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' %}hidden{% elif ns == 'pumps' and urln != 'bulk_pump_reading' or ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'super_admin' %}{% else %}hidden{% endif %}">
                 {% comment %} {% if user.role == 'manager' or user.role == 'admin' %}
                 <a href="{% url 'pumps:pumps_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'pumps' and urln != 'bulk_pump_reading' %}bg-blue-600{% endif %}">
                     <i class="fas fa-gas-pump w-4"></i>
                     <span>Pompes</span>
                 </a>
                 {% endif %} {% endcomment %}
+
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
-                <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'city' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-city w-4"></i>
-                    <span>Villes</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Réseau et sites</p>
+                    <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'city' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-city w-4"></i>
+                        <span>Villes</span>
+                    </a>
+                    <a href="{% url 'stations:stations_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'stations' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-building w-4"></i>
+                        <span>Stations</span>
+                    </a>
+                </div>
                 {% endif %}
-                {% if user.role == 'admin' or user.role == 'super_admin' %}
-                <a href="{% url 'stations:stations_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'stations' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-building w-4"></i>
-                    <span>Stations</span>
-                </a>
-                {% endif %}
+
                 {% if user.role == 'admin' or user.role == 'manager' %}
-                <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-truck w-4"></i>
-                    <span>Fournisseurs</span>
-                </a>
-                <a href="{% url 'order:order_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'order' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-clipboard-list w-4"></i>
-                    <span>Commandes</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Achats</p>
+                    <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-truck w-4"></i>
+                        <span>Fournisseurs</span>
+                    </a>
+                    <a href="{% url 'order:order_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'order' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-clipboard-list w-4"></i>
+                        <span>Commandes</span>
+                    </a>
+                </div>
                 {% endif %}
+
                 {% if user.role == 'admin' %}
-                <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-wallet w-4"></i>
-                    <span>Comptes</span>
-                </a>
-                <a href="{% url 'account:managers_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'managers_list' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-user-tie w-4"></i>
-                    <span>Gérants</span>
-                </a>
-                <a href="{% url 'employee:employee_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'employee' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-users w-4"></i>
-                    <span>Employés</span>
-                </a>
-                <a href="{% url 'position:position_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'position' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-briefcase w-4"></i>
-                    <span>Postes</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Finances</p>
+                    <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-wallet w-4"></i>
+                        <span>Comptes</span>
+                    </a>
+                </div>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Équipe</p>
+                    <a href="{% url 'account:managers_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'managers_list' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-user-tie w-4"></i>
+                        <span>Gérants</span>
+                    </a>
+                    <a href="{% url 'employee:employee_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'employee' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-users w-4"></i>
+                        <span>Employés</span>
+                    </a>
+                    <a href="{% url 'position:position_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'position' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-id-badge w-4"></i>
+                        <span>Postes</span>
+                    </a>
+                </div>
                 {% endif %}
+
                 {% if user.role == 'super_admin' %}
-                <a href="{% url 'account:users_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'users_list' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-users-cog w-4"></i>
-                    <span>Utilisateurs</span>
-                </a>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Plateforme</p>
+                    <a href="{% url 'account:users_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'users_list' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-users-cog w-4"></i>
+                        <span>Utilisateurs</span>
+                    </a>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -195,14 +229,24 @@
     activitesBtn?.addEventListener('click', function(e) {
         e.preventDefault();
         if (!activitesSub) return;
+        const wasHidden = activitesSub.classList.contains('hidden');
         activitesSub.classList.toggle('hidden');
+        if (wasHidden && paramSub && !paramSub.classList.contains('hidden')) {
+            paramSub.classList.add('hidden');
+            syncChevron(paramSub, paramChevron);
+        }
         syncChevron(activitesSub, activitesChevron);
     });
 
     paramBtn?.addEventListener('click', function(e) {
         e.preventDefault();
         if (!paramSub) return;
+        const wasHidden = paramSub.classList.contains('hidden');
         paramSub.classList.toggle('hidden');
+        if (wasHidden && activitesSub && !activitesSub.classList.contains('hidden')) {
+            activitesSub.classList.add('hidden');
+            syncChevron(activitesSub, activitesChevron);
+        }
         syncChevron(paramSub, paramChevron);
     });
 

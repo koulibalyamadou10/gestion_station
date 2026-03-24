@@ -184,23 +184,6 @@ def create_station_view(request):
                 messages.error(request, 'La ville sélectionnée est invalide.')
                 return redirect('stations:stations_list')
 
-            # Récupérer le manager sélectionné
-            manager_id = request.POST.get('manager', '').strip()
-            if not manager_id:
-                messages.error(request, 'Veuillez sélectionner un gérant pour la station.')
-                return redirect('stations:stations_list')
-            
-            from account.models import CustomUser
-            try:
-                manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
-                # Vérifier que le manager appartient bien au propriétaire
-                if manager.created_by != owner:
-                    messages.error(request, 'Le gérant sélectionné n\'appartient pas au propriétaire choisi.')
-                    return redirect('stations:stations_list')
-            except CustomUser.DoesNotExist:
-                messages.error(request, 'Le gérant sélectionné est invalide.')
-                return redirect('stations:stations_list')
-            
             # Créer la station
             station = Station.objects.create(
                 name=name,
@@ -210,14 +193,27 @@ def create_station_view(request):
                 longitude=longitude_decimal,
                 owner=owner
             )
-            
-            # Créer la relation StationManager
-            from stations.models import StationManager
-            StationManager.objects.create(
-                station=station,
-                manager=manager
-            )
-            
+
+            # Gérant optionnel
+            manager_id = request.POST.get('manager', '').strip()
+            if manager_id:
+                from account.models import CustomUser
+                from stations.models import StationManager
+                try:
+                    manager = CustomUser.objects.get(id=manager_id, role='manager', is_active=True)
+                    if manager.created_by != owner:
+                        station.delete()
+                        messages.error(
+                            request,
+                            'Le gérant sélectionné n\'appartient pas au propriétaire choisi.',
+                        )
+                        return redirect('stations:stations_list')
+                except CustomUser.DoesNotExist:
+                    station.delete()
+                    messages.error(request, 'Le gérant sélectionné est invalide.')
+                    return redirect('stations:stations_list')
+                StationManager.objects.create(station=station, manager=manager)
+
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
             return redirect('stations:stations_list')
         except ValueError:

@@ -277,7 +277,18 @@ def managers_list_view(request):
     total_managers = managers.count()
     active_managers = managers.filter(is_active=True).count()
     inactive_managers = managers.filter(is_active=False).count()
-    
+
+    from stations.models import Station
+
+    if request.user.role == 'super_admin':
+        assignable_stations = Station.objects.select_related('city', 'owner').order_by('name')
+    else:
+        assignable_stations = (
+            Station.objects.select_related('city', 'owner')
+            .filter(owner=request.user)
+            .order_by('name')
+        )
+
     context = {
         'managers': managers,
         'total_managers': total_managers,
@@ -285,6 +296,7 @@ def managers_list_view(request):
         'inactive_managers': inactive_managers,
         'search_query': search_query,
         'status_filter': status_filter,
+        'assignable_stations': assignable_stations,
     }
     
     return render(request, 'account/managers_content.html', context)
@@ -301,9 +313,22 @@ def create_manager_view(request):
         email = request.POST.get('email')
         phone_code = request.POST.get('phone_code')
         phone_number = request.POST.get('phone_number')
-        
+        station_id = (request.POST.get('station_id') or '').strip()
+
         # Validation
         errors = []
+
+        station = None
+        if station_id:
+            from stations.models import Station
+
+            try:
+                station = Station.objects.select_related('owner').get(pk=station_id)
+            except (Station.DoesNotExist, ValueError):
+                errors.append('La station sélectionnée est invalide.')
+            if station is not None and request.user.role == 'admin':
+                if station.owner_id != request.user.id:
+                    errors.append('Vous ne pouvez pas assigner ce gérant à cette station.')
         
         if not first_name or not last_name:
             errors.append('Le prénom et le nom sont requis.')
@@ -325,6 +350,10 @@ def create_manager_view(request):
                 generated_password = generate_password(8)
 
                 print(generated_password)
+
+                created_by_user = request.user
+                if station and station.owner_id and request.user.role == 'super_admin':
+                    created_by_user = station.owner
                 
                 # Créer le manager
                 manager = CustomUser.objects.create_user(
@@ -336,7 +365,7 @@ def create_manager_view(request):
                     phone_number=phone_number,
                     role='manager',  # Forcé à manager
                     is_active=True,
-                    created_by=request.user  # L'admin qui crée le manager
+                    created_by=created_by_user,
                 )
 
                 # creer l'employé aussi tout simplement quoi 
@@ -345,11 +374,19 @@ def create_manager_view(request):
                     last_name=last_name,
                     phone=phone_number,
                     user=manager,
-                    station=None,
+                    station=station,
                     position=None,
                     hire_date=None,
                     # owner=request.user
                 )
+
+                if station:
+                    from stations.models import StationManager
+
+                    StationManager.objects.update_or_create(
+                        station=station,
+                        defaults={'manager': manager},
+                    )
                 
                 # Envoyer l'email avec le mot de passe via la méthode du modèle
                 login_url = request.build_absolute_uri('/login/')
