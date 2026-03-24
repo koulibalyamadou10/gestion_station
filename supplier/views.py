@@ -66,12 +66,26 @@ def supplier_list_view(request):
 
 
 @login_required
-def supplier_update_view(request, supplier_id):
+def supplier_detail_view(request, uuid):
     if request.user.role != "admin":
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
         return redirect("account:not_access")
 
-    supplier = get_object_or_404(Supplier, pk=supplier_id)
+    supplier = get_object_or_404(Supplier, uuid=uuid)
+    return render(
+        request,
+        "supplier_detail.html",
+        {"supplier": supplier},
+    )
+
+
+@login_required
+def supplier_update_view(request, uuid):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    supplier = get_object_or_404(Supplier, uuid=uuid)
 
     if request.method != "POST":
         return redirect("supplier:supplier_list")
@@ -99,12 +113,12 @@ def supplier_update_view(request, supplier_id):
 
 
 @login_required
-def supplier_delete_view(request, supplier_id):
+def supplier_delete_view(request, uuid):
     if request.user.role != "admin":
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
         return redirect("account:not_access")
 
-    supplier = get_object_or_404(Supplier, pk=supplier_id)
+    supplier = get_object_or_404(Supplier, uuid=uuid)
 
     if request.method != "POST":
         return redirect("supplier:supplier_list")

@@ -53,12 +53,19 @@
                         <td class="px-6 py-4 text-center">
                             <span id="supplier-address-{{ s.pk }}" class="hidden">{{ s.address|default:'' }}</span>
                             <div class="flex items-center justify-center gap-2">
+                                <a
+                                    href="{% url 'supplier:supplier_detail' s.uuid %}"
+                                    class="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors inline-flex"
+                                    title="Voir le détail"
+                                >
+                                    <i class="fas fa-eye"></i>
+                                </a>
                                 <button
                                     type="button"
                                     class="open-edit-supplier p-2 rounded-lg text-yellow-600 hover:bg-yellow-50 transition-colors"
                                     title="Modifier"
-                                    data-supplier-id="{{ s.pk }}"
-                                    data-update-url="{% url 'supplier:supplier_update' s.pk %}"
+                                    data-supplier-id="{{ s.uuid }}"
+                                    data-update-url="{% url 'supplier:supplier_update' s.uuid %}"
                                     data-name="{{ s.name }}"
                                     data-contact="{{ s.contact|default:'' }}"
                                     data-phone="{{ s.phone|default:'' }}"
@@ -69,7 +76,7 @@
                                     type="button"
                                     class="open-delete-supplier p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
                                     title="Supprimer"
-                                    data-delete-url="{% url 'supplier:supplier_delete' s.pk %}"
+                                    data-delete-url="{% url 'supplier:supplier_delete' s.uuid %}"
                                     data-name="{{ s.name }}"
                                 >
                                     <i class="fas fa-trash-alt"></i>
