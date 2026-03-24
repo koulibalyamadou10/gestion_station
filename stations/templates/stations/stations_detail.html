@@ -8,11 +8,11 @@
 <!-- Bouton Retour -->
 <div class="mb-6">
     <a 
-        href="{% url 'stations:stations_list' %}" 
+        href="{% if is_station_manager %}{% url 'pumps:pumps_list' %}{% else %}{% url 'stations:stations_list' %}{% endif %}" 
         class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors font-semibold"
     >
         <i class="fas fa-arrow-left mr-2"></i>
-        Retour à la liste
+        {% if is_station_manager %}Retour aux pompes{% else %}Retour à la liste{% endif %}
     </a>
 </div>
 
@@ -26,6 +26,7 @@
                     <i class="fas fa-info-circle mr-2 text-blue-600"></i>
                     Informations générales
                 </h3>
+                {% if not is_station_manager %}
                 <div class="flex items-center space-x-2">
                     <a 
                         href="#" 
@@ -53,6 +54,7 @@
                         </button>
                     </form>
                 </div>
+                {% endif %}
             </div>
 
             <div class="space-y-4">
@@ -105,16 +107,27 @@
                     Pompes de la station
                     <span class="ml-2 text-sm font-normal text-gray-500">({{ station_pumps_total }} résultat{{ station_pumps_total|pluralize }})</span>
                 </h3>
-                {% if can_manage_pumps %}
-                <button
-                    type="button"
-                    id="stationDetailCreatePumpBtn"
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center shadow"
-                >
-                    <i class="fas fa-plus mr-2"></i>
-                    Créer une pompe
-                </button>
-                {% endif %}
+                <div class="flex flex-wrap items-center gap-2 justify-end">
+                    {% if is_station_manager %}
+                    <a
+                        href="{% url 'pumps:bulk_pump_reading' %}"
+                        class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center shadow"
+                    >
+                        <i class="fas fa-layer-group mr-2"></i>
+                        Saisie groupée des lectures
+                    </a>
+                    {% endif %}
+                    {% if can_manage_pumps %}
+                    <button
+                        type="button"
+                        id="stationDetailCreatePumpBtn"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center shadow"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        Créer une pompe
+                    </button>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="px-6 py-4 border-b border-gray-100">
@@ -186,6 +199,16 @@
                                     <a href="{% url 'pumps:pump_detail' pump.pump_uuid %}" class="text-blue-600 hover:text-blue-800 transition-colors" title="Détails">
                                         <i class="fas fa-eye"></i>
                                     </a>
+                                    {% if is_station_manager %}
+                                    <button
+                                        type="button"
+                                        class="text-green-600 hover:text-green-800 transition-colors"
+                                        title="Faire une lecture"
+                                        onclick="openReadingModal('{{ pump.pump_uuid }}', '{{ pump.name|escapejs }}', '{% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}0{% endif %}', '{{ pump.station_id }}')"
+                                    >
+                                        <i class="fas fa-clipboard-list"></i>
+                                    </button>
+                                    {% endif %}
                                     {% if can_manage_pumps %}
                                     <button
                                         type="button"
@@ -263,6 +286,7 @@
                     <i class="fas fa-user-tie mr-2 text-green-600"></i>
                     Gérant
                 </h3>
+                {% if not is_station_manager %}
                 <button 
                     id="assignManagerBtn"
                     class="text-sm bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center"
@@ -271,6 +295,7 @@
                     <i class="fas fa-{% if current_manager %}exchange-alt{% else %}user-plus{% endif %} mr-1"></i>
                     {% if current_manager %}Changer{% else %}Assigner{% endif %}
                 </button>
+                {% endif %}
             </div>
             <div class="space-y-3">
                 {% if current_manager %}
@@ -697,6 +722,80 @@
         </form>
     </div>
 </div>
+{% endif %}
+
+{% if is_station_manager %}
+<!-- Modal enregistrement lecture (identique à la liste des pompes) -->
+<div id="readingModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-clipboard-list mr-2 text-green-600"></i>
+                Enregistrer une lecture
+            </h3>
+            <button type="button" id="closeReadingModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+        </div>
+        <form id="readingForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                <p class="text-sm text-blue-800">
+                    <strong>Pompe :</strong> <span id="reading_pump_name"></span>
+                </p>
+                <p class="text-xs text-blue-700 mt-1">
+                    Index actuel de la pompe : <strong id="reading_current_index_display"></strong>
+                </p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Nouvel index compteur <span class="text-red-500">*</span>
+                </label>
+                <input type="number" name="current_index" id="reading_current_index_input" required min="0" step="0.01" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none" placeholder="0.00">
+                <p class="text-xs text-gray-500 mt-1">Nouvel index de la pompe</p>
+            </div>
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg">
+                <p class="text-sm text-yellow-800">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    <strong>Quantité vendue :</strong> <span id="reading_quantity_sold" class="font-bold">0.00</span> litres
+                </p>
+                <p class="text-xs text-yellow-700 mt-1">
+                    Calculée automatiquement : nouvel index − dernier index enregistré
+                </p>
+            </div>
+            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
+                <p class="text-sm text-green-800">
+                    <i class="fas fa-money-bill-wave mr-2"></i>
+                    <strong>Montant total :</strong> <span id="reading_total_amount" class="font-bold">0.00</span> GNF
+                </p>
+                <p class="text-xs text-green-700 mt-1">
+                    Calculé automatiquement selon le type de pompe et le prix unitaire.
+                </p>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-sm font-semibold text-gray-800">
+                        <i class="fas fa-wallet mr-2 text-green-600"></i>Répartition vers les wallets
+                    </h4>
+                    <button type="button" id="addWalletAllocationBtn" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">+ Ajouter wallet</button>
+                </div>
+                <div id="walletAllocationsContainer" class="space-y-2"></div>
+                <p id="noWalletForStationMessage" class="hidden text-xs text-red-600 mt-2">Aucun wallet disponible pour cette station.</p>
+                <div class="mt-3 text-xs text-gray-600">
+                    Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0.00</span> GNF
+                </div>
+                <input type="hidden" name="wallet_allocations" id="walletAllocationsInput">
+            </div>
+            <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button type="button" id="cancelReading" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">Annuler</button>
+                <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center">
+                    <i class="fas fa-save mr-2"></i>Enregistrer la lecture
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{{ station_wallets|json_script:"station-wallets-data" }}
 {% endif %}
 
 <!-- Mapbox GL JS -->
@@ -1217,6 +1316,218 @@
         document.getElementById('stationDetailCancelDeletePump')?.addEventListener('click', closeDeletePumpModalFunc);
         deleteModal?.addEventListener('click', function (e) {
             if (e.target === deleteModal) closeDeletePumpModalFunc();
+        });
+    })();
+    {% endif %}
+
+    {% if is_station_manager %}
+    (function () {
+        const readingModal = document.getElementById('readingModal');
+        const closeReadingModal = document.getElementById('closeReadingModal');
+        const cancelReading = document.getElementById('cancelReading');
+        const readingForm = document.getElementById('readingForm');
+        const readingCurrentIndexInput = document.getElementById('reading_current_index_input');
+        const readingQuantitySold = document.getElementById('reading_quantity_sold');
+        const readingTotalAmount = document.getElementById('reading_total_amount');
+        const walletAllocationsContainer = document.getElementById('walletAllocationsContainer');
+        const walletAllocationsInput = document.getElementById('walletAllocationsInput');
+        const noWalletForStationMessage = document.getElementById('noWalletForStationMessage');
+        const walletRemainingAmount = document.getElementById('walletRemainingAmount');
+        const addWalletAllocationBtn = document.getElementById('addWalletAllocationBtn');
+
+        const PRODUCT_PRICE_ESSENCE = parseFloat('{{ product_price_essence }}') || 0;
+        const PRODUCT_PRICE_DIESEL = parseFloat('{{ product_price_diesel }}') || 0;
+        const stationWalletsDataEl = document.getElementById('station-wallets-data');
+        const stationWalletsMap = stationWalletsDataEl ? JSON.parse(stationWalletsDataEl.textContent) : {};
+        let currentReadingStationId = null;
+        let currentPumpName = '';
+        let readingPreviousIndexValue = 0;
+
+        function formatAmount(value) {
+            const n = Number(value || 0);
+            return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        window.openReadingModal = function (pumpUuid, pumpName, currentIndex, stationId) {
+            if (!readingModal || !readingForm) return;
+            document.getElementById('reading_pump_name').textContent = pumpName;
+            document.getElementById('reading_current_index_display').textContent = currentIndex;
+            currentReadingStationId = String(stationId);
+            currentPumpName = (pumpName || '').toLowerCase();
+            readingPreviousIndexValue = parseFloat(currentIndex) || 0;
+            readingCurrentIndexInput.value = '';
+            readingForm.action = '/pumps/' + pumpUuid + '/reading/';
+            renderWalletAllocationRows();
+            updateReadingComputedAmounts();
+            readingModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        function closeReadingModalFunc() {
+            if (!readingModal) return;
+            readingModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            readingForm.reset();
+            readingQuantitySold.textContent = '0.00';
+            readingTotalAmount.textContent = '0.00';
+            walletAllocationsContainer.innerHTML = '';
+            walletAllocationsInput.value = '[]';
+            walletRemainingAmount.textContent = formatAmount(0);
+            noWalletForStationMessage.classList.add('hidden');
+        }
+
+        function getAvailableWalletsForCurrentStation() {
+            if (!currentReadingStationId) return [];
+            return stationWalletsMap[currentReadingStationId] || [];
+        }
+
+        function parseAmountInput(value) {
+            if (value === null || value === undefined) return 0;
+            const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+            const parsed = parseFloat(normalized);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function createWalletAllocationRow(defaultWalletUuid, defaultAmount) {
+            defaultWalletUuid = defaultWalletUuid || '';
+            defaultAmount = defaultAmount || '';
+            const row = document.createElement('div');
+            row.className = 'wallet-allocation-row grid grid-cols-12 gap-2';
+            const walletOptions = getAvailableWalletsForCurrentStation().map(function (wallet) {
+                const selected = wallet.uuid === defaultWalletUuid ? 'selected' : '';
+                return '<option value="' + wallet.uuid + '" ' + selected + '>' + wallet.name + ' (' + wallet.currency + ')</option>';
+            }).join('');
+            row.innerHTML =
+                '<div class="col-span-6"><select class="wallet-select w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="">Sélectionner wallet</option>' +
+                walletOptions +
+                '</select></div><div class="col-span-5"><input type="text" inputmode="decimal" value="' +
+                formatAmount(defaultAmount || 0) +
+                '" class="wallet-amount w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Montant"></div><div class="col-span-1 flex items-center justify-center"><button type="button" class="remove-wallet-row text-red-600 hover:text-red-800" title="Retirer"><i class="fas fa-times"></i></button></div>';
+            walletAllocationsContainer.appendChild(row);
+            row.querySelector('.remove-wallet-row').addEventListener('click', function () {
+                row.remove();
+                syncWalletAllocations();
+            });
+            row.querySelector('.wallet-select').addEventListener('change', syncWalletAllocations);
+            const amountInput = row.querySelector('.wallet-amount');
+            amountInput.addEventListener('input', function () {
+                amountInput.value = amountInput.value.replace(/[^\d\s,\.]/g, '');
+                syncWalletAllocations();
+            });
+            amountInput.addEventListener('blur', function () {
+                amountInput.value = formatAmount(parseAmountInput(amountInput.value));
+                syncWalletAllocations();
+            });
+        }
+
+        function getComputedTotalAmount() {
+            const previous = readingPreviousIndexValue;
+            const current = parseFloat(readingCurrentIndexInput.value) || 0;
+            const quantity = current - previous;
+            if (quantity <= 0) return 0;
+            const unitPrice = currentPumpName.includes('essence') ? PRODUCT_PRICE_ESSENCE : PRODUCT_PRICE_DIESEL;
+            return quantity * unitPrice;
+        }
+
+        function syncWalletAllocations() {
+            const rows = Array.from(walletAllocationsContainer.querySelectorAll('.wallet-allocation-row'));
+            const allocations = [];
+            let allocatedSum = 0;
+            rows.forEach(function (row) {
+                const walletUuid = row.querySelector('.wallet-select')?.value || '';
+                const amount = parseAmountInput(row.querySelector('.wallet-amount')?.value || '0');
+                if (walletUuid && amount > 0) {
+                    allocations.push({ wallet_uuid: walletUuid, amount: amount.toFixed(2) });
+                    allocatedSum += amount;
+                }
+            });
+            const totalAmount = getComputedTotalAmount();
+            walletAllocationsInput.value = JSON.stringify(allocations);
+            walletRemainingAmount.textContent = formatAmount(totalAmount - allocatedSum);
+        }
+
+        function renderWalletAllocationRows() {
+            walletAllocationsContainer.innerHTML = '';
+            const wallets = getAvailableWalletsForCurrentStation();
+            const totalAmount = getComputedTotalAmount();
+            if (!wallets.length) {
+                noWalletForStationMessage.classList.remove('hidden');
+                addWalletAllocationBtn.disabled = true;
+                walletAllocationsInput.value = '[]';
+                walletRemainingAmount.textContent = formatAmount(totalAmount);
+                return;
+            }
+            noWalletForStationMessage.classList.add('hidden');
+            addWalletAllocationBtn.disabled = false;
+            if (wallets.length === 1) {
+                createWalletAllocationRow(wallets[0].uuid, totalAmount);
+            } else {
+                createWalletAllocationRow('', '');
+            }
+            syncWalletAllocations();
+        }
+
+        function updateReadingComputedAmounts() {
+            const previous = readingPreviousIndexValue;
+            const current = parseFloat(readingCurrentIndexInput.value) || 0;
+            const quantity = current - previous;
+            const validQuantity = quantity >= 0 ? quantity : 0;
+            readingQuantitySold.textContent = validQuantity.toFixed(2);
+            const totalAmount = getComputedTotalAmount();
+            readingTotalAmount.textContent = formatAmount(totalAmount);
+            const wallets = getAvailableWalletsForCurrentStation();
+            if (wallets.length === 1) {
+                const amountInput = walletAllocationsContainer.querySelector('.wallet-amount');
+                const walletSelect = walletAllocationsContainer.querySelector('.wallet-select');
+                if (walletSelect && amountInput) {
+                    walletSelect.value = wallets[0].uuid;
+                    amountInput.value = formatAmount(totalAmount);
+                }
+            }
+            syncWalletAllocations();
+            if (quantity < 0) {
+                readingQuantitySold.parentElement.classList.remove('bg-yellow-50', 'border-yellow-500', 'text-yellow-800');
+                readingQuantitySold.parentElement.classList.add('bg-red-50', 'border-red-500', 'text-red-800');
+            } else {
+                readingQuantitySold.parentElement.classList.remove('bg-red-50', 'border-red-500', 'text-red-800');
+                readingQuantitySold.parentElement.classList.add('bg-yellow-50', 'border-yellow-500', 'text-yellow-800');
+            }
+        }
+
+        readingCurrentIndexInput?.addEventListener('input', updateReadingComputedAmounts);
+        addWalletAllocationBtn?.addEventListener('click', function () {
+            createWalletAllocationRow('', '');
+            syncWalletAllocations();
+        });
+        closeReadingModal?.addEventListener('click', closeReadingModalFunc);
+        cancelReading?.addEventListener('click', closeReadingModalFunc);
+        readingModal?.addEventListener('click', function (e) {
+            if (e.target === readingModal) closeReadingModalFunc();
+        });
+        readingForm?.addEventListener('submit', function (e) {
+            const previous = readingPreviousIndexValue;
+            const current = parseFloat(readingCurrentIndexInput.value);
+            const totalAmount = getComputedTotalAmount();
+            const allocations = JSON.parse(walletAllocationsInput.value || '[]');
+            const allocatedSum = allocations.reduce(function (acc, item) {
+                return acc + (parseFloat(item.amount) || 0);
+            }, 0);
+            if (current <= previous) {
+                e.preventDefault();
+                alert("L'index actuel doit être supérieur à l'index précédent !");
+                readingCurrentIndexInput.focus();
+                return false;
+            }
+            if (totalAmount > 0 && allocations.length === 0) {
+                e.preventDefault();
+                alert('Veuillez sélectionner au moins un wallet et répartir le montant.');
+                return false;
+            }
+            if (Math.abs(allocatedSum - totalAmount) > 0.01) {
+                e.preventDefault();
+                alert('La somme des montants des wallets doit être égale au montant total.');
+                return false;
+            }
         });
     })();
     {% endif %}

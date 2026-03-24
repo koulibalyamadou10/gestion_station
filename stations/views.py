@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -228,41 +231,47 @@ def create_station_view(request):
 @login_required
 def station_detail_view(request, station_uuid):
     """
-    Vue pour afficher les détails d'une station
-    Accessible aux admins et super_admins
+    Vue pour afficher les détails d'une station.
+    Admins / super_admins : selon propriété ; gérants : uniquement leur station assignée.
     """
-    if request.user.role not in ['super_admin', 'admin']:
-        messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
-        return redirect('account:dashboard')
-    
     try:
         station = get_object_or_404(Station.objects.select_related('city', 'owner'), station_uuid=station_uuid)
-        
-        # Vérifier les permissions
-        if request.user.role == 'admin' and station.owner != request.user:
+
+        from stations.models import StationManager
+
+        is_station_manager = False
+        if request.user.role == 'manager':
+            if not StationManager.objects.filter(manager=request.user, station=station).exists():
+                messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette station.')
+                return redirect('account:dashboard')
+            is_station_manager = True
+        elif request.user.role not in ['super_admin', 'admin']:
+            messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
+            return redirect('account:dashboard')
+        elif request.user.role == 'admin' and station.owner != request.user:
             messages.error(request, 'Vous n\'avez pas la permission de voir cette station.')
             return redirect('stations:stations_list')
-        
-        # Récupérer le gérant actuel de la station
+
+        # Gérant actuel de la station
         current_manager = None
         try:
-            from stations.models import StationManager
             station_manager = StationManager.objects.filter(station=station).first()
             if station_manager:
                 current_manager = station_manager.manager
-        except:
+        except Exception:
             pass
-        
-        # Récupérer la liste des admins pour le super_admin
+
         admins = None
         managers = None
-        if request.user.role == 'super_admin':
-            from account.models import CustomUser
-            admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
-        elif request.user.role == 'admin':
-            # Pour les admins, récupérer leurs gérants
-            from account.models import CustomUser
-            managers = CustomUser.objects.filter(role='manager', created_by=request.user, is_active=True).order_by('first_name', 'last_name')
+        if not is_station_manager:
+            if request.user.role == 'super_admin':
+                from account.models import CustomUser
+                admins = CustomUser.objects.filter(role='admin', is_active=True).order_by('first_name', 'last_name')
+            elif request.user.role == 'admin':
+                from account.models import CustomUser
+                managers = CustomUser.objects.filter(
+                    role='manager', created_by=request.user, is_active=True
+                ).order_by('first_name', 'last_name')
 
         from pumps.models import Pump, PumpReading
 
@@ -290,6 +299,18 @@ def station_detail_view(request, station_uuid):
                 .first()
             )
 
+        from wallet.models import Account
+
+        station_wallets = {}
+        if is_station_manager:
+            for w in Account.objects.filter(station=station).order_by('name'):
+                station_wallets.setdefault(str(station.id), []).append({
+                    'uuid': str(w.uuid),
+                    'name': w.name,
+                    'currency': w.currency,
+                    'balance': str(w.balance),
+                })
+
         context = {
             'station': station,
             'current_manager': current_manager,
@@ -297,9 +318,13 @@ def station_detail_view(request, station_uuid):
             'managers': managers,
             'all_cities': City.objects.order_by('name'),
             'can_manage_pumps': can_manage_pumps,
+            'is_station_manager': is_station_manager,
             'search_query': search_query,
             'station_pumps_page': page_obj,
             'station_pumps_total': station_pumps_total,
+            'station_wallets': station_wallets,
+            'product_price_essence': Decimal(str(getattr(settings, 'PRODUCT_PRICE_ESSENCE', 0))),
+            'product_price_diesel': Decimal(str(getattr(settings, 'PRODUCT_PRICE_DIESEL', 0))),
         }
         
         return render(request, 'stations/stations_detail.html', context)
