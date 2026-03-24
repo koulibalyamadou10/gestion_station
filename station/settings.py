@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'deposit',
     'wallet',
     'inventory',
+    'daily_stock',
     'sale',
 ]
 

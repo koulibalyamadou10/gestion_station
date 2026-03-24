@@ -12,6 +12,12 @@ class DailyStock(models.Model):
 
     class Meta:
         db_table = "daily_stock"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["station", "stock_date"],
+                name="unique_daily_stock_station_date",
+            ),
+        ]
 
     def __str__(self):
         return f"Daily Stock #{self.id} - {self.stock_date}"
