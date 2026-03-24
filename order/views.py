@@ -187,7 +187,7 @@ def order_list_view(request):
 
 
 @login_required
-def order_detail_view(request, order_id):
+def order_detail_view(request, order_uuid):
     if request.user.role not in ("admin", "manager"):
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
         return redirect("account:not_access")
@@ -199,7 +199,7 @@ def order_detail_view(request, order_id):
 
     order = get_object_or_404(
         scoped_qs.select_related("station").prefetch_related("order_suppliers"),
-        pk=order_id,
+        order_uuid=order_uuid,
     )
     order_supplier = order.order_suppliers.first()
     total_estimated = Decimal("0")
@@ -224,7 +224,7 @@ def order_detail_view(request, order_id):
 
 
 @login_required
-def update_order_quantities_view(request, order_id):
+def update_order_quantities_view(request, order_uuid):
     if request.method != "POST":
         return redirect("order:order_list")
 
@@ -237,7 +237,7 @@ def update_order_quantities_view(request, order_id):
         messages.error(request, "Aucune station ne vous est assignée.")
         return redirect("account:dashboard")
 
-    order = get_object_or_404(scoped_qs.prefetch_related("order_suppliers"), pk=order_id)
+    order = get_object_or_404(scoped_qs.prefetch_related("order_suppliers"), order_uuid=order_uuid)
     if order.status != Order.STATUS_PENDING:
         messages.error(request, "Seules les commandes en attente peuvent être modifiées.")
         return redirect("order:order_list")
