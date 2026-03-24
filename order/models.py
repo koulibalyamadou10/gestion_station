@@ -1,4 +1,5 @@
 from django.db import models
+import uuid
 
 class Order(models.Model):
     STATUS_PENDING = "pending"
@@ -13,6 +14,7 @@ class Order(models.Model):
         (STATUS_CANCELLED, "Cancelled"),
     ]
 
+    order_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     order_date = models.DateField()
@@ -28,8 +30,9 @@ class Order(models.Model):
 
 
 class OrderSupplier(models.Model):
+    order_supplier_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_suppliers')
-    supplier = models.ForeignKey('supplier.Supplier', on_delete=models.CASCADE)
+    supplier = models.ForeignKey('supplier.Supplier', on_delete=models.CASCADE, related_name='order_suppliers', null=True, blank=True)
     qty_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     qty_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     unit_price_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -41,4 +44,5 @@ class OrderSupplier(models.Model):
         db_table = "order_suppliers"
 
     def __str__(self):
-        return f"Order #{self.order_id} - {self.supplier.name}"
+        supplier_name = self.supplier.name if self.supplier else "Sans fournisseur"
+        return f"Order #{self.order_id} - {supplier_name}"
