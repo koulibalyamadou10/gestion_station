@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
-from django.db.models import Q, Max, Sum, F, ExpressionWrapper, DecimalField
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from decimal import Decimal, InvalidOperation
@@ -18,14 +18,40 @@ from daily_stock.models import DailyStock
 from permissions_web import manager_required
 
 
+def _previous_reading_strictly_before(reading):
+    """Lecture immédiatement précédente (même pompe), pour calculer le volume vendu."""
+    return (
+        PumpReading.objects.filter(pump_id=reading.pump_id)
+        .exclude(pk=reading.pk)
+        .filter(
+            Q(reading_date__lt=reading.reading_date)
+            | Q(reading_date=reading.reading_date, created_at__lt=reading.created_at)
+            | Q(
+                reading_date=reading.reading_date,
+                created_at=reading.created_at,
+                id__lt=reading.id,
+            )
+        )
+        .order_by("-reading_date", "-created_at", "-id")
+        .first()
+    )
+
+
+def _quantity_sold_for_reading(reading):
+    """Volume vendu sur une lecture : écart avec la lecture précédente ; 0 pour la première chronologique."""
+    prev = _previous_reading_strictly_before(reading)
+    if prev is None:
+        return Decimal("0")
+    qty = reading.current_index - prev.current_index
+    return qty if qty > 0 else Decimal("0")
+
+
 def _create_sale_from_reading(reading, recorded_by):
     """
     Crée automatiquement une vente à partir d'une lecture de pompe.
     Le type de produit est déduit du nom de la pompe.
     """
-    qty = reading.current_index - reading.initial_index
-    if qty < 0:
-        qty = Decimal("0")
+    qty = _quantity_sold_for_reading(reading)
 
     pump_name = (reading.pump.name or "").lower()
     is_essence = "essence" in pump_name
@@ -77,9 +103,9 @@ def _trace_daily_stock_from_sale(sale, recorded_by):
         ds.save(update_fields=["qty_gasoline", "qty_diesel", "recorded_by", "updated_at"])
 
 
-def _compute_sale_total_for_pump_reading(pump, initial_index, current_index):
+def _compute_sale_total_for_pump_reading(pump, previous_current_index, new_current_index):
     """Montant de vente (GNF) pour une lecture, sans créer d'objet en base."""
-    qty = current_index - initial_index
+    qty = new_current_index - previous_current_index
     if qty < 0:
         qty = Decimal("0")
     pump_name = (pump.name or "").lower()
@@ -300,10 +326,9 @@ def create_pump_view(request):
         station_id = request.POST.get("station_id", "").strip()
         pump_type = request.POST.get("pump_type", "").strip().lower()
         pump_number = request.POST.get("pump_number", "").strip()
-        initial_index = request.POST.get("initial_index", "").strip()
         current_index = request.POST.get("current_index", "").strip()
 
-        if not station_id or not pump_type or not pump_number or not initial_index or not current_index:
+        if not station_id or not pump_type or not pump_number or not current_index:
             messages.error(request, "Veuillez remplir tous les champs obligatoires.")
             return _redirect_after_pump_form(request)
 
@@ -333,11 +358,9 @@ def create_pump_view(request):
                 messages.error(request, f'La pompe "{name}" existe déjà pour cette station.')
                 return _redirect_after_pump_form(request)
 
-            initial_index_decimal = Decimal(initial_index)
             current_index_decimal = Decimal(current_index)
-
-            if current_index_decimal < initial_index_decimal:
-                messages.error(request, "L'index actuel doit être supérieur ou égal à l'index initial.")
+            if current_index_decimal < 0:
+                messages.error(request, "L'index compteur doit être positif ou nul.")
                 return _redirect_after_pump_form(request)
 
             pump = Pump.objects.create(
@@ -348,7 +371,6 @@ def create_pump_view(request):
             PumpReading.objects.create(
                 pump=pump,
                 employee=None,
-                initial_index=initial_index_decimal,
                 current_index=current_index_decimal,
                 reading_date=timezone.now().date(),
             )
@@ -392,17 +414,8 @@ def pump_detail_view(request, pump_uuid):
             messages.error(request, 'Vous n\'avez pas la permission d\'accéder à cette page.')
             return redirect('account:dashboard')
         
-        readings_queryset = (
-            PumpReading.objects
-            .filter(pump=pump)
-            .select_related('employee', 'employee__user')
-            .annotate(
-                quantity_sold=ExpressionWrapper(
-                    F('current_index') - F('initial_index'),
-                    output_field=DecimalField(max_digits=12, decimal_places=2),
-                )
-            )
-            .order_by('-reading_date', '-created_at')
+        readings_base = (
+            PumpReading.objects.filter(pump=pump).select_related("employee", "employee__user")
         )
 
         date_filter = request.GET.get('reading_date', '').strip()
@@ -411,19 +424,29 @@ def pump_detail_view(request, pump_uuid):
         reset_page_number = request.GET.get('reset_page')
 
         if request.user.role == 'manager':
-            # Le manager ne voit que ses propres lectures
-            readings_queryset = readings_queryset.filter(employee__user=request.user)
+            readings_base = readings_base.filter(employee__user=request.user)
 
         if date_filter:
-            readings_queryset = readings_queryset.filter(reading_date=date_filter)
+            readings_base = readings_base.filter(reading_date=date_filter)
         if employee_filter:
-            readings_queryset = readings_queryset.filter(employee_id=employee_filter)
+            readings_base = readings_base.filter(employee_id=employee_filter)
 
+        readings_chrono = list(readings_base.order_by("reading_date", "created_at", "id"))
+        prev_c = None
+        quantity_sold_total = Decimal("0")
+        for r in readings_chrono:
+            if prev_c is not None:
+                q = r.current_index - prev_c
+                if q > 0:
+                    quantity_sold_total += q
+            prev_c = r.current_index
+
+        readings_queryset = readings_base.order_by("-reading_date", "-created_at")
         paginator = Paginator(readings_queryset, 10)
         page_obj = paginator.get_page(page_number)
 
-        total_aggregate = readings_queryset.aggregate(total=Sum('quantity_sold'))
-        quantity_sold_total = total_aggregate['total'] or Decimal('0')
+        for r in page_obj.object_list:
+            r.quantity_sold = _quantity_sold_for_reading(r)
         latest_reading = PumpReading.objects.filter(pump=pump).order_by('-reading_date', '-created_at').first()
         employees = (
             pump.station.employee_set
@@ -477,30 +500,16 @@ def update_pump_view(request, pump_uuid):
         
         if request.method == 'POST':
             name = request.POST.get('name', '').strip()
-            pump_type = request.POST.get('type', '').strip()
-            initial_index = request.POST.get('initial_index', '').strip()
-            current_index = request.POST.get('current_index', '').strip()
-            
-            # Validation
-            if not name or not pump_type or not initial_index or not current_index:
-                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
+
+            if not name:
+                messages.error(request, 'Veuillez remplir le nom de la pompe.')
                 return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
-            
+
             try:
-                initial_index_int = int(initial_index)
-                current_index_int = int(current_index)
-                
-                # Mettre à jour la pompe
                 pump.name = name
-                pump.type = pump_type
-                pump.initial_index = initial_index_int
-                pump.current_index = current_index_int
-                pump.save()
-                
+                pump.save(update_fields=['name', 'updated_at'])
+
                 messages.success(request, f'La pompe "{pump.name}" a été modifiée avec succès.')
-                return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
-            except ValueError:
-                messages.error(request, 'Les index doivent être des nombres entiers valides.')
                 return redirect('pumps:pump_detail', pump_uuid=pump_uuid)
             except Exception as e:
                 messages.error(request, f'Erreur lors de la modification de la pompe : {str(e)}')
@@ -573,23 +582,27 @@ def create_reading_view(request, pump_uuid):
             return redirect('pumps:pumps_list')
         
         if request.method == 'POST':
-            initial_index = request.POST.get('initial_index', '').strip()
             current_index = request.POST.get('current_index', '').strip()
             allocations_json = request.POST.get('wallet_allocations', '').strip()
             today = timezone.now().date()
             
             # Validation des champs
-            if not initial_index or not current_index:
-                messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
+            if not current_index:
+                messages.error(request, 'Veuillez renseigner l\'index compteur.')
                 return redirect('pumps:pumps_list')
             
             try:
-                initial_index_decimal = Decimal(initial_index)
                 current_index_decimal = Decimal(current_index)
-                
-                # Validation 1: current_index doit être > initial_index
-                if current_index_decimal <= initial_index_decimal:
-                    messages.error(request, 'L\'index actuel doit être supérieur à l\'index précédent.')
+
+                latest_before = (
+                    PumpReading.objects.filter(pump=pump)
+                    .order_by("-reading_date", "-created_at", "-id")
+                    .first()
+                )
+                previous_current = latest_before.current_index if latest_before else Decimal("0")
+
+                if current_index_decimal <= previous_current:
+                    messages.error(request, 'L\'index actuel doit être supérieur à l\'index de la dernière lecture.')
                     return redirect('pumps:pumps_list')
                 
                 # Validation 2: une seule lecture/jour/pompe
@@ -618,7 +631,6 @@ def create_reading_view(request, pump_uuid):
                     reading = PumpReading.objects.create(
                         pump=pump,
                         employee=employee,
-                        initial_index=initial_index_decimal,
                         current_index=current_index_decimal,
                         reading_date=today,
                     )
@@ -652,34 +664,41 @@ def create_reading_view(request, pump_uuid):
                             return redirect('pumps:pumps_list')
                         allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
 
-                    # Auto-répartition si un seul wallet et aucune allocation envoyée
-                    if not allocations_by_uuid and len(station_wallets) == 1:
-                        allocations_by_uuid[str(station_wallets[0].uuid)] = total_amount
+                    if total_amount > 0:
+                        # Auto-répartition si un seul wallet et aucune allocation envoyée
+                        if not allocations_by_uuid and len(station_wallets) == 1:
+                            allocations_by_uuid[str(station_wallets[0].uuid)] = total_amount
 
-                    if not allocations_by_uuid:
-                        messages.error(request, "Veuillez répartir le montant de la vente dans au moins un wallet.")
-                        return redirect('pumps:pumps_list')
+                        if not allocations_by_uuid:
+                            messages.error(
+                                request,
+                                "Veuillez répartir le montant de la vente dans au moins un wallet.",
+                            )
+                            return redirect("pumps:pumps_list")
 
-                    valid_wallets_map = {str(w.uuid): w for w in station_wallets}
-                    for wallet_uuid in allocations_by_uuid.keys():
-                        if wallet_uuid not in valid_wallets_map:
-                            messages.error(request, "Un wallet sélectionné est invalide pour cette station.")
-                            return redirect('pumps:pumps_list')
+                        valid_wallets_map = {str(w.uuid): w for w in station_wallets}
+                        for wallet_uuid in allocations_by_uuid.keys():
+                            if wallet_uuid not in valid_wallets_map:
+                                messages.error(
+                                    request,
+                                    "Un wallet sélectionné est invalide pour cette station.",
+                                )
+                                return redirect("pumps:pumps_list")
 
-                    allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
-                    if allocated_sum.quantize(Decimal("0.01")) != total_amount.quantize(Decimal("0.01")):
-                        messages.error(
-                            request,
-                            "La somme répartie dans les wallets doit être égale au montant total de la vente."
-                        )
-                        return redirect('pumps:pumps_list')
+                        allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
+                        if allocated_sum.quantize(Decimal("0.01")) != total_amount.quantize(Decimal("0.01")):
+                            messages.error(
+                                request,
+                                "La somme répartie dans les wallets doit être égale au montant total de la vente.",
+                            )
+                            return redirect("pumps:pumps_list")
 
-                    for wallet_uuid, amount in allocations_by_uuid.items():
-                        if amount <= 0:
-                            continue
-                        wallet = valid_wallets_map[wallet_uuid]
-                        wallet.balance = (wallet.balance or Decimal("0")) + amount
-                        wallet.save(update_fields=["balance", "updated_at"])
+                        for wallet_uuid, amount in allocations_by_uuid.items():
+                            if amount <= 0:
+                                continue
+                            wallet = valid_wallets_map[wallet_uuid]
+                            wallet.balance = (wallet.balance or Decimal("0")) + amount
+                            wallet.save(update_fields=["balance", "updated_at"])
 
                 messages.success(request, 'Lecture enregistrée avec succès.')
                 return redirect('pumps:pumps_list')
@@ -817,7 +836,7 @@ def bulk_pump_reading_view(request):
             prepared.append(
                 {
                     "pump": pump,
-                    "initial_index": initial_index_decimal,
+                    "previous_current": initial_index_decimal,
                     "current_index": current_index_decimal,
                 }
             )
@@ -825,14 +844,17 @@ def bulk_pump_reading_view(request):
         total_batch = Decimal("0")
         for row in prepared:
             total_batch += _compute_sale_total_for_pump_reading(
-                row["pump"], row["initial_index"], row["current_index"]
+                row["pump"], row["previous_current"], row["current_index"]
             )
 
-        allocations_by_uuid, err_resp = _parse_and_validate_wallet_allocations(
-            request, allocations_json, station_wallets_list, total_batch
-        )
-        if err_resp is not None:
-            return err_resp
+        if total_batch > 0:
+            allocations_by_uuid, err_resp = _parse_and_validate_wallet_allocations(
+                request, allocations_json, station_wallets_list, total_batch
+            )
+            if err_resp is not None:
+                return err_resp
+        else:
+            allocations_by_uuid = {}
 
         try:
             with transaction.atomic():
@@ -840,7 +862,6 @@ def bulk_pump_reading_view(request):
                     reading = PumpReading.objects.create(
                         pump=row["pump"],
                         employee=employee,
-                        initial_index=row["initial_index"],
                         current_index=row["current_index"],
                         reading_date=today,
                     )
@@ -906,8 +927,12 @@ def reset_pump_view(request, pump_uuid):
             messages.error(request, "Vous n'avez pas la permission de réinitialiser cette pompe.")
             return redirect("pumps:pumps_list")
 
-        latest_reading = PumpReading.objects.filter(pump=pump).order_by("-reading_date", "-created_at").first()
-        previous_initial = latest_reading.initial_index if latest_reading else Decimal("0")
+        ordered = list(
+            PumpReading.objects.filter(pump=pump).order_by("-reading_date", "-created_at", "-id")
+        )
+        latest_reading = ordered[0] if ordered else None
+        second_reading = ordered[1] if len(ordered) > 1 else None
+        previous_initial = second_reading.current_index if second_reading else Decimal("0")
         previous_current = latest_reading.current_index if latest_reading else Decimal("0")
         reason = request.POST.get("reason", "").strip()
 
@@ -924,7 +949,6 @@ def reset_pump_view(request, pump_uuid):
         PumpReading.objects.create(
             pump=pump,
             employee=None,
-            initial_index=Decimal("0"),
             current_index=Decimal("0"),
             reading_date=timezone.now().date(),
         )

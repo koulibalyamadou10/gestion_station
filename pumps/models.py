@@ -20,7 +20,6 @@ class PumpReading(models.Model):
     pump_reading_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     pump = models.ForeignKey(Pump, on_delete=models.CASCADE, related_name='readings')
     employee = models.ForeignKey('employee.Employee', on_delete=models.SET_NULL, null=True, blank=True)
-    initial_index = models.DecimalField(max_digits=12, decimal_places=2)
     current_index = models.DecimalField(max_digits=12, decimal_places=2)
     reading_date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)

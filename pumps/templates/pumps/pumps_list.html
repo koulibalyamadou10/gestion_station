@@ -185,10 +185,7 @@
                         <i class="fas fa-calendar mr-2"></i>Date dernière lecture
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Index initial
-                    </th>
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Index actuel
+                        <i class="fas fa-tachometer-alt mr-2"></i>Index compteur
                     </th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         <i class="fas fa-cog mr-2"></i>Actions
@@ -226,9 +223,6 @@
                                     -
                                 {% endif %}
                             </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {% if pump.latest_reading %}{{ pump.latest_reading.initial_index }}{% else %}-{% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
                             {% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}-{% endif %}
@@ -268,7 +262,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="{% if request.user.role == 'admin' and stations|length > 1 %}6{% else %}5{% endif %}" class="px-6 py-12 text-center">
+                        <td colspan="{% if request.user.role == 'admin' and stations|length > 1 %}5{% else %}4{% endif %}" class="px-6 py-12 text-center">
                             <div class="flex flex-col items-center justify-center">
                                 <i class="fas fa-gas-pump text-6xl text-gray-300 mb-4"></i>
                                 <p class="text-gray-500 text-lg font-semibold">Aucune pompe trouvée</p>
@@ -396,36 +390,20 @@
                 <p class="text-sm font-semibold text-blue-900" id="generated_pump_name_preview">Pompe -</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Initial <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="initial_index" 
-                        required
-                        min="0"
-                        step="0.01"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Actuel <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="current_index" 
-                        required
-                        min="0"
-                        step="0.01"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Index compteur <span class="text-red-500">*</span>
+                </label>
+                <input 
+                    type="number" 
+                    name="current_index" 
+                    required
+                    min="0"
+                    step="0.01"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="Valeur actuelle du compteur"
+                >
+                <p class="text-xs text-gray-500 mt-1">Première lecture : pose le repère (aucune vente générée). Lectures suivantes : doit être supérieur au dernier index.</p>
             </div>
 
             <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
@@ -481,56 +459,6 @@
                 >
             </div>
 
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Type <span class="text-red-500">*</span>
-                </label>
-                <select 
-                    name="type" 
-                    id="edit_pump_type"
-                    required
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                    <option value="">Sélectionner un type</option>
-                    <option value="essence">Essence</option>
-                    <option value="gazole">Gazole</option>
-                </select>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Initial <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="initial_index" 
-                        id="edit_pump_initial_index"
-                        required
-                        min="0"
-                        step="1"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
-
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Index Actuel <span class="text-red-500">*</span>
-                    </label>
-                    <input 
-                        type="number" 
-                        name="current_index" 
-                        id="edit_pump_current_index"
-                        required
-                        min="0"
-                        step="1"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                        placeholder="0"
-                    >
-                </div>
-            </div>
-
             <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button 
                     type="button"
@@ -582,25 +510,7 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Index Précédent <span class="text-red-500">*</span>
-                </label>
-                <input 
-                    type="number" 
-                    name="initial_index" 
-                    id="reading_previous_index"
-                    required
-                    readonly
-                    min="0"
-                    step="0.01"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                    placeholder="0.00"
-                >
-                <p class="text-xs text-gray-500 mt-1">Index de la dernière lecture enregistrée</p>
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Index Actuel <span class="text-red-500">*</span>
+                    Nouvel index compteur <span class="text-red-500">*</span>
                 </label>
                 <input 
                     type="number" 
@@ -621,7 +531,7 @@
                     <strong>Quantité vendue :</strong> <span id="reading_quantity_sold" class="font-bold">0.00</span> litres
                 </p>
                 <p class="text-xs text-yellow-700 mt-1">
-                    Calculée automatiquement : Index Actuel - Index Précédent
+                    Calculée automatiquement : nouvel index − dernier index enregistré
                 </p>
             </div>
 
@@ -735,12 +645,8 @@
     const cancelEditPump = document.getElementById('cancelEditPump');
     const editPumpForm = document.getElementById('editPumpForm');
     
-    function openEditPumpModal(uuid, name, type, initialIndex, currentIndex) {
-        // Remplir les champs
+    function openEditPumpModal(uuid, name) {
         document.getElementById('edit_pump_name').value = name;
-        document.getElementById('edit_pump_type').value = type;
-        document.getElementById('edit_pump_initial_index').value = initialIndex;
-        document.getElementById('edit_pump_current_index').value = currentIndex;
         
         // Mettre à jour l'action du formulaire
         editPumpForm.action = `/pumps/${uuid}/update/`;
@@ -812,7 +718,6 @@
     const closeReadingModal = document.getElementById('closeReadingModal');
     const cancelReading = document.getElementById('cancelReading');
     const readingForm = document.getElementById('readingForm');
-    const readingPreviousIndex = document.getElementById('reading_previous_index');
     const readingCurrentIndexInput = document.getElementById('reading_current_index_input');
     const readingQuantitySold = document.getElementById('reading_quantity_sold');
     const readingTotalAmount = document.getElementById('reading_total_amount');
@@ -828,6 +733,7 @@
     const stationWalletsMap = stationWalletsDataEl ? JSON.parse(stationWalletsDataEl.textContent) : {};
     let currentReadingStationId = null;
     let currentPumpName = '';
+    let readingPreviousIndexValue = 0;
 
     function formatAmount(value) {
         const n = Number(value || 0);
@@ -844,8 +750,7 @@
         currentReadingStationId = String(stationId);
         currentPumpName = (pumpName || '').toLowerCase();
         
-        // Définir l'index précédent par défaut (index actuel de la pompe)
-        readingPreviousIndex.value = currentIndex;
+        readingPreviousIndexValue = parseFloat(currentIndex) || 0;
         readingCurrentIndexInput.value = '';
         
         // Mettre à jour l'action du formulaire
@@ -961,7 +866,7 @@
     }
 
     function getComputedTotalAmount() {
-        const previous = parseFloat(readingPreviousIndex.value) || 0;
+        const previous = readingPreviousIndexValue;
         const current = parseFloat(readingCurrentIndexInput.value) || 0;
         const quantity = current - previous;
         if (quantity <= 0) return 0;
@@ -992,7 +897,7 @@
     }
 
     function updateReadingComputedAmounts() {
-        const previous = parseFloat(readingPreviousIndex.value) || 0;
+        const previous = readingPreviousIndexValue;
         const current = parseFloat(readingCurrentIndexInput.value) || 0;
         const quantity = current - previous;
         const validQuantity = quantity >= 0 ? quantity : 0;
@@ -1022,7 +927,6 @@
         }
     }
     
-    readingPreviousIndex?.addEventListener('input', updateReadingComputedAmounts);
     readingCurrentIndexInput?.addEventListener('input', updateReadingComputedAmounts);
     addWalletAllocationBtn?.addEventListener('click', () => {
         createWalletAllocationRow('', '');
@@ -1041,7 +945,7 @@
     
     // Validation du formulaire
     readingForm?.addEventListener('submit', function(e) {
-        const previous = parseFloat(readingPreviousIndex.value);
+        const previous = readingPreviousIndexValue;
         const current = parseFloat(readingCurrentIndexInput.value);
         const totalAmount = getComputedTotalAmount();
         const allocations = JSON.parse(walletAllocationsInput.value || '[]');

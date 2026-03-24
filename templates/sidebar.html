@@ -66,7 +66,23 @@
                     <span>Pompes</span>
                 </a>
                 {% endif %} {% endcomment %}
+                {% if user.role == 'admin' or user.role == 'super_admin' %}
+                <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'city' %}bg-blue-600{% endif %}">
+                    <i class="fas fa-city w-4"></i>
+                    <span>Villes</span>
+                </a>
+                {% endif %}
+                {% if user.role == 'admin' or user.role == 'super_admin' %}
+                <a href="{% url 'stations:stations_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'stations' %}bg-blue-600{% endif %}">
+                    <i class="fas fa-building w-4"></i>
+                    <span>Stations</span>
+                </a>
+                {% endif %}
                 {% if user.role == 'admin' or user.role == 'manager' %}
+                <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
+                    <i class="fas fa-truck w-4"></i>
+                    <span>Fournisseurs</span>
+                </a>
                 <a href="{% url 'order:order_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'order' %}bg-blue-600{% endif %}">
                     <i class="fas fa-clipboard-list w-4"></i>
                     <span>Commandes</span>
@@ -75,11 +91,7 @@
                 {% if user.role == 'admin' %}
                 <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
                     <i class="fas fa-wallet w-4"></i>
-                    <span>Wallets</span>
-                </a>
-                <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-truck w-4"></i>
-                    <span>Fournisseurs</span>
+                    <span>Comptes</span>
                 </a>
                 <a href="{% url 'account:managers_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'managers_list' %}bg-blue-600{% endif %}">
                     <i class="fas fa-user-tie w-4"></i>
@@ -92,18 +104,6 @@
                 <a href="{% url 'position:position_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'position' %}bg-blue-600{% endif %}">
                     <i class="fas fa-briefcase w-4"></i>
                     <span>Postes</span>
-                </a>
-                {% endif %}
-                {% if user.role == 'admin' or user.role == 'super_admin' %}
-                <a href="{% url 'stations:stations_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'stations' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-building w-4"></i>
-                    <span>Stations</span>
-                </a>
-                {% endif %}
-                {% if user.role == 'admin' or user.role == 'super_admin' %}
-                <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'city' %}bg-blue-600{% endif %}">
-                    <i class="fas fa-city w-4"></i>
-                    <span>Villes</span>
                 </a>
                 {% endif %}
                 {% if user.role == 'super_admin' %}
