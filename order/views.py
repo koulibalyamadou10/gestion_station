@@ -7,9 +7,12 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
+from delivery.models import Delivery
 from order.models import Order, OrderSupplier
 from stations.models import Station, StationManager
+from supplier.models import Supplier
 
 
 def _clean_decimal(raw_value: str, default: str = "0") -> Decimal:
@@ -115,6 +118,7 @@ def order_list_view(request):
     status_filter = request.GET.get("status", "").strip()
     page_number = request.GET.get("page")
 
+    suppliers_for_confirm = []
     if request.user.role == "admin":
         orders_qs = (
             Order.objects.filter(station__owner=request.user)
@@ -125,6 +129,7 @@ def order_list_view(request):
         stations = Station.objects.filter(owner=request.user).order_by("name")
         show_station_filter = True
         show_station_column = True
+        suppliers_for_confirm = list(Supplier.objects.order_by("name"))
     else:
         orders_qs = (
             Order.objects.filter(station=manager_station)
@@ -182,6 +187,8 @@ def order_list_view(request):
         "default_order_price_diesel": getattr(
             settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0
         ),
+        "can_admin_orders": request.user.role == "admin",
+        "suppliers_for_confirm": suppliers_for_confirm,
     }
     return render(request, "order_content.html", context)
 
@@ -288,4 +295,79 @@ def update_order_quantities_view(request, order_uuid):
         )
 
     messages.success(request, "Commande mise à jour avec succès.")
+    return redirect("order:order_list")
+
+
+@login_required
+def order_delete_view(request, order_uuid):
+    if request.method != "POST":
+        return redirect("order:order_list")
+
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut supprimer une commande.")
+        return redirect("order:order_list")
+
+    orders_qs = Order.objects.filter(station__owner=request.user)
+    order = get_object_or_404(orders_qs, order_uuid=order_uuid)
+
+    if order.status != Order.STATUS_PENDING:
+        messages.error(request, "Seules les commandes en attente peuvent être supprimées.")
+        return redirect("order:order_list")
+
+    ref = f"#{order.id}"
+    order.delete()
+    messages.success(request, f"Commande {ref} supprimée.")
+    return redirect("order:order_list")
+
+
+@login_required
+def order_confirm_view(request, order_uuid):
+    if request.method != "POST":
+        return redirect("order:order_list")
+
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut confirmer une commande.")
+        return redirect("order:order_list")
+
+    orders_qs = Order.objects.filter(station__owner=request.user).prefetch_related(
+        "order_suppliers"
+    )
+    order = get_object_or_404(orders_qs, order_uuid=order_uuid)
+
+    if order.status != Order.STATUS_PENDING:
+        messages.error(request, "Seules les commandes en attente peuvent être confirmées.")
+        return redirect("order:order_list")
+
+    order_supplier = order.order_suppliers.first()
+    if not order_supplier:
+        messages.error(request, "Aucune ligne de commande trouvée.")
+        return redirect("order:order_list")
+
+    supplier_id = (request.POST.get("supplier_id") or "").strip()
+    if not supplier_id:
+        messages.error(request, "Vous devez choisir un fournisseur.")
+        return redirect("order:order_list")
+
+    supplier = get_object_or_404(Supplier, pk=supplier_id)
+
+    if Delivery.objects.filter(order_supplier=order_supplier).exists():
+        messages.error(request, "Une livraison est déjà enregistrée pour cette commande.")
+        return redirect("order:order_list")
+
+    with transaction.atomic():
+        order_supplier.supplier = supplier
+        order_supplier.save(update_fields=["supplier", "updated_at"])
+        order.status = Order.STATUS_CONFIRMED
+        order.save(update_fields=["status", "updated_at"])
+        Delivery.objects.create(
+            order_supplier=order_supplier,
+            delivered_qty_gasoline=order_supplier.qty_gasoline,
+            delivered_qty_diesel=order_supplier.qty_diesel,
+            delivery_date=timezone.now().date(),
+        )
+
+    messages.success(
+        request,
+        f"Commande #{order.id} confirmée avec le fournisseur « {supplier.name} ».",
+    )
     return redirect("order:order_list")

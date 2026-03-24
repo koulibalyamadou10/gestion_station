@@ -69,7 +69,7 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Volumes &amp; prix</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
-                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-24">Actions</th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase min-w-[10rem]">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -130,14 +130,35 @@
                         </td>
                         <td class="px-4 py-3 text-xs text-gray-600 align-top max-w-[10rem] truncate" title="{{ order.notes|default:'' }}">{{ order.notes|default:"—" }}</td>
                         <td class="px-4 py-3 text-sm align-top">
-                            <div class="flex items-center gap-3">
-                                <a href="{% url 'order:order_detail' order.order_uuid %}" class="text-blue-600 hover:text-blue-800 transition-colors" title="Voir détail">
+                            <div class="flex flex-wrap items-center justify-center gap-2">
+                                <a href="{% url 'order:order_detail' order.order_uuid %}" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Voir détail">
                                     <i class="fas fa-eye"></i>
                                 </a>
+                                {% if can_admin_orders and order.status == 'pending' and line %}
+                                <button
+                                    type="button"
+                                    class="js-open-confirm-order p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors"
+                                    title="Confirmer la commande"
+                                    data-order-uuid="{{ order.order_uuid }}"
+                                    data-station="{{ order.station.name|default:''|escape }}"
+                                    data-order-date="{{ order.order_date|date:'d/m/Y' }}"
+                                >
+                                    <i class="fas fa-check-circle"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="js-open-delete-order p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                                    title="Supprimer la commande"
+                                    data-order-uuid="{{ order.order_uuid }}"
+                                    data-order-id="{{ order.id }}"
+                                >
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                                {% endif %}
                                 {% if can_create_order and order.status == 'pending' and line %}
                                 <button
                                     type="button"
-                                    class="text-yellow-600 hover:text-yellow-800 transition-colors"
+                                    class="p-1.5 rounded-lg text-yellow-600 hover:bg-yellow-50 transition-colors"
                                     title="Modifier quantités"
                                     onclick="openEditOrderModal('{{ order.order_uuid }}', '{{ line.qty_gasoline }}', '{{ line.qty_diesel }}', '{{ line.unit_price_gasoline }}', '{{ line.unit_price_diesel }}', '{{ order.notes|default:''|escapejs }}')"
                                 >
@@ -228,7 +249,6 @@
     </div>
 </div>
 
-{% if can_create_order %}
 <div id="editOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -268,6 +288,60 @@
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelEditOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Mettre à jour</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_admin_orders %}
+<div id="deleteOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-trash-alt mr-2 text-red-600"></i>Supprimer la commande</h3>
+            <button type="button" id="closeDeleteOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="p-6">
+            <p class="text-gray-700">Confirmer la suppression de la commande <strong id="deleteOrderModalRef"></strong> ? Cette action est irréversible.</p>
+            <form id="deleteOrderForm" method="POST" action="{% url 'order:order_delete' '00000000-0000-4000-8000-000000000001' %}" class="flex justify-end gap-2 mt-6">
+                {% csrf_token %}
+                <button type="button" id="cancelDeleteOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Supprimer</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="confirmOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-check-circle mr-2 text-green-600"></i>Confirmer la commande</h3>
+            <button type="button" id="closeConfirmOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <form id="confirmOrderForm" method="POST" action="{% url 'order:order_confirm' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Station</p>
+                <p id="confirmOrderStation" class="font-bold text-gray-900"></p>
+                <p class="text-xs text-gray-500 mt-2">Date commande <span id="confirmOrderDate" class="font-medium text-gray-800"></span></p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Fournisseur <span class="text-red-500">*</span></label>
+                {% if suppliers_for_confirm %}
+                <select name="supplier_id" id="confirmOrderSupplier" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">— Choisir un fournisseur —</option>
+                    {% for sup in suppliers_for_confirm %}
+                    <option value="{{ sup.id }}">{{ sup.name }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <p class="text-sm text-red-600">Aucun fournisseur en base. Créez-en un dans Paramétrages &gt; Achats.</p>
+                {% endif %}
+            </div>
+            <p class="text-xs text-gray-500">La commande passera en statut <strong>Confirmé</strong>. Une ligne de livraison sera créée avec les quantités commandées (essence / gasoil) ; vous pourrez les ajuster plus tard.</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelConfirmOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" {% if not suppliers_for_confirm %}disabled{% endif %}>Confirmer</button>
             </div>
         </form>
     </div>
@@ -365,6 +439,75 @@
     cancelEditOrderModal?.addEventListener('click', closeEditModal);
     editOrderModal?.addEventListener('click', function(e) {
         if (e.target === editOrderModal) closeEditModal();
+    });
+</script>
+
+{% if can_admin_orders %}
+<script>
+    const orderUrlPlaceholderUuid = '00000000-0000-4000-8000-000000000001';
+    const orderDeleteUrlTemplate = '{% url 'order:order_delete' '00000000-0000-4000-8000-000000000001' %}';
+    const orderConfirmUrlTemplate = '{% url 'order:order_confirm' '00000000-0000-4000-8000-000000000001' %}';
+
+    const deleteOrderModal = document.getElementById('deleteOrderModal');
+    const deleteOrderForm = document.getElementById('deleteOrderForm');
+    const deleteOrderModalRef = document.getElementById('deleteOrderModalRef');
+    const confirmOrderModal = document.getElementById('confirmOrderModal');
+    const confirmOrderForm = document.getElementById('confirmOrderForm');
+    const confirmOrderStation = document.getElementById('confirmOrderStation');
+    const confirmOrderDate = document.getElementById('confirmOrderDate');
+
+    function lockBody(on) {
+        document.body.style.overflow = on ? 'hidden' : 'auto';
+    }
+
+    function openDeleteOrderModal(orderUuid, orderId) {
+        if (!deleteOrderModal || !deleteOrderForm) return;
+        deleteOrderForm.action = orderDeleteUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
+        if (deleteOrderModalRef) deleteOrderModalRef.textContent = '#' + orderId;
+        deleteOrderModal.classList.remove('hidden');
+        lockBody(true);
+    }
+    function closeDeleteOrderModalFn() {
+        deleteOrderModal?.classList.add('hidden');
+        lockBody(false);
+    }
+
+    function openConfirmOrderModal(orderUuid, stationName, orderDate) {
+        if (!confirmOrderModal || !confirmOrderForm) return;
+        confirmOrderForm.action = orderConfirmUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
+        if (confirmOrderStation) confirmOrderStation.textContent = stationName || '';
+        if (confirmOrderDate) confirmOrderDate.textContent = orderDate || '';
+        const sel = document.getElementById('confirmOrderSupplier');
+        if (sel) sel.value = '';
+        confirmOrderModal.classList.remove('hidden');
+        lockBody(true);
+    }
+    function closeConfirmOrderModalFn() {
+        confirmOrderModal?.classList.add('hidden');
+        lockBody(false);
+    }
+
+    document.getElementById('closeDeleteOrderModal')?.addEventListener('click', closeDeleteOrderModalFn);
+    document.getElementById('cancelDeleteOrderModal')?.addEventListener('click', closeDeleteOrderModalFn);
+    deleteOrderModal?.addEventListener('click', function(e) {
+        if (e.target === deleteOrderModal) closeDeleteOrderModalFn();
+    });
+
+    document.getElementById('closeConfirmOrderModal')?.addEventListener('click', closeConfirmOrderModalFn);
+    document.getElementById('cancelConfirmOrderModal')?.addEventListener('click', closeConfirmOrderModalFn);
+    confirmOrderModal?.addEventListener('click', function(e) {
+        if (e.target === confirmOrderModal) closeConfirmOrderModalFn();
+    });
+
+    document.querySelectorAll('.js-open-confirm-order').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openConfirmOrderModal(btn.dataset.orderUuid, btn.dataset.station || '', btn.dataset.orderDate || '');
+        });
+    });
+    document.querySelectorAll('.js-open-delete-order').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openDeleteOrderModal(btn.dataset.orderUuid, btn.dataset.orderId);
+        });
     });
 </script>
 {% endif %}
