@@ -508,6 +508,13 @@ def order_mark_delivered_view(request, order_uuid):
         order.status = Order.STATUS_DELIVERED
         order.save(update_fields=["status", "updated_at"])
 
+        station = Station.objects.select_for_update().get(pk=order.station_id)
+        prev_g = station.stock_gasoline or Decimal("0")
+        prev_d = station.stock_diesel or Decimal("0")
+        station.stock_gasoline = prev_g + delivered_qty_gasoline
+        station.stock_diesel = prev_d + delivered_qty_diesel
+        station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+
         Inventory.objects.create(
             station=order.station,
             qty_gasoline=delivered_qty_gasoline,
