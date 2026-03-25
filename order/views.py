@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from delivery.models import Delivery
+from inventory.models import Inventory
 from order.models import Order, OrderSupplier
 from stations.models import Station, StationManager
 from supplier.models import Supplier
@@ -470,7 +471,7 @@ def order_mark_delivered_view(request, order_uuid):
                 ]
             )
         else:
-            Delivery.objects.create(
+            delivery = Delivery.objects.create(
                 order_supplier=order_supplier,
                 delivered_qty_gasoline=delivered_qty_gasoline,
                 delivered_qty_diesel=delivered_qty_diesel,
@@ -481,6 +482,13 @@ def order_mark_delivered_view(request, order_uuid):
             )
         order.status = Order.STATUS_DELIVERED
         order.save(update_fields=["status", "updated_at"])
+
+        Inventory.objects.create(
+            delivery=delivery,
+            station=order.station,
+            qty_gasoline=delivered_qty_gasoline,
+            qty_diesel=delivered_qty_diesel,
+        )
 
     messages.success(request, f"Commande #{order.id} enregistrée comme livrée.")
     return redirect("order:order_list")
