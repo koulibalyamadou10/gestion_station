@@ -149,7 +149,7 @@
     {% endif %}
 </div>
 
-{% if request.user.role == 'admin' %}
+{% if request.user.role == 'admin' or request.user.role == 'manager' %}
 <div class="bg-white rounded-xl shadow-lg p-6 mt-6">
     <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
         <i class="fas fa-undo mr-2 text-red-600"></i>

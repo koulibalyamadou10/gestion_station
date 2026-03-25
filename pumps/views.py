@@ -423,8 +423,7 @@ def pump_detail_view(request, pump_uuid):
         page_number = request.GET.get('page')
         reset_page_number = request.GET.get('reset_page')
 
-        if request.user.role == 'manager':
-            readings_base = readings_base.filter(employee__user=request.user)
+        # Un manager doit pouvoir voir toutes les lectures de la pompe (station déjà contrôlée plus haut)
 
         if date_filter:
             readings_base = readings_base.filter(reading_date=date_filter)
@@ -456,7 +455,7 @@ def pump_detail_view(request, pump_uuid):
 
         reset_page_obj = None
         reset_history = []
-        if request.user.role in ('admin', 'super_admin'):
+        if request.user.role in ('admin', 'super_admin', 'manager'):
             reset_queryset = PumpReset.objects.filter(pump=pump).select_related('reset_by').order_by('-created_at')
             reset_paginator = Paginator(reset_queryset, 10)
             reset_page_obj = reset_paginator.get_page(reset_page_number)
