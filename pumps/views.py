@@ -106,7 +106,8 @@ def _trace_daily_stock_from_sale(sale, recorded_by):
 
 def _record_inventory_out_and_decrease_station_stock(sale):
     """
-    Insère une ligne Inventory (litres vendus) et diminue stock_gasoline / stock_diesel sur la station.
+    Insère une ligne Inventory (sorties en litres négatifs) et diminue stock sur la station.
+    Les entrées (livraisons, initial) restent positives : la somme des lignes = historique net des cuves.
     """
     inc_gas = sale.qty_gasoline or Decimal("0")
     inc_die = sale.qty_diesel or Decimal("0")
@@ -115,8 +116,8 @@ def _record_inventory_out_and_decrease_station_stock(sale):
 
     Inventory.objects.create(
         station_id=sale.station_id,
-        qty_gasoline=inc_gas,
-        qty_diesel=inc_die,
+        qty_gasoline=-inc_gas,
+        qty_diesel=-inc_die,
     )
     station = Station.objects.select_for_update().get(pk=sale.station_id)
     station.stock_gasoline = (station.stock_gasoline or Decimal("0")) - inc_gas

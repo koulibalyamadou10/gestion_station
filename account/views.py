@@ -1,9 +1,15 @@
+from collections import defaultdict
+from datetime import timedelta
+from decimal import Decimal
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Sum, Count
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 from django.utils.text import slugify
 from account.models import CustomUser
 from permissions_web import super_admin_required, admin_required
@@ -93,14 +99,149 @@ def login_view(request):
     
     return render(request, 'account/login.html')
 
+def _stations_scope_for_dashboard(user):
+    """Stations visibles selon le rôle (admin = ses stations, super_admin = tout, manager = une station)."""
+    from stations.models import Station, StationManager
+
+    if user.role == "super_admin":
+        return Station.objects.all()
+    if user.role == "admin":
+        return Station.objects.filter(owner=user)
+    if user.role == "manager":
+        sm = StationManager.objects.filter(manager=user).select_related("station").first()
+        if sm:
+            return Station.objects.filter(id=sm.station_id)
+    return Station.objects.none()
+
+
+def _build_dashboard_context(user):
+    """Statistiques et données de graphiques pour le tableau de bord."""
+    from sale.models import Sale
+    from order.models import Order
+    from wallet.models import Account
+
+    stations_qs = _stations_scope_for_dashboard(user)
+    station_ids = list(stations_qs.values_list("id", flat=True))
+    today = timezone.now().date()
+    month_start = today - timedelta(days=29)
+    week_start = today - timedelta(days=6)
+
+    sales_qs = Sale.objects.filter(station_id__in=station_ids) if station_ids else Sale.objects.none()
+    sales_month = sales_qs.filter(sale_date__gte=month_start)
+    sales_week = sales_qs.filter(sale_date__gte=week_start)
+
+    vol = sales_month.aggregate(
+        gas=Coalesce(Sum("qty_gasoline"), Decimal("0")),
+        die=Coalesce(Sum("qty_diesel"), Decimal("0")),
+    )
+    total_liters_month = (vol["gas"] or Decimal("0")) + (vol["die"] or Decimal("0"))
+    revenue_month = sales_month.aggregate(
+        t=Coalesce(Sum("total_amount"), Decimal("0")),
+    )["t"] or Decimal("0")
+
+    stock_agg = stations_qs.aggregate(
+        sg=Coalesce(Sum("stock_gasoline"), Decimal("0")),
+        sd=Coalesce(Sum("stock_diesel"), Decimal("0")),
+    )
+    total_stock = (stock_agg["sg"] or Decimal("0")) + (stock_agg["sd"] or Decimal("0"))
+
+    wallet_total = Decimal("0")
+    if station_ids:
+        w = Account.objects.filter(station_id__in=station_ids).aggregate(
+            t=Coalesce(Sum("balance"), Decimal("0")),
+        )
+        wallet_total = w["t"] or Decimal("0")
+
+    stations_count = stations_qs.count()
+
+    orders_qs = Order.objects.filter(station_id__in=station_ids) if station_ids else Order.objects.none()
+    orders_by_status = {}
+    for row in orders_qs.values("status").annotate(c=Count("id")):
+        orders_by_status[row["status"]] = row["c"]
+
+    # Ventes 7 derniers jours (montants)
+    amounts_by_day = defaultdict(lambda: Decimal("0"))
+    for row in sales_week.values("sale_date").annotate(t=Sum("total_amount")):
+        amounts_by_day[row["sale_date"]] = row["t"] or Decimal("0")
+
+    sales_labels = []
+    sales_amounts = []
+    for i in range(7):
+        d = week_start + timedelta(days=i)
+        sales_labels.append(d.strftime("%d/%m"))
+        sales_amounts.append(float(amounts_by_day.get(d, Decimal("0"))))
+
+    # Répartition essence / gazoil (30 j)
+    fuel_gas = float(vol["gas"] or 0)
+    fuel_die = float(vol["die"] or 0)
+
+    # Commandes (graphique en anneau)
+    order_labels = ["En attente", "Confirmées", "Livrées", "Annulées"]
+    order_keys = [
+        Order.STATUS_PENDING,
+        Order.STATUS_CONFIRMED,
+        Order.STATUS_DELIVERED,
+        Order.STATUS_CANCELLED,
+    ]
+    order_values = [orders_by_status.get(k, 0) for k in order_keys]
+
+    recent_sales = (
+        sales_qs.select_related("station")
+        .order_by("-sale_date", "-created_at")[:8]
+        if station_ids
+        else []
+    )
+
+    managers_count = 0
+    if user.role == "admin":
+        managers_count = CustomUser.objects.filter(role="manager", created_by=user).count()
+    elif user.role == "super_admin":
+        managers_count = CustomUser.objects.filter(role="manager").count()
+
+    show_admin_charts = user.role in ("admin", "super_admin", "manager") and (
+        stations_count > 0 or user.role == "super_admin"
+    )
+    # Gérant : graphiques et KPI allégés (pas de donuts réseau / commandes détaillés)
+    dashboard_is_manager = user.role == "manager"
+    dashboard_charts_full = show_admin_charts and not dashboard_is_manager
+    dashboard_charts_manager_sales_only = show_admin_charts and dashboard_is_manager
+    manager_station_name = None
+    if dashboard_is_manager and stations_qs.exists():
+        manager_station_name = stations_qs.first().name
+
+    return {
+        "stations_count": stations_count,
+        "total_liters_month": total_liters_month,
+        "revenue_month": revenue_month,
+        "total_stock": total_stock,
+        "wallet_total": wallet_total,
+        "orders_by_status": orders_by_status,
+        "orders_pending": orders_by_status.get(Order.STATUS_PENDING, 0),
+        "chart_sales_labels": sales_labels,
+        "chart_sales_amounts": sales_amounts,
+        "chart_fuel_labels": ["Essence (L)", "Gazoil (L)"],
+        "chart_fuel_values": [fuel_gas, fuel_die],
+        "chart_order_labels": order_labels,
+        "chart_order_values": order_values,
+        "recent_sales": recent_sales,
+        "managers_count": managers_count,
+        "dashboard_scope": "network" if user.role in ("admin", "super_admin") else "station",
+        "show_admin_charts": show_admin_charts,
+        "dashboard_is_manager": dashboard_is_manager,
+        "dashboard_charts_full": dashboard_charts_full,
+        "dashboard_charts_manager_sales_only": dashboard_charts_manager_sales_only,
+        "manager_station_name": manager_station_name,
+    }
+
+
 @login_required
 def dashboard_view(request):
     """
     Vue pour le tableau de bord après connexion
     """
-    return render(request, 'dashboard/dashboard.html', {
-        'user': request.user
-    })
+    ctx = {"user": request.user}
+    ctx.update(_build_dashboard_context(request.user))
+    return render(request, "dashboard/dashboard.html", ctx)
 
 @csrf_protect
 def logout_view(request):

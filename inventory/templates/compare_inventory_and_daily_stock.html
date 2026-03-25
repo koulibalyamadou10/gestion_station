@@ -1,83 +1,161 @@
 {% extends 'base_authenticated.html' %}
 {% load money_extras %}
 
-{% block title %}Rentabilité — Entrées vs ventes{% endblock %}
-{% block page_title %}Rentabilité (Entrées vs ventes){% endblock %}
+{% block title %}Contrôle stock — Déclaratif vs inventaire système{% endblock %}
+{% block page_title %}Contrôle stock{% endblock %}
 
 {% block content %}
+<div class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-lg p-6 mb-6 text-white">
+    <h2 class="text-lg font-bold flex items-center gap-2 mb-2">
+        <i class="fas fa-balance-scale"></i>
+        Stock déclaré (gérant) vs stock calculé (système)
+    </h2>
+    <p class="text-sm text-slate-200 leading-relaxed max-w-4xl">
+        <strong>Stock journalier</strong> (<span class="text-amber-200">daily_stock</span>) : relevé saisi par le gérant pour une date donnée.
+        <strong>Inventaire système</strong> (<span class="text-cyan-200">inventory</span>) : historique des mouvements enregistrés automatiquement
+        (création station / livraisons en <span class="text-green-300">+</span>, ventes pompes en <span class="text-red-300">−</span>).
+        Le <strong>stock système</strong> à la date du relevé est la somme algébrique de tous les mouvements jusqu’à cette date (fin de journée incluse).
+    </p>
+</div>
+
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-        <i class="fas fa-balance-scale mr-2 text-blue-600"></i>
-        Comparaison entrées / ventes
-    </h3>
-    <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-            <option value="">Toutes les stations</option>
-            {% for station in stations %}
-                <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>
-                    {{ station.name }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Date début">
-        <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Date fin">
-
-        <div class="flex gap-2 md:col-span-2">
-            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
-            <a href="{% url 'inventory:compare_profit' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Reset</a>
+    <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Station</label>
+            <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">Toutes</option>
+                {% for station in stations %}
+                    <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Du</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Au</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+        <div class="lg:col-span-2 flex gap-2">
+            <button type="submit" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold">
+                <i class="fas fa-filter mr-2"></i>Appliquer
+            </button>
+            <a href="{% url 'inventory:compare_profit' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 font-semibold inline-flex items-center">Reset</a>
         </div>
     </form>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-500">
-        <p class="text-xs uppercase text-gray-500">Entrées (réceptions)</p>
-        <p class="text-2xl font-bold text-gray-900 mt-2">{{ receptions_amount|money_fr }} GNF</p>
-        <p class="text-sm text-gray-600 mt-2">
-            {{ receptions_qty_gasoline|money_fr }} L essence / {{ receptions_qty_diesel|money_fr }} L gazoil
-        </p>
-        <p class="text-xs text-gray-500 mt-1">{{ deliveries_count }} livraison{{ deliveries_count|pluralize }}</p>
+{% if daily_stock_count %}
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-clipboard-check text-emerald-600"></i>
+            Comparaison par relevé ({{ daily_stock_count }} ligne{{ daily_stock_count|pluralize }})
+        </h3>
+        <p class="text-xs text-gray-500 mt-1">Écart = déclaré gérant − stock système (à la même date)</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3 text-left">Date</th>
+                    <th class="px-4 py-3 text-left">Station</th>
+                    <th class="px-4 py-3 text-right">Décl. essence (L)</th>
+                    <th class="px-4 py-3 text-right">Syst. essence (L)</th>
+                    <th class="px-4 py-3 text-right">Écart ess.</th>
+                    <th class="px-4 py-3 text-right">Décl. gazoil (L)</th>
+                    <th class="px-4 py-3 text-right">Syst. gazoil (L)</th>
+                    <th class="px-4 py-3 text-right">Écart gaz.</th>
+                    <th class="px-4 py-3 text-left">Saisi par</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for row in comparison_rows %}
+                {% with ds=row.daily %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap font-medium">{{ ds.stock_date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3">{{ ds.station.name }}</td>
+                    <td class="px-4 py-3 text-right">{{ ds.qty_gasoline|money_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700">{{ row.system_gasoline|money_fr }}</td>
+                    <td class="px-4 py-3 text-right font-semibold {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                        {{ row.delta_gasoline|money_fr }}
+                    </td>
+                    <td class="px-4 py-3 text-right">{{ ds.qty_diesel|money_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700">{{ row.system_diesel|money_fr }}</td>
+                    <td class="px-4 py-3 text-right font-semibold {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                        {{ row.delta_diesel|money_fr }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">{{ ds.recorded_by.get_full_name|default:ds.recorded_by.email }}</td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
-        <p class="text-xs uppercase text-gray-500">Ventes</p>
-        <p class="text-2xl font-bold text-gray-900 mt-2">{{ sales_amount|money_fr }} GNF</p>
-        <p class="text-sm text-gray-600 mt-2">
-            {{ sales_qty_gasoline|money_fr }} L essence / {{ sales_qty_diesel|money_fr }} L gazoil
-        </p>
-        <p class="text-xs text-gray-500 mt-1">{{ sales_count }} vente{{ sales_count|pluralize }}</p>
+    {% if page_obj.has_other_pages %}
+    <div class="px-6 py-4 border-t border-gray-100 flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}&station={{ station_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Précédent</a>
+        {% endif %}
+        <span class="px-4 py-2 text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&station={{ station_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Suivant</a>
+        {% endif %}
     </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center text-amber-900 mb-6">
+    <i class="fas fa-inbox text-3xl mb-2"></i>
+    <p class="font-semibold">Aucun stock journalier sur cette période / filtre.</p>
+    <p class="text-sm mt-2">Les relevés sont créés dans <strong>Stock journalier</strong> (saisie gérant).</p>
+</div>
+{% endif %}
 
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 {% if margin >= 0 %}border-green-600{% else %}border-red-600{% endif %}">
-        <p class="text-xs uppercase text-gray-500">Marge (ventes − entrées)</p>
-        <p class="text-2xl font-bold mt-2 {% if margin >= 0 %}text-green-700{% else %}text-red-700{% endif %}">
-            {{ margin|money_fr }} GNF
-        </p>
-        <p class="text-sm text-gray-600 mt-2">
-            Taux : <span class="font-semibold">{{ margin_rate|floatformat:2 }}%</span>
-        </p>
-        <p class="text-xs text-gray-500 mt-1">
-            Basé sur prix de commande (réceptions) et montants de vente.
-        </p>
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-history text-indigo-600"></i>
+            Mouvements inventaire (système) — 50 derniers sur la période
+        </h3>
+        <p class="text-xs text-gray-500 mt-1">Entrées positives, sorties (ventes) négatives après mise à jour du code.</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3 text-left">Date / heure</th>
+                    <th class="px-4 py-3 text-left">Station</th>
+                    <th class="px-4 py-3 text-right">Δ Essence (L)</th>
+                    <th class="px-4 py-3 text-right">Δ Gazoil (L)</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for inv in inventory_movements %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap">{{ inv.created_at|date:"d/m/Y H:i" }}</td>
+                    <td class="px-4 py-3">{{ inv.station.name }}</td>
+                    <td class="px-4 py-3 text-right font-medium {% if inv.qty_gasoline < 0 %}text-red-600{% else %}text-green-700{% endif %}">{{ inv.qty_gasoline|money_fr }}</td>
+                    <td class="px-4 py-3 text-right font-medium {% if inv.qty_diesel < 0 %}text-red-600{% else %}text-green-700{% endif %}">{{ inv.qty_diesel|money_fr }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-4 py-10 text-center text-gray-500">Aucun mouvement inventaire sur ce filtre.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-lg p-6">
-    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-        <i class="fas fa-info-circle mr-2 text-blue-600"></i>
-        Lecture rapide
-    </h3>
-    <ul class="text-sm text-gray-700 space-y-2">
-        <li>
-            - <span class="font-semibold">Entrées</span> = livraisons (quantités livrées × prix unitaires de la commande).
-        </li>
-        <li>
-            - <span class="font-semibold">Ventes</span> = montants saisis/calculés dans les ventes.
-        </li>
-        <li>
-            - <span class="font-semibold">Marge</span> = ventes − entrées (approximation de rentabilité sur la période).
-        </li>
+<div class="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-700">
+    <h4 class="font-bold text-slate-800 mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Lecture des écarts</h4>
+    <ul class="list-disc list-inside space-y-1 text-slate-600">
+        <li>Écart proche de 0 : le relevé gérant est cohérent avec les mouvements enregistrés.</li>
+        <li>Écart important : saisie, vol, pertes, ou mouvements non passés par l’app (à investiguer).</li>
+        <li>Les ventes pompe enregistrées <strong>avant</strong> la prise en charge des quantités négatives dans l’inventaire peuvent encore apparaître en positif dans l’historique : la somme cumulée peut être faussée jusqu’à correction des lignes concernées.</li>
     </ul>
 </div>
 {% endblock %}
