@@ -32,12 +32,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True, unique=True, editable=False)
     first_name = models.CharField(max_length=50,blank=False,null=False )
     last_name = models.CharField(max_length=50,blank=False, null=False)
-    email = models.EmailField(unique=True, blank=False,null=False, error_messages={
-        'unique': _("Ce mail existe déja"),
-        'required': _("Veuillez entrer un mail valide"),
-        'blank': _("Veuillez entrer un mail valide"),
+    email = models.EmailField(blank=True,null=True, error_messages={
         'invalid': _("Veuillez entrer un mail valide"),
-    })
+    }, unique=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="admin")
     phone_number = models.CharField(max_length=9,blank=False,null=False)
     phone_code = models.CharField(max_length=9, blank=False, null=False)
