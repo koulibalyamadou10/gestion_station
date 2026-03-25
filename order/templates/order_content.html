@@ -5,7 +5,7 @@
 {% block page_title %}Commandes{% if manager_station %} — {{ manager_station.name }}{% endif %}{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
         <p class="text-sm text-gray-600">En attente</p>
         <p class="text-3xl font-bold text-yellow-700 mt-2">{{ pending_count }}</p>
