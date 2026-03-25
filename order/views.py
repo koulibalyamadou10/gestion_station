@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
-from django.contrib import messages
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -9,6 +9,7 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
+from permissions_web import admin_required
 from delivery.models import Delivery
 from inventory.models import Inventory
 from order.models import Order, OrderSupplier
@@ -60,51 +61,41 @@ def order_list_view(request):
 
         order_date = request.POST.get("order_date", "").strip()
         notes = request.POST.get("notes", "").strip() or None
-        qty_gasoline_raw = request.POST.get("qty_gasoline", "0").strip() or "0"
-        qty_diesel_raw = request.POST.get("qty_diesel", "0").strip() or "0"
-        unit_price_gasoline_raw = (
-            request.POST.get("unit_price_gasoline", "0").strip() or "0"
-        )
-        unit_price_diesel_raw = (
-            request.POST.get("unit_price_diesel", "0").strip() or "0"
-        )
+        truck_number = (request.POST.get("truck_number") or "").strip() or None
+        driver_name = (request.POST.get("driver_name") or "").strip() or None
+        req_g_raw = request.POST.get("requested_qty_gasoline", "0").strip() or "0"
+        req_d_raw = request.POST.get("requested_qty_diesel", "0").strip() or "0"
 
         if not order_date:
             messages.error(request, "La date de commande est obligatoire.")
             return redirect("order:order_list")
 
         try:
-            qty_gasoline = _clean_decimal(qty_gasoline_raw)
-            qty_diesel = _clean_decimal(qty_diesel_raw)
-            unit_price_gasoline = _clean_decimal(unit_price_gasoline_raw)
-            unit_price_diesel = _clean_decimal(unit_price_diesel_raw)
+            requested_qty_gasoline = _clean_decimal(req_g_raw)
+            requested_qty_diesel = _clean_decimal(req_d_raw)
         except (InvalidOperation, ValueError):
-            messages.error(request, "Les quantités et prix doivent être numériques.")
+            messages.error(request, "Les quantités doivent être numériques.")
             return redirect("order:order_list")
 
-        if qty_gasoline < 0 or qty_diesel < 0 or unit_price_gasoline < 0 or unit_price_diesel < 0:
-            messages.error(request, "Les valeurs négatives ne sont pas autorisées.")
+        if requested_qty_gasoline < 0 or requested_qty_diesel < 0:
+            messages.error(request, "Les quantités négatives ne sont pas autorisées.")
             return redirect("order:order_list")
 
-        if qty_gasoline == 0 and qty_diesel == 0:
-            messages.error(request, "Ajoutez au moins une quantité (essence ou gasoil).")
+        if requested_qty_gasoline == 0 and requested_qty_diesel == 0:
+            messages.error(request, "Ajoutez au moins une quantité demandée (essence ou gasoil).")
             return redirect("order:order_list")
 
         try:
             with transaction.atomic():
-                order = Order.objects.create(
+                Order.objects.create(
                     station=manager_station,
                     status=Order.STATUS_PENDING,
                     order_date=order_date,
                     notes=notes,
-                )
-                OrderSupplier.objects.create(
-                    order=order,
-                    supplier=None,  # fournisseur non renseigné à la création
-                    qty_gasoline=qty_gasoline,
-                    qty_diesel=qty_diesel,
-                    unit_price_gasoline=unit_price_gasoline,
-                    unit_price_diesel=unit_price_diesel,
+                    requested_qty_gasoline=requested_qty_gasoline,
+                    requested_qty_diesel=requested_qty_diesel,
+                    truck_number=truck_number,
+                    driver_name=driver_name,
                 )
         except Exception as exc:
             messages.error(request, f"Erreur lors de la création : {exc}")
@@ -222,6 +213,12 @@ def order_detail_view(request, order_uuid):
             (order_supplier.qty_diesel or Decimal("0"))
             * (order_supplier.unit_price_diesel or Decimal("0"))
         )
+    else:
+        pg = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0)))
+        pd = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0)))
+        total_estimated = (order.requested_qty_gasoline or Decimal("0")) * pg + (
+            order.requested_qty_diesel or Decimal("0")
+        ) * pd
 
     if order_supplier:
         deliveries = order_supplier.delivery_set.all().order_by(
@@ -278,47 +275,34 @@ def update_order_quantities_view(request, order_uuid):
         messages.error(request, "Seules les commandes en attente peuvent être modifiées.")
         return redirect("order:order_list")
 
-    order_supplier = order.order_suppliers.first()
-    if not order_supplier:
-        messages.error(request, "Aucune ligne de commande trouvée.")
-        return redirect("order:order_list")
-
-    qty_gasoline_raw = request.POST.get("qty_gasoline", "0")
-    qty_diesel_raw = request.POST.get("qty_diesel", "0")
-    unit_price_gasoline_raw = request.POST.get("unit_price_gasoline", "0")
-    unit_price_diesel_raw = request.POST.get("unit_price_diesel", "0")
+    req_g_raw = request.POST.get("requested_qty_gasoline", "0")
+    req_d_raw = request.POST.get("requested_qty_diesel", "0")
     notes = request.POST.get("notes", "").strip() or None
 
     try:
-        qty_gasoline = _clean_decimal(qty_gasoline_raw)
-        qty_diesel = _clean_decimal(qty_diesel_raw)
-        unit_price_gasoline = _clean_decimal(unit_price_gasoline_raw)
-        unit_price_diesel = _clean_decimal(unit_price_diesel_raw)
+        requested_qty_gasoline = _clean_decimal(req_g_raw)
+        requested_qty_diesel = _clean_decimal(req_d_raw)
     except (InvalidOperation, ValueError):
-        messages.error(request, "Les quantités et prix doivent être numériques.")
+        messages.error(request, "Les quantités doivent être numériques.")
         return redirect("order:order_list")
 
-    if qty_gasoline < 0 or qty_diesel < 0 or unit_price_gasoline < 0 or unit_price_diesel < 0:
-        messages.error(request, "Les valeurs négatives ne sont pas autorisées.")
+    if requested_qty_gasoline < 0 or requested_qty_diesel < 0:
+        messages.error(request, "Les quantités négatives ne sont pas autorisées.")
         return redirect("order:order_list")
 
-    if qty_gasoline == 0 and qty_diesel == 0:
-        messages.error(request, "Ajoutez au moins une quantité (essence ou gasoil).")
+    if requested_qty_gasoline == 0 and requested_qty_diesel == 0:
+        messages.error(request, "Ajoutez au moins une quantité demandée (essence ou gasoil).")
         return redirect("order:order_list")
 
     with transaction.atomic():
+        order.requested_qty_gasoline = requested_qty_gasoline
+        order.requested_qty_diesel = requested_qty_diesel
         order.notes = notes
-        order.save(update_fields=["notes", "updated_at"])
-        order_supplier.qty_gasoline = qty_gasoline
-        order_supplier.qty_diesel = qty_diesel
-        order_supplier.unit_price_gasoline = unit_price_gasoline
-        order_supplier.unit_price_diesel = unit_price_diesel
-        order_supplier.save(
+        order.save(
             update_fields=[
-                "qty_gasoline",
-                "qty_diesel",
-                "unit_price_gasoline",
-                "unit_price_diesel",
+                "requested_qty_gasoline",
+                "requested_qty_diesel",
+                "notes",
                 "updated_at",
             ]
         )
@@ -350,12 +334,9 @@ def order_delete_view(request, order_uuid):
 
 
 @login_required
+@admin_required
 def order_confirm_view(request, order_uuid):
     if request.method != "POST":
-        return redirect("order:order_list")
-
-    if request.user.role != "admin":
-        messages.error(request, "Seul un administrateur peut confirmer une commande.")
         return redirect("order:order_list")
 
     orders_qs = Order.objects.filter(station__owner=request.user).prefetch_related(
@@ -367,9 +348,8 @@ def order_confirm_view(request, order_uuid):
         messages.error(request, "Seules les commandes en attente peuvent être confirmées.")
         return redirect("order:order_list")
 
-    order_supplier = order.order_suppliers.first()
-    if not order_supplier:
-        messages.error(request, "Aucune ligne de commande trouvée.")
+    if order.order_suppliers.exists():
+        messages.error(request, "Cette commande a déjà une ligne fournisseur.")
         return redirect("order:order_list")
 
     supplier_id = (request.POST.get("supplier_id") or "").strip()
@@ -379,9 +359,40 @@ def order_confirm_view(request, order_uuid):
 
     supplier = get_object_or_404(Supplier, pk=supplier_id)
 
+    try:
+        qty_gasoline = _clean_decimal(request.POST.get("confirm_qty_gasoline", "0"))
+        qty_diesel = _clean_decimal(request.POST.get("confirm_qty_diesel", "0"))
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Les quantités doivent être numériques.")
+        return redirect("order:order_list")
+
+    if qty_gasoline < 0 or qty_diesel < 0:
+        messages.error(request, "Les quantités négatives ne sont pas autorisées.")
+        return redirect("order:order_list")
+
+    if qty_gasoline == 0 and qty_diesel == 0:
+        messages.error(
+            request,
+            "Indiquez au moins une quantité confirmée (essence ou gasoil).",
+        )
+        return redirect("order:order_list")
+
+    unit_price_gasoline = _clean_decimal(
+        str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0))
+    )
+    unit_price_diesel = _clean_decimal(
+        str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0))
+    )
+
     with transaction.atomic():
-        order_supplier.supplier = supplier
-        order_supplier.save(update_fields=["supplier", "updated_at"])
+        OrderSupplier.objects.create(
+            order=order,
+            supplier=supplier,
+            qty_gasoline=qty_gasoline,
+            qty_diesel=qty_diesel,
+            unit_price_gasoline=unit_price_gasoline,
+            unit_price_diesel=unit_price_diesel,
+        )
         order.status = Order.STATUS_CONFIRMED
         order.save(update_fields=["status", "updated_at"])
 
@@ -484,7 +495,6 @@ def order_mark_delivered_view(request, order_uuid):
         order.save(update_fields=["status", "updated_at"])
 
         Inventory.objects.create(
-            delivery=delivery,
             station=order.station,
             qty_gasoline=delivered_qty_gasoline,
             qty_diesel=delivered_qty_diesel,

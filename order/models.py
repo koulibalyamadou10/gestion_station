@@ -20,6 +20,13 @@ class Order(models.Model):
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     order_date = models.DateField()
+    
+    requested_qty_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    requested_qty_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    truck_number = models.CharField(max_length=50, null=True, blank=True)
+    driver_name = models.CharField(max_length=100, null=True, blank=True)
+
     notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -32,22 +39,28 @@ class Order(models.Model):
 
     @property
     def estimated_line_total(self):
-        """Total estimé (première ligne order_suppliers), pour listes / récap."""
+        """Total estimé : ligne fournisseur si confirmée, sinon quantités demandées × prix paramètres."""
+        from django.conf import settings
+
         line = self.order_suppliers.first()
-        if not line:
-            return Decimal("0")
-        qg = line.qty_gasoline if line.qty_gasoline is not None else Decimal("0")
-        qd = line.qty_diesel if line.qty_diesel is not None else Decimal("0")
-        pg = (
-            line.unit_price_gasoline
-            if line.unit_price_gasoline is not None
-            else Decimal("0")
-        )
-        pd = (
-            line.unit_price_diesel
-            if line.unit_price_diesel is not None
-            else Decimal("0")
-        )
+        if line:
+            qg = line.qty_gasoline if line.qty_gasoline is not None else Decimal("0")
+            qd = line.qty_diesel if line.qty_diesel is not None else Decimal("0")
+            pg = (
+                line.unit_price_gasoline
+                if line.unit_price_gasoline is not None
+                else Decimal("0")
+            )
+            pd = (
+                line.unit_price_diesel
+                if line.unit_price_diesel is not None
+                else Decimal("0")
+            )
+            return qg * pg + qd * pd
+        qg = self.requested_qty_gasoline or Decimal("0")
+        qd = self.requested_qty_diesel or Decimal("0")
+        pg = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0)))
+        pd = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0)))
         return qg * pg + qd * pd
 
 

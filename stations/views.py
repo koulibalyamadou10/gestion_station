@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -10,6 +10,7 @@ from django.http import JsonResponse
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 from city.models import City
+from inventory.models import Inventory
 
 @login_required
 def stations_list_view(request):
@@ -173,7 +174,6 @@ def create_station_view(request):
         
         try:
             # Convertir les coordonnées en Decimal
-            from decimal import Decimal
             latitude_decimal = Decimal(latitude)
             longitude_decimal = Decimal(longitude)
             
@@ -184,6 +184,20 @@ def create_station_view(request):
                 messages.error(request, 'La ville sélectionnée est invalide.')
                 return redirect('stations:stations_list')
 
+            try:
+                stock_gasoline = Decimal(
+                    (request.POST.get('stock_gasoline') or '0').replace(',', '.').strip() or '0'
+                )
+                stock_diesel = Decimal(
+                    (request.POST.get('stock_diesel') or '0').replace(',', '.').strip() or '0'
+                )
+            except InvalidOperation:
+                messages.error(request, 'Les stocks essence et gazoil doivent être des nombres valides.')
+                return redirect('stations:stations_list')
+            if stock_gasoline < 0 or stock_diesel < 0:
+                messages.error(request, 'Les stocks ne peuvent pas être négatifs.')
+                return redirect('stations:stations_list')
+
             # Créer la station
             station = Station.objects.create(
                 name=name,
@@ -191,7 +205,9 @@ def create_station_view(request):
                 address=address,
                 latitude=latitude_decimal,
                 longitude=longitude_decimal,
-                owner=owner
+                owner=owner,
+                stock_gasoline=stock_gasoline,
+                stock_diesel=stock_diesel,
             )
 
             # Gérant optionnel
@@ -213,6 +229,12 @@ def create_station_view(request):
                     messages.error(request, 'Le gérant sélectionné est invalide.')
                     return redirect('stations:stations_list')
                 StationManager.objects.create(station=station, manager=manager)
+
+            Inventory.objects.create(
+                station=station,
+                qty_gasoline=stock_gasoline,
+                qty_diesel=stock_diesel,
+            )
 
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
             return redirect('stations:stations_list')

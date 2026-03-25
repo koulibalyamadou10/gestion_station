@@ -11,6 +11,8 @@ class Station(models.Model):
     owner = models.ForeignKey('account.CustomUser', on_delete=models.SET_NULL, null=True, blank=True)
     latitude = models.DecimalField(max_digits=10, decimal_places=8, null=True, blank=True)
     longitude = models.DecimalField(max_digits=11, decimal_places=8, null=True, blank=True)
+    stock_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    stock_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

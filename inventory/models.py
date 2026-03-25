@@ -1,7 +1,6 @@
 from django.db import models
 
 class Inventory(models.Model):
-    delivery = models.ForeignKey('delivery.Delivery', on_delete=models.CASCADE)
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
     qty_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     qty_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)

@@ -79,7 +79,7 @@ def role_required(*required_roles):
             has_required_role = user_role in required_roles
             
             if not has_required_role:
-                return redirect('not_access')
+                return redirect('account:not_access')
             
             return view_func(request, *args, **kwargs)
         return wrapper
@@ -102,7 +102,7 @@ def super_admin_required(view_func):
             return redirect('login')
         
         if not hasattr(request.user, 'role') or request.user.role != 'super_admin':
-            return redirect('not_access')
+            return redirect('account:not_access')
         
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -124,8 +124,8 @@ def admin_required(view_func):
             return redirect('login')
         
         user_role = getattr(request.user, 'role', None)
-        if user_role not in ['super_admin', 'admin']:
-            return redirect('not_access')
+        if user_role not in ['admin']:
+            return redirect('account:not_access')
         
         return view_func(request, *args, **kwargs)
     return wrapper

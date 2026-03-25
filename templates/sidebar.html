@@ -60,7 +60,7 @@
                     {% if user.role == 'admin' %}
                     <a href="{% url 'inventory:stock_livre' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'stock_livre' %}bg-blue-600{% endif %}">
                         <i class="fas fa-truck-loading w-4"></i>
-                        <span>Stock livré</span>
+                        <span>Réception</span>
                     </a>
                     <a href="{% url 'inventory:compare_profit' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'compare_profit' %}bg-blue-600{% endif %}">
                         <i class="fas fa-chart-line w-4"></i>
@@ -117,10 +117,12 @@
                 {% if user.role == 'admin' or user.role == 'manager' %}
                 <div class="space-y-1">
                     <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Achats</p>
+                    {% if user.role == 'admin' %}
                     <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
                         <i class="fas fa-truck w-4"></i>
                         <span>Fournisseurs</span>
                     </a>
+                    {% endif %}
                     <a href="{% url 'order:order_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'order' %}bg-blue-600{% endif %}">
                         <i class="fas fa-clipboard-list w-4"></i>
                         <span>Commandes</span>

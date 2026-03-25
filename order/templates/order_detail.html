@@ -48,8 +48,16 @@
     </div>
 </div>
 
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">Quantités demandées (gérant)</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div><span class="text-gray-500">Essence :</span> <span class="font-semibold text-gray-800">{{ order.requested_qty_gasoline|money_fr }} L</span></div>
+        <div><span class="text-gray-500">Gasoil :</span> <span class="font-semibold text-gray-800">{{ order.requested_qty_diesel|money_fr }} L</span></div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-lg p-6">
-    <h3 class="text-lg font-bold text-gray-800 mb-4">Ligne commande carburant</h3>
+    <h3 class="text-lg font-bold text-gray-800 mb-4">Ligne commande carburant (confirmée)</h3>
     {% if order_supplier %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div><span class="text-gray-500">Quantité essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_gasoline|money_fr }}</span></div>
@@ -59,7 +67,7 @@
         <div class="md:col-span-2"><span class="text-gray-500">Fournisseur :</span> <span class="font-semibold text-gray-800">{{ order_supplier.supplier.name|default:"Non défini" }}</span></div>
     </div>
     {% else %}
-    <p class="text-gray-500">Aucune ligne fournisseur associée à cette commande.</p>
+    <p class="text-gray-500 text-sm">Pas encore de ligne fournisseur — la commande sera finalisée à la confirmation par l’administrateur.</p>
     {% endif %}
 </div>
 

@@ -4,10 +4,12 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from permissions_web import admin_required
 from supplier.models import Supplier
 
 
 @login_required
+@admin_required
 def supplier_list_view(request):
     """
     Liste des fournisseurs + création (modal).

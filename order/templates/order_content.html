@@ -65,7 +65,7 @@
                     {% if show_station_column %}
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
                     {% endif %}
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Volumes &amp; prix</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Volumes</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
@@ -110,7 +110,15 @@
                                 </p>
                             </div>
                             {% else %}
-                            <span class="text-gray-400 text-sm">—</span>
+                            <div class="rounded-lg border border-dashed border-amber-200 bg-amber-50/50 p-2.5 space-y-2 w-max max-w-[16rem]">
+                                <p class="text-[10px] font-bold uppercase text-amber-900">Demandé</p>
+                                <div class="text-xs text-gray-800 tabular-nums">
+                                    <span class="text-gray-500">Ess.</span> <span class="font-semibold">{{ order.requested_qty_gasoline|floatformat:2 }}</span> L
+                                    <span class="text-gray-300 mx-1">·</span>
+                                    <span class="text-gray-500">Gaz.</span> <span class="font-semibold">{{ order.requested_qty_diesel|floatformat:2 }}</span> L
+                                </div>
+                                <p class="text-[11px] text-gray-600">Total estimé&nbsp;: {{ order.estimated_line_total|money_fr }}&nbsp;GNF</p>
+                            </div>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-sm align-top">
@@ -134,7 +142,7 @@
                                 <a href="{% url 'order:order_detail' order.order_uuid %}" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Voir détail">
                                     <i class="fas fa-eye"></i>
                                 </a>
-                                {% if can_admin_orders and order.status == 'pending' and line %}
+                                {% if can_admin_orders and order.status == 'pending' %}
                                 <button
                                     type="button"
                                     class="js-open-confirm-order p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors"
@@ -142,6 +150,8 @@
                                     data-order-uuid="{{ order.order_uuid }}"
                                     data-station="{{ order.station.name|default:''|escape }}"
                                     data-order-date="{{ order.order_date|date:'d/m/Y' }}"
+                                    data-requested-qty-gasoline="{{ order.requested_qty_gasoline }}"
+                                    data-requested-qty-diesel="{{ order.requested_qty_diesel }}"
                                 >
                                     <i class="fas fa-check-circle"></i>
                                 </button>
@@ -155,12 +165,12 @@
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 {% endif %}
-                                {% if can_edit_order_quantities and order.status == 'pending' and line %}
+                                {% if can_edit_order_quantities and order.status == 'pending' %}
                                 <button
                                     type="button"
                                     class="p-1.5 rounded-lg text-yellow-600 hover:bg-yellow-50 transition-colors"
-                                    title="Modifier quantités"
-                                    onclick="openEditOrderModal('{{ order.order_uuid }}', '{{ line.qty_gasoline }}', '{{ line.qty_diesel }}', '{{ line.unit_price_gasoline }}', '{{ line.unit_price_diesel }}', '{{ order.notes|default:''|escapejs }}')"
+                                    title="Modifier quantités demandées"
+                                    onclick="openEditOrderModal('{{ order.order_uuid }}', '{{ order.requested_qty_gasoline }}', '{{ order.requested_qty_diesel }}', '{{ default_order_price_essence }}', '{{ default_order_price_diesel }}', '{{ order.notes|default:''|escapejs }}')"
                                 >
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -240,27 +250,40 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité essence <span class="text-red-500">*</span></label>
-                    <input type="number" name="qty_gasoline" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — essence (L) <span class="text-red-500">*</span></label>
+                    <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire essence (GNF)</label>
-                    <input type="number" readonly name="unit_price_gasoline" min="0" step="0.01" value="{{ default_order_price_essence }}" class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire essence (GNF) — indicatif</label>
+                    <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_essence }}" class="create-unit-price-essence w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité gasoil <span class="text-red-500">*</span></label>
-                    <input type="number" name="qty_diesel" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — gasoil (L) <span class="text-red-500">*</span></label>
+                    <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire gasoil (GNF)</label>
-                    <input type="number" readonly name="unit_price_diesel" min="0" step="0.01" value="{{ default_order_price_diesel }}" class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire gasoil (GNF) — indicatif</label>
+                    <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_diesel }}" class="create-unit-price-diesel w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
                 </div>
             </div>
             <div class="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé</p>
+                <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé (prix paramètres)</p>
                 <p id="createOrderTotal" class="text-xl font-bold text-blue-800 mt-1">0 GNF</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transport</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">N° camion</label>
+                        <input type="text" name="truck_number" maxlength="50" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex. AB-123-CD">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Chauffeur</label>
+                        <input type="text" name="driver_name" maxlength="100" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Nom du chauffeur">
+                    </div>
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
@@ -286,26 +309,26 @@
             {% csrf_token %}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité essence <span class="text-red-500">*</span></label>
-                    <input type="number" id="edit_qty_gasoline" name="qty_gasoline" min="0" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — essence (L) <span class="text-red-500">*</span></label>
+                    <input type="number" id="edit_qty_gasoline" name="requested_qty_gasoline" min="0" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire essence (GNF)</label>
-                    <input type="number" id="edit_unit_price_gasoline" name="unit_price_gasoline" min="0" step="0.01" readonly class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire essence (GNF) — indicatif</label>
+                    <input type="number" id="edit_unit_price_gasoline" min="0" step="0.01" readonly class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité gasoil <span class="text-red-500">*</span></label>
-                    <input type="number" id="edit_qty_diesel" name="qty_diesel" min="0" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — gasoil (L) <span class="text-red-500">*</span></label>
+                    <input type="number" id="edit_qty_diesel" name="requested_qty_diesel" min="0" step="0.01" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire gasoil (GNF)</label>
-                    <input type="number" id="edit_unit_price_diesel" name="unit_price_diesel" min="0" step="0.01" readonly class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire gasoil (GNF) — indicatif</label>
+                    <input type="number" id="edit_unit_price_diesel" min="0" step="0.01" readonly class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
                 </div>
             </div>
             <div class="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé</p>
+                <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé (prix paramètres)</p>
                 <p id="editOrderTotal" class="text-xl font-bold text-blue-800 mt-1">0 GNF</p>
             </div>
             <div>
@@ -365,7 +388,24 @@
                 <p class="text-sm text-red-600">Aucun fournisseur en base. Créez-en un dans Paramétrages &gt; Achats.</p>
                 {% endif %}
             </div>
-            <p class="text-xs text-gray-500">La commande passera en statut <strong>Confirmé</strong>. Le gérant enregistrera ensuite la livraison (quantités, date, camion, chauffeur) depuis la liste des commandes.</p>
+            <div class="space-y-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Quantités confirmées</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-start">
+                    <div class="flex flex-col gap-2 min-w-0">
+                        <label for="confirm_qty_gasoline" class="text-sm font-semibold text-gray-700 flex items-baseline gap-1">
+                            <span class="leading-tight">Essence (L)</span><span class="text-red-500 shrink-0" aria-hidden="true">*</span>
+                        </label>
+                        <input type="number" name="confirm_qty_gasoline" id="confirm_qty_gasoline" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg tabular-nums">
+                    </div>
+                    <div class="flex flex-col gap-2 min-w-0">
+                        <label for="confirm_qty_diesel" class="text-sm font-semibold text-gray-700 flex items-baseline gap-1">
+                            <span class="leading-tight">Gasoil (L)</span><span class="text-red-500 shrink-0" aria-hidden="true">*</span>
+                        </label>
+                        <input type="number" name="confirm_qty_diesel" id="confirm_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg tabular-nums">
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500">Les prix unitaires appliqués seront ceux des paramètres (comme à la création). La commande passera en statut <strong>Confirmé</strong>. Le gérant enregistrera ensuite la livraison depuis la liste des commandes.</p>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelConfirmOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" {% if not suppliers_for_confirm %}disabled{% endif %}>Confirmer</button>
@@ -457,10 +497,10 @@
     const openCreateOrderModal = document.getElementById('openCreateOrderModal');
     const closeCreateOrderModal = document.getElementById('closeCreateOrderModal');
     const cancelCreateOrderModal = document.getElementById('cancelCreateOrderModal');
-    const createQtyGasoline = document.querySelector('#createOrderModal input[name="qty_gasoline"]');
-    const createQtyDiesel = document.querySelector('#createOrderModal input[name="qty_diesel"]');
-    const createPriceGasoline = document.querySelector('#createOrderModal input[name="unit_price_gasoline"]');
-    const createPriceDiesel = document.querySelector('#createOrderModal input[name="unit_price_diesel"]');
+    const createQtyGasoline = document.querySelector('#createOrderModal input[name="requested_qty_gasoline"]');
+    const createQtyDiesel = document.querySelector('#createOrderModal input[name="requested_qty_diesel"]');
+    const createPriceGasoline = document.querySelector('#createOrderModal .create-unit-price-essence');
+    const createPriceDiesel = document.querySelector('#createOrderModal .create-unit-price-diesel');
     const createOrderTotal = document.getElementById('createOrderTotal');
 
     function openOrderModal() {
@@ -571,13 +611,17 @@
         lockBody(false);
     }
 
-    function openConfirmOrderModal(orderUuid, stationName, orderDate) {
+    function openConfirmOrderModal(orderUuid, stationName, orderDate, requestedGasoline, requestedDiesel) {
         if (!confirmOrderModal || !confirmOrderForm) return;
         confirmOrderForm.action = orderConfirmUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
         if (confirmOrderStation) confirmOrderStation.textContent = stationName || '';
         if (confirmOrderDate) confirmOrderDate.textContent = orderDate || '';
         const sel = document.getElementById('confirmOrderSupplier');
         if (sel) sel.value = '';
+        const cqG = document.getElementById('confirm_qty_gasoline');
+        const cqD = document.getElementById('confirm_qty_diesel');
+        if (cqG) cqG.value = requestedGasoline != null && requestedGasoline !== '' ? String(requestedGasoline) : '0';
+        if (cqD) cqD.value = requestedDiesel != null && requestedDiesel !== '' ? String(requestedDiesel) : '0';
         confirmOrderModal.classList.remove('hidden');
         lockBody(true);
     }
@@ -600,8 +644,23 @@
 
     document.querySelectorAll('.js-open-confirm-order').forEach(function(btn) {
         btn.addEventListener('click', function() {
-            openConfirmOrderModal(btn.dataset.orderUuid, btn.dataset.station || '', btn.dataset.orderDate || '');
+            openConfirmOrderModal(
+                btn.dataset.orderUuid,
+                btn.dataset.station || '',
+                btn.dataset.orderDate || '',
+                btn.dataset.requestedQtyGasoline,
+                btn.dataset.requestedQtyDiesel
+            );
         });
+    });
+
+    confirmOrderForm?.addEventListener('submit', function(e) {
+        const g = parseFloat(String(document.getElementById('confirm_qty_gasoline')?.value || '0').replace(',', '.'));
+        const d = parseFloat(String(document.getElementById('confirm_qty_diesel')?.value || '0').replace(',', '.'));
+        if ((Number.isNaN(g) || g <= 0) && (Number.isNaN(d) || d <= 0)) {
+            e.preventDefault();
+            alert('Indiquez au moins une quantité confirmée (essence ou gasoil).');
+        }
     });
     document.querySelectorAll('.js-open-delete-order').forEach(function(btn) {
         btn.addEventListener('click', function() {
