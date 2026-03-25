@@ -1,0 +1,213 @@
+{% extends 'base_authenticated.html' %}
+{% load product_price_extras %}
+
+{% block title %}Prix carburants{% endblock %}
+{% block page_title %}Prix carburants{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-gray-800">Grilles tarifaires</h2>
+            <p class="text-sm text-gray-500">Prix essence et gazoil au litre — devise <span class="font-semibold text-gray-700">GNF</span></p>
+        </div>
+        <button
+            type="button"
+            id="openCreateProductPriceModal"
+            class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center w-full sm:w-auto"
+        >
+            <i class="fas fa-plus mr-2"></i>
+            Nouvelle grille
+        </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Nombre de grilles</p>
+                <p class="text-3xl font-bold text-gray-800 mt-2">{{ prices|length }}</p>
+            </div>
+            <div class="bg-emerald-100 p-4 rounded-full">
+                <i class="fas fa-tags text-3xl text-emerald-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date d'application</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Essence (GNF / L)</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Gazoil (GNF / L)</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for row in prices %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
+                            {{ row.effective_from|date:"d/m/Y" }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900 text-right tabular-nums">
+                            {{ row.price_gasoline|format_gnf }}&nbsp;<span class="text-gray-500 text-xs">GNF</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-900 text-right tabular-nums">
+                            {{ row.price_diesel|format_gnf }}&nbsp;<span class="text-gray-500 text-xs">GNF</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="px-6 py-12 text-center text-gray-500">
+                            Aucune grille de prix enregistrée pour le moment.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="createProductPriceModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-plus-circle mr-2 text-emerald-600"></i>Nouvelle grille de prix
+            </h3>
+            <button type="button" id="closeCreateProductPriceModalBtn" class="text-gray-500 hover:text-gray-700 text-2xl" aria-label="Fermer">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="createProductPriceForm" method="post" action="{% url 'product_price:product_price_list' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Date d'application <span class="text-red-500">*</span></label>
+                <input
+                    id="effectiveFromInput"
+                    type="date"
+                    name="effective_from"
+                    required
+                    min="{{ min_effective_date|date:'Y-m-d' }}"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                >
+                <p class="text-xs text-gray-500 mt-1">Obligatoirement <span class="font-medium text-gray-700">après aujourd'hui</span> — la grille s'applique à partir de cette date (inclus).</p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Prix essence (GNF / L) <span class="text-red-500">*</span></label>
+                <input
+                    id="priceGasolineInput"
+                    type="text"
+                    name="price_gasoline"
+                    required
+                    inputmode="decimal"
+                    autocomplete="off"
+                    placeholder="12 000"
+                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
+                >
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Prix gazoil (GNF / L) <span class="text-red-500">*</span></label>
+                <input
+                    id="priceDieselInput"
+                    type="text"
+                    name="price_diesel"
+                    required
+                    inputmode="decimal"
+                    autocomplete="off"
+                    placeholder="12 000"
+                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
+                >
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" id="cancelCreateProductPriceModalBtn" class="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">
+                    Annuler
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold">
+                    Créer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const modal = document.getElementById('createProductPriceModal');
+    if (!modal) return;
+
+    function tomorrowLocalISO() {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+
+    function openModal() {
+        const dateInput = document.getElementById('effectiveFromInput');
+        if (dateInput) {
+            const minD = tomorrowLocalISO();
+            dateInput.min = minD;
+            if (dateInput.value && dateInput.value < minD) {
+                dateInput.value = '';
+            }
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('openCreateProductPriceModal')?.addEventListener('click', openModal);
+    document.getElementById('closeCreateProductPriceModalBtn')?.addEventListener('click', closeModal);
+    document.getElementById('cancelCreateProductPriceModalBtn')?.addEventListener('click', closeModal);
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeModal();
+    });
+
+    function parseGNFPlain(str) {
+        return String(str || '').replace(/\s/g, '').replace(/\u00a0/g, '').replace(',', '.').trim();
+    }
+
+    function formatGNFDisplay(str) {
+        var plain = parseGNFPlain(str);
+        if (plain === '' || plain === '-') return '';
+        var n = parseFloat(plain);
+        if (isNaN(n)) return String(str);
+        var parts = n.toFixed(2).split('.');
+        var intStr = parts[0];
+        var neg = intStr.indexOf('-') === 0;
+        intStr = intStr.replace('-', '');
+        var grouped = intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        if (neg) grouped = '-' + grouped;
+        if (parts[1] === '00') return grouped;
+        return grouped + ',' + parts[1];
+    }
+
+    document.querySelectorAll('.gnf-price-input').forEach(function(el) {
+        el.addEventListener('blur', function() {
+            var f = formatGNFDisplay(el.value);
+            if (f !== '') el.value = f;
+        });
+    });
+
+    var priceForm = document.getElementById('createProductPriceForm');
+    if (priceForm) {
+        priceForm.addEventListener('submit', function() {
+            priceForm.querySelectorAll('.gnf-price-input').forEach(function(el) {
+                el.value = parseGNFPlain(el.value);
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

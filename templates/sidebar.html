@@ -101,14 +101,14 @@
 
         {% if user.role != 'manager' %}
         <div class="space-y-1">
-            <button type="button" id="parametragesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}bg-gray-800{% elif user.role == 'super_admin' %}bg-gray-800{% endif %}">
+            <button type="button" id="parametragesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or ns == 'product_price' or urln == 'users_list' or urln == 'managers_list' %}bg-gray-800{% elif user.role == 'super_admin' %}bg-gray-800{% endif %}">
                 <span class="flex items-center space-x-3">
                     <i class="fas fa-sliders-h w-5"></i>
                     <span>Paramétrages</span>
                 </span>
-                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}rotate-180{% elif user.role == 'super_admin' %}rotate-180{% endif %}" id="parametragesChevron"></i>
+                <i class="fas fa-chevron-down text-xs transition-transform duration-200 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or ns == 'product_price' or urln == 'users_list' or urln == 'managers_list' %}rotate-180{% elif user.role == 'super_admin' %}rotate-180{% endif %}" id="parametragesChevron"></i>
             </button>
-            <div id="parametragesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}hidden{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'super_admin' %}{% else %}hidden{% endif %}">
+            <div id="parametragesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}hidden{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or ns == 'product_price' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'super_admin' %}{% else %}hidden{% endif %}">
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
                 <div class="space-y-1">
                     <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Réseau et sites</p>
@@ -143,6 +143,13 @@
                     <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
                         <i class="fas fa-wallet w-4"></i>
                         <span>Comptes</span>
+                    </a>
+                </div>
+                <div class="space-y-1">
+                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Tarifs</p>
+                    <a href="{% url 'product_price:product_price_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'product_price' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-gas-pump w-4"></i>
+                        <span>Prix carburants</span>
                     </a>
                 </div>
                 <div class="space-y-1">

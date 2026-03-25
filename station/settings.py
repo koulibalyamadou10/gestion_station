@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'inventory',
     'daily_stock',
     'sale',
+    'product_price',
 ]
 
 MIDDLEWARE = [
