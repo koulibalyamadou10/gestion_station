@@ -221,8 +221,8 @@
 
 {% if can_create_order %}
 <div id="createOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
-        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
             <h3 class="text-lg font-bold text-gray-800">Nouvelle commande</h3>
             <button type="button" id="closeCreateOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>

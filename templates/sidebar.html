@@ -58,9 +58,13 @@
                     </a>
                     {% endif %}
                     {% if user.role == 'admin' %}
-                    <a href="{% url 'inventory:stock_livre' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'inventory' %}bg-blue-600{% endif %}">
+                    <a href="{% url 'inventory:stock_livre' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'stock_livre' %}bg-blue-600{% endif %}">
                         <i class="fas fa-truck-loading w-4"></i>
                         <span>Stock livré</span>
+                    </a>
+                    <a href="{% url 'inventory:compare_profit' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'compare_profit' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-chart-line w-4"></i>
+                        <span>Rentabilité</span>
                     </a>
                     {% endif %}
                     <a href="{% url 'daily_stock:daily_sales' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' %}bg-blue-600{% endif %}">
