@@ -63,6 +63,7 @@ def order_list_view(request):
         notes = request.POST.get("notes", "").strip() or None
         truck_number = (request.POST.get("truck_number") or "").strip() or None
         driver_name = (request.POST.get("driver_name") or "").strip() or None
+        driver_phone = (request.POST.get("driver_phone") or "").strip() or None
         req_g_raw = request.POST.get("requested_qty_gasoline", "0").strip() or "0"
         req_d_raw = request.POST.get("requested_qty_diesel", "0").strip() or "0"
 
@@ -96,6 +97,7 @@ def order_list_view(request):
                     requested_qty_diesel=requested_qty_diesel,
                     truck_number=truck_number,
                     driver_name=driver_name,
+                    driver_phone=driver_phone,
                 )
         except Exception as exc:
             messages.error(request, f"Erreur lors de la création : {exc}")
@@ -384,6 +386,9 @@ def order_confirm_view(request, order_uuid):
         str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0))
     )
 
+    purchase_order_reference = (request.POST.get("purchase_order_reference") or "").strip() or None
+    purchase_order_file = request.FILES.get("purchase_order_file")
+
     with transaction.atomic():
         OrderSupplier.objects.create(
             order=order,
@@ -394,7 +399,12 @@ def order_confirm_view(request, order_uuid):
             unit_price_diesel=unit_price_diesel,
         )
         order.status = Order.STATUS_CONFIRMED
-        order.save(update_fields=["status", "updated_at"])
+        order.purchase_order_reference = purchase_order_reference
+        update_fields = ["status", "purchase_order_reference", "updated_at"]
+        if purchase_order_file:
+            order.purchase_order_file = purchase_order_file
+            update_fields.insert(-1, "purchase_order_file")
+        order.save(update_fields=update_fields)
 
     messages.success(
         request,
@@ -459,6 +469,7 @@ def order_mark_delivered_view(request, order_uuid):
 
     truck_number = (request.POST.get("truck_number") or "").strip() or None
     driver_name = (request.POST.get("driver_name") or "").strip() or None
+    driver_phone = (request.POST.get("driver_phone") or "").strip() or None
     delivery_notes = (request.POST.get("delivery_notes") or "").strip() or None
 
     with transaction.atomic():
@@ -469,6 +480,7 @@ def order_mark_delivered_view(request, order_uuid):
             delivery.delivery_date = delivery_date
             delivery.truck_number = truck_number
             delivery.driver_name = driver_name
+            delivery.driver_phone = driver_phone
             delivery.delivery_notes = delivery_notes
             delivery.save(
                 update_fields=[
@@ -477,6 +489,7 @@ def order_mark_delivered_view(request, order_uuid):
                     "delivery_date",
                     "truck_number",
                     "driver_name",
+                    "driver_phone",
                     "delivery_notes",
                     "updated_at",
                 ]
@@ -489,6 +502,7 @@ def order_mark_delivered_view(request, order_uuid):
                 delivery_date=delivery_date,
                 truck_number=truck_number,
                 driver_name=driver_name,
+                driver_phone=driver_phone,
                 delivery_notes=delivery_notes,
             )
         order.status = Order.STATUS_DELIVERED

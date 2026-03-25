@@ -11,6 +11,8 @@ class Delivery(models.Model):
     
     truck_number = models.CharField(max_length=50, null=True, blank=True)
     driver_name = models.CharField(max_length=100, null=True, blank=True)
+    driver_phone = models.CharField(max_length=100, null=True, blank=True)
+
     
     delivery_notes = models.CharField(max_length=255, null=True, blank=True)
     

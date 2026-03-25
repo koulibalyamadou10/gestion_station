@@ -141,6 +141,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # models user
 AUTH_USER_MODEL = 'account.CustomUser'
 
