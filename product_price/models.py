@@ -1,11 +1,11 @@
 from django.db import models
-
+import uuid
 
 class ProductPrice(models.Model):
     """
     Grille tarifaire : prix essence / gazoil valables à partir d'une date donnée.
     """
-
+    uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     effective_from = models.DateField(
         unique=True,
         verbose_name="Date d'application",

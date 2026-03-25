@@ -4,11 +4,20 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from product_price.models import ProductPrice
+
+
+def _product_price_in_effect_for_date(today):
+    """Grille appliquée aujourd’hui : plus récente parmi celles avec effective_from ≤ today."""
+    return (
+        ProductPrice.objects.filter(effective_from__lte=today)
+        .order_by("-effective_from")
+        .first()
+    )
 
 
 def _normalize_decimal_input(raw):
@@ -68,10 +77,38 @@ def product_price_list_view(request):
             )
         return redirect("product_price:product_price_list")
 
+    today = timezone.now().date()
     prices = ProductPrice.objects.all()
-    min_effective_date = timezone.now().date() + timedelta(days=1)
+    active = _product_price_in_effect_for_date(today)
+    min_effective_date = today + timedelta(days=1)
     context = {
         "prices": prices,
+        "today": today,
         "min_effective_date": min_effective_date,
+        "active_product_price_uuid": active.uuid if active else None,
     }
     return render(request, "product_price_content.html", context)
+
+
+@login_required
+def delete_product_price_view(request, uuid):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:dashboard")
+
+    if request.method != "POST":
+        return redirect("product_price:product_price_list")
+
+    obj = get_object_or_404(ProductPrice, uuid=uuid)
+    today = timezone.now().date()
+    active = _product_price_in_effect_for_date(today)
+    if active and active.uuid == obj.uuid:
+        messages.error(
+            request,
+            "Impossible de supprimer la grille actuellement en vigueur (prix utilisés pour les ventes).",
+        )
+        return redirect("product_price:product_price_list")
+
+    obj.delete()
+    messages.success(request, "La grille de prix a été supprimée.")
+    return redirect("product_price:product_price_list")
