@@ -15,7 +15,6 @@ from employee.models import Employee
 from inventory.models import Inventory
 from stations.models import Station, StationManager
 from wallet.models import Account
-from daily_stock.models import DailyStock
 from permissions_web import manager_required
 
 
@@ -110,32 +109,6 @@ def _create_sale_from_reading(reading, recorded_by):
         total_amount=total_amount,
         recorded_by=recorded_by,
     )
-
-
-def _trace_daily_stock_from_sale(sale, recorded_by):
-    """
-    Cumule les volumes essence / gazoil vendus dans DailyStock (par station et date).
-    Un enregistrement par (station, stock_date) : les qtés = cumul des litres vendus ce jour-là.
-    """
-    inc_gas = sale.qty_gasoline or Decimal("0")
-    inc_die = sale.qty_diesel or Decimal("0")
-    if inc_gas == 0 and inc_die == 0:
-        return
-
-    ds, created = DailyStock.objects.get_or_create(
-        station=sale.station,
-        stock_date=sale.sale_date,
-        defaults={
-            "recorded_by": recorded_by,
-            "qty_gasoline": inc_gas,
-            "qty_diesel": inc_die,
-        },
-    )
-    if not created:
-        ds.qty_gasoline = (ds.qty_gasoline or Decimal("0")) + inc_gas
-        ds.qty_diesel = (ds.qty_diesel or Decimal("0")) + inc_die
-        ds.recorded_by = recorded_by
-        ds.save(update_fields=["qty_gasoline", "qty_diesel", "recorded_by", "updated_at"])
 
 
 def _record_inventory_out_and_decrease_station_stock(sale):
@@ -704,7 +677,6 @@ def create_reading_view(request, pump_uuid):
                             reading_date=today,
                         )
                         sale = _create_sale_from_reading(reading, request.user)
-                        _trace_daily_stock_from_sale(sale, request.user)
                         _record_inventory_out_and_decrease_station_stock(sale)
                         total_amount = sale.total_amount or Decimal("0")
 
@@ -1000,7 +972,6 @@ def bulk_pump_reading_view(request):
                         reading_date=today,
                     )
                     sale = _create_sale_from_reading(reading, request.user)
-                    _trace_daily_stock_from_sale(sale, request.user)
                     _record_inventory_out_and_decrease_station_stock(sale)
 
                 for wallet_uuid, amount in allocations_by_uuid.items():
