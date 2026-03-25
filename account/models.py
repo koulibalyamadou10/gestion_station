@@ -35,6 +35,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(blank=True,null=True, error_messages={
         'invalid': _("Veuillez entrer un mail valide"),
     }, unique=True)
+    username = models.CharField(
+        max_length=150,
+        unique=True,
+        blank=True,
+        null=True,
+        help_text=_("Identifiant unique (affichage / référence)."),
+    )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="admin")
     phone_number = models.CharField(max_length=9,blank=False,null=False)
     phone_code = models.CharField(max_length=9, blank=False, null=False)
@@ -49,7 +56,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     objects = CustomUserManager()
 
-    USERNAME_FIELD = 'email'
+    USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = []
 
     def full_name(self):

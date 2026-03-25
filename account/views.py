@@ -4,11 +4,48 @@ from django.contrib import messages
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.utils.text import slugify
 from account.models import CustomUser
 from permissions_web import super_admin_required, admin_required
+import re
 import secrets
 import string
 from employee.models import Employee
+
+_USERNAME_PATTERN = re.compile(r"^[\w.-]+$", re.UNICODE)
+
+
+def _allocate_unique_username(base: str) -> str:
+    base = (base or "").strip()[:80] or "gerant"
+    candidate = base
+    n = 0
+    while CustomUser.objects.filter(username__iexact=candidate).exists():
+        n += 1
+        candidate = f"{base}{n}"
+    return candidate
+
+
+def _resolve_manager_username(post, first_name, last_name, email, errors):
+    """
+    Nom d'utilisateur saisi (unique) ou généré à partir de l'email / nom.
+    """
+    raw = (post.get("username") or "").strip()
+    if raw:
+        if len(raw) < 3 or len(raw) > 150:
+            errors.append("Le nom d'utilisateur doit contenir entre 3 et 150 caractères.")
+            return None
+        if not _USERNAME_PATTERN.match(raw):
+            errors.append(
+                "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, points, tirets et underscores."
+            )
+            return None
+        if CustomUser.objects.filter(username__iexact=raw).exists():
+            errors.append("Ce nom d'utilisateur est déjà utilisé.")
+            return None
+        return raw
+    local = (email or "").split("@")[0].strip()
+    base = slugify(local) or slugify(f"{first_name}-{last_name}") or "gerant"
+    return _allocate_unique_username(base)
 
 @csrf_protect
 def login_view(request):
@@ -264,6 +301,7 @@ def managers_list_view(request):
             Q(first_name__icontains=search_query) |
             Q(last_name__icontains=search_query) |
             Q(email__icontains=search_query) |
+            Q(username__icontains=search_query) |
             Q(phone_number__icontains=search_query)
         )
     
@@ -340,6 +378,10 @@ def create_manager_view(request):
         
         if not phone_code or not phone_number:
             errors.append('Le code et le numéro de téléphone sont requis.')
+
+        resolved_username = _resolve_manager_username(
+            request.POST, first_name, last_name, email, errors
+        )
         
         if errors:
             for error in errors:
@@ -361,6 +403,7 @@ def create_manager_view(request):
                     password=generated_password,
                     first_name=first_name,
                     last_name=last_name,
+                    username=resolved_username,
                     phone_code=phone_code,
                     phone_number=phone_number,
                     role='manager',  # Forcé à manager
