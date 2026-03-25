@@ -66,10 +66,12 @@
                         <i class="fas fa-truck-loading w-4"></i>
                         <span>Réception</span>
                     </a>
+                    {% endif %}
                     <a href="{% url 'daily_stock:daily_sales' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' %}bg-blue-600{% endif %}">
                         <i class="fas fa-calendar-day w-4"></i>
                         <span>Stock</span>
                     </a>
+                    {% if user.role == 'admin' or user.role == 'super_admin' %}
                     <a href="{% url 'inventory:compare_profit' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'compare_profit' %}bg-blue-600{% endif %}">
                         <i class="fas fa-clipboard-check w-4"></i>
                         <span>Contrôle stock</span>
