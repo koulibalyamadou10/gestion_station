@@ -20,13 +20,13 @@
         <p class="text-xs uppercase text-gray-500">Statut</p>
         <p class="text-xl font-bold mt-2">
             {% if order.status == 'pending' %}
-                <span class="text-yellow-700">Pending</span>
+                <span class="text-yellow-700">En attente</span>
             {% elif order.status == 'confirmed' %}
-                <span class="text-blue-700">Confirmed</span>
+                <span class="text-blue-700">Confirmée</span>
             {% elif order.status == 'delivered' %}
-                <span class="text-green-700">Delivered</span>
+                <span class="text-green-700">Livrée</span>
             {% else %}
-                <span class="text-red-700">Cancelled</span>
+                <span class="text-red-700">Annulée</span>
             {% endif %}
         </p>
     </div>
@@ -82,7 +82,9 @@
         <p class="text-xs uppercase text-gray-500 mb-3">Livraison du {{ d.delivery_date|date:"d/m/Y" }}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div><span class="text-gray-500">Quantité livrée essence :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_gasoline|money_fr }}</span></div>
+            <div><span class="text-gray-500">Prix unitaire essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_fr }} GNF</span></div>
             <div><span class="text-gray-500">Quantité livrée gasoil :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_diesel|money_fr }}</span></div>
+            <div><span class="text-gray-500">Prix unitaire gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_fr }} GNF</span></div>
             <div><span class="text-gray-500">Camion :</span> <span class="font-semibold text-gray-800">{{ d.truck_number|default:"—" }}</span></div>
             <div><span class="text-gray-500">Chauffeur :</span> <span class="font-semibold text-gray-800">{{ d.driver_name|default:"—" }}</span></div>
             <div class="md:col-span-2"><span class="text-gray-500">Réf. / bon :</span> <span class="font-semibold text-gray-800">{{ d.delivery_notes|default:"—" }}</span></div>

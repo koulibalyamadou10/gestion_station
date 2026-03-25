@@ -108,7 +108,7 @@
                     <span class="ml-2 text-sm font-normal text-gray-500">({{ station_pumps_total }} résultat{{ station_pumps_total|pluralize }})</span>
                 </h3>
                 <div class="flex flex-wrap items-center gap-2 justify-end">
-                    {% if can_record_pump_readings %}
+                    {% if can_record_pump_readings and user.role != 'admin' %}
                     <a
                         href="{% url 'pumps:bulk_pump_reading' %}?station_uuid={{ station.station_uuid }}"
                         class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center shadow"
@@ -199,7 +199,7 @@
                                     <a href="{% url 'pumps:pump_detail' pump.pump_uuid %}" class="text-blue-600 hover:text-blue-800 transition-colors" title="Détails">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    {% if can_record_pump_readings %}
+                                    {% if can_record_pump_readings and user.role != 'admin' %}
                                     <button
                                         type="button"
                                         class="text-green-600 hover:text-green-800 transition-colors"

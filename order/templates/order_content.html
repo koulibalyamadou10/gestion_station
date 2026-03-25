@@ -62,13 +62,13 @@
         <table class="w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
                     {% if show_station_column %}
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
                     {% endif %}
-                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">Volumes &amp; prix</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Statut</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
                     <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase min-w-[10rem]">Actions</th>
                 </tr>
             </thead>
@@ -77,24 +77,9 @@
                     {% for order in orders %}
                     {% with line=order.order_suppliers.first %}
                     <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-4 py-3 text-sm text-gray-900 align-top">
-                            <div class="font-medium">{{ order.order_date|date:"d/m/Y" }}</div>
-                            <div class="text-[11px] text-gray-400 mt-0.5">Créée {{ order.created_at|date:"d/m/y H:i" }}</div>
-                        </td>
                         {% if show_station_column %}
                         <td class="px-4 py-3 text-sm text-gray-900 align-top max-w-[8rem] truncate" title="{{ order.station.name }}">{{ order.station.name }}</td>
                         {% endif %}
-                        <td class="px-4 py-3 text-sm align-top">
-                            {% if order.status == 'pending' %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800 font-semibold">Pending</span>
-                            {% elif order.status == 'confirmed' %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 font-semibold">Confirmed</span>
-                            {% elif order.status == 'delivered' %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-semibold">Delivered</span>
-                            {% else %}
-                                <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 font-semibold">Cancelled</span>
-                            {% endif %}
-                        </td>
                         <td class="px-4 py-3 align-top">
                             {% if line %}
                             <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5 space-y-2 w-max max-w-[16rem]">
@@ -128,7 +113,22 @@
                             <span class="text-gray-400 text-sm">—</span>
                             {% endif %}
                         </td>
+                        <td class="px-4 py-3 text-sm align-top">
+                            {% if order.status == 'pending' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800 font-semibold">En attente</span>
+                            {% elif order.status == 'confirmed' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 font-semibold">Confirmée</span>
+                            {% elif order.status == 'delivered' %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-semibold">Livrée</span>
+                            {% else %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 font-semibold">Annulée</span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3 text-xs text-gray-600 align-top max-w-[10rem] truncate" title="{{ order.notes|default:'' }}">{{ order.notes|default:"—" }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900 align-top">
+                            <div class="font-medium">{{ order.order_date|date:"d/m/Y" }}</div>
+                            <div class="text-[11px] text-gray-400 mt-0.5">Créée {{ order.created_at|date:"d/m/y H:i" }}</div>
+                        </td>
                         <td class="px-4 py-3 text-sm align-top">
                             <div class="flex flex-wrap items-center justify-center gap-2">
                                 <a href="{% url 'order:order_detail' order.order_uuid %}" class="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Voir détail">
@@ -279,7 +279,7 @@
 <div id="editOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-lg font-bold text-gray-800">Modifier commande (Pending)</h3>
+            <h3 class="text-lg font-bold text-gray-800">Modifier commande (En attente)</h3>
             <button type="button" id="closeEditOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
         <form id="editOrderForm" method="POST" action="{% url 'order:update_order_quantities' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">

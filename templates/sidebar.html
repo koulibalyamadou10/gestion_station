@@ -51,9 +51,15 @@
                 {% if user.role == 'admin' or user.role == 'manager' %}
                 <div class="space-y-1">
                     <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Exploitation</p>
+                    {% if user.role == 'manager' %}
                     <a href="{% url 'pumps:bulk_pump_reading' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'bulk_pump_reading' %}bg-blue-600{% endif %}">
                         <i class="fas fa-boxes w-4"></i>
                         <span>Stock</span>
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'daily_stock:daily_sales' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-calendar-day w-4"></i>
+                        <span>Ventes journalières</span>
                     </a>
                     <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'deposit' %}bg-blue-600{% endif %}">
                         <i class="fas fa-arrow-up w-4"></i>

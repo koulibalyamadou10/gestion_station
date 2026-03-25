@@ -1,0 +1,117 @@
+{% extends 'base_authenticated.html' %}
+{% load money_extras %}
+
+{% block title %}Ventes journalières{% endblock %}
+{% block page_title %}Ventes journalières{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+        <p class="text-sm text-gray-600">Nombre de ventes</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_sales }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <p class="text-sm text-gray-600">Montant total</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_amount|money_fr }} GNF</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+        <p class="text-sm text-gray-600">Qté Essence / Diesel</p>
+        <p class="text-lg font-bold text-gray-800 mt-2">{{ total_gasoline|money_fr }} / {{ total_diesel|money_fr }}</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <form method="GET" class="grid grid-cols-1 {% if show_station_filter %}md:grid-cols-6{% else %}md:grid-cols-5{% endif %} gap-4">
+        <input
+            type="text"
+            name="search"
+            value="{{ search_query }}"
+            placeholder="Station..."
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+        >
+
+        {% if show_station_filter %}
+        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="">Toutes les stations</option>
+            {% for station in stations %}
+                <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>
+                    {{ station.name }}
+                </option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <input type="date" name="date_from" value="{{ date_from }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Date début">
+        <input type="date" name="date_to" value="{{ date_to }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Date fin">
+
+        <select name="sort" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>Date (récent → ancien)</option>
+            <option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>Date (ancien → récent)</option>
+            <option value="amount_desc" {% if sort == 'amount_desc' %}selected{% endif %}>Montant (↓)</option>
+            <option value="amount_asc" {% if sort == 'amount_asc' %}selected{% endif %}>Montant (↑)</option>
+            <option value="station_asc" {% if sort == 'station_asc' %}selected{% endif %}>Station (A → Z)</option>
+            <option value="station_desc" {% if sort == 'station_desc' %}selected{% endif %}>Station (Z → A)</option>
+        </select>
+
+        <div class="flex gap-2">
+            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
+            <a href="{% url 'daily_stock:daily_sales' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Nb ventes</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté Essence</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté Gazoil</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Montant total</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% if rows %}
+                    {% for row in rows %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ row.station__name }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ row.day_sales_count }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ row.day_gasoline|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ row.day_diesel|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm font-semibold text-blue-700 tabular-nums">{{ row.day_amount|money_fr }} GNF</td>
+                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ row.sale_date|date:"d/m/Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">Aucune vente trouvée.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="mt-6 flex items-center justify-between">
+    <p class="text-sm text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+            <a class="px-3 py-1 rounded border border-gray-300"
+               href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                Précédent
+            </a>
+        {% endif %}
+        {% if page_obj.has_next %}
+            <a class="px-3 py-1 rounded border border-gray-300"
+               href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                Suivant
+            </a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
