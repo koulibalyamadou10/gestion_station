@@ -165,7 +165,7 @@
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                                 {% endif %}
-                                {% if can_edit_order_quantities and order.status == 'pending' %}
+                                {% if request.user.role == 'manager' and order.status == 'pending' %}
                                 <button
                                     type="button"
                                     class="p-1.5 rounded-lg text-yellow-600 hover:bg-yellow-50 transition-colors"
@@ -231,12 +231,12 @@
 
 {% if can_create_order %}
 <div id="createOrderModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
             <h3 class="text-lg font-bold text-gray-800">Nouvelle commande</h3>
             <button type="button" id="closeCreateOrderModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
-        <form method="POST" action="{% url 'order:order_list' %}" class="p-6 space-y-4">
+        <form method="POST" action="{% url 'order:order_list' %}" class="p-6 space-y-6">
             {% csrf_token %}
             {% if manager_station %}
             <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
@@ -244,54 +244,73 @@
                 <p class="text-sm font-bold text-gray-900">{{ manager_station.name }}</p>
             </div>
             {% endif %}
+
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Date de commande <span class="text-red-500">*</span></label>
-                <input type="date" name="order_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Commande</p>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Date <span class="text-red-500">*</span></label>
+                <input type="date" name="order_date" required class="w-full max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg">
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — essence (L) <span class="text-red-500">*</span></label>
-                    <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire essence (GNF) — indicatif</label>
-                    <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_essence }}" class="create-unit-price-essence w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité demandée — gasoil (L) <span class="text-red-500">*</span></label>
-                    <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix unitaire gasoil (GNF) — indicatif</label>
-                    <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_diesel }}" class="create-unit-price-diesel w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600">
-                </div>
-            </div>
-            <div class="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3">
-                <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé (prix paramètres)</p>
-                <p id="createOrderTotal" class="text-xl font-bold text-blue-800 mt-1">0 GNF</p>
-            </div>
+
             <div>
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transport</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Carburant demandé</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 text-amber-800"><i class="fas fa-tint text-sm"></i></span>
+                            <span class="text-sm font-bold text-gray-900">Essence</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
+                            <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix / L (GNF) — indicatif</label>
+                            <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_essence }}" class="create-unit-price-essence w-full px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 tabular-nums">
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-slate-300 bg-slate-50/80 p-4 space-y-3">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-200 text-slate-800"><i class="fas fa-tint text-sm"></i></span>
+                            <span class="text-sm font-bold text-gray-900">Gasoil</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
+                            <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix / L (GNF) — indicatif</label>
+                            <input type="number" readonly min="0" step="0.01" value="{{ default_order_price_diesel }}" class="create-unit-price-diesel w-full px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-700 tabular-nums">
+                        </div>
+                    </div>
+                </div>
+                <div class="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 mt-4">
+                    <p class="text-xs font-semibold text-blue-600 uppercase">Total estimé (prix paramètres)</p>
+                    <p id="createOrderTotal" class="text-xl font-bold text-blue-800 mt-1 tabular-nums">0 GNF</p>
+                </div>
+            </div>
+
+            <div>
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Transport</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">N° camion</label>
-                        <input type="text" name="truck_number" maxlength="50" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex. AB-123-CD">
+                        <input type="text" name="truck_number" maxlength="50" autocomplete="off" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg" placeholder="Ex. AB-123-CD">
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Chauffeur</label>
-                        <input type="text" name="driver_name" maxlength="100" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Nom du chauffeur">
+                        <input type="text" name="driver_name" maxlength="100" autocomplete="name" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg" placeholder="Nom du chauffeur">
                     </div>
                 </div>
             </div>
+
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                <textarea name="notes" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Détail optionnel"></textarea>
+                <textarea name="notes" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg resize-y min-h-[5rem]" placeholder="Détail optionnel"></textarea>
             </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button type="button" id="cancelCreateOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" id="cancelCreateOrderModal" class="px-4 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50">Annuler</button>
+                <button type="submit" class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Enregistrer</button>
             </div>
         </form>
     </div>
