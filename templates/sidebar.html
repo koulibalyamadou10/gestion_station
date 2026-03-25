@@ -52,10 +52,10 @@
                 <div class="space-y-1">
                     <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Exploitation</p>
                     {% if user.role == 'manager' %}
-                    <a href="{% url 'pumps:pumps_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'pumps' and urln != 'bulk_pump_reading' %}bg-blue-600{% endif %}">
+                    <!-- <a href="{% url 'pumps:pumps_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'pumps' and urln != 'bulk_pump_reading' %}bg-blue-600{% endif %}">
                         <i class="fas fa-gas-pump w-4"></i>
                         <span>Pompes</span>
-                    </a>
+                    </a> -->
                     <a href="{% url 'pumps:bulk_pump_reading' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'bulk_pump_reading' %}bg-blue-600{% endif %}">
                         <i class="fas fa-boxes w-4"></i>
                         <span>Lectures pompes</span>
