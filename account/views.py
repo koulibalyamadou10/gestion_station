@@ -56,27 +56,40 @@ def login_view(request):
         return redirect('account:dashboard')
     
     if request.method == 'POST':
-        email = request.POST.get('email')
         password = request.POST.get('password')
-        
-        if not email or not password:
-            messages.error(request, 'Veuillez remplir tous les champs.')
-            return render(request, 'account/login.html')
-        
-        # Authentification avec email (USERNAME_FIELD)
-        user = authenticate(request, username=email, password=password)
-        
+        login_mode = (request.POST.get('login_mode') or 'email').strip()
+        print(login_mode)
+        print(request.POST.get('username'))
+        print(request.POST.get('email'))
+        print(request.POST.get('password'))
+        print(request.POST.get('login_mode'))
+        if login_mode == 'username':
+            raw_username = (request.POST.get('username') or '').strip()
+            if not raw_username or not password:
+                messages.error(request, 'Veuillez remplir tous les champs.')
+                return render(request, 'account/login.html')
+            user_row = CustomUser.objects.filter(username__iexact=raw_username).only('email').first()
+            if user_row is None:
+                messages.error(request, 'Nom d’utilisateur ou mot de passe incorrect.')
+                return render(request, 'account/login.html')
+            user = authenticate(request, username=user_row.email, password=password)
+        else:
+            email = (request.POST.get('email') or '').strip()
+            if not email or not password:
+                messages.error(request, 'Veuillez remplir tous les champs.')
+                return render(request, 'account/login.html')
+            user = authenticate(request, username=email, password=password)
+
         if user is not None:
             if user.is_active:
                 login(request, user)
                 messages.success(request, f'Bienvenue {user.get_full_name()} !')
-                # Redirection vers le dashboard
                 next_url = request.GET.get('next', 'account:dashboard')
                 return redirect(next_url)
             else:
                 messages.error(request, 'Votre compte est désactivé.')
         else:
-            messages.error(request, 'Email ou mot de passe incorrect.')
+            messages.error(request, 'Identifiant ou mot de passe incorrect.')
     
     return render(request, 'account/login.html')
 

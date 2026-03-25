@@ -47,11 +47,36 @@
             </div>
 
             <!-- Formulaire de connexion -->
-            <form method="POST" action="{% url 'account:login' %}" class="space-y-6">
+            <form method="POST" action="{% url 'account:login' %}" class="space-y-6" id="loginForm">
                 {% csrf_token %}
-                
+                <input type="hidden" name="login_mode" id="login_mode" value="email">
+
+                <!-- Onglets Email / Nom d'utilisateur -->
+                <div class="flex rounded-lg bg-gray-100 p-1 gap-1" role="tablist" aria-label="Mode de connexion">
+                    <button
+                        type="button"
+                        role="tab"
+                        id="tabBtnEmail"
+                        aria-selected="true"
+                        aria-controls="panelEmail"
+                        class="flex-1 py-2.5 px-3 text-sm font-semibold rounded-md transition-colors bg-white text-blue-600 shadow-sm"
+                    >
+                        <i class="fas fa-envelope mr-1.5"></i>Email
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        id="tabBtnUsername"
+                        aria-selected="false"
+                        aria-controls="panelUsername"
+                        class="flex-1 py-2.5 px-3 text-sm font-semibold rounded-md transition-colors text-gray-600 hover:text-gray-800"
+                    >
+                        <i class="fas fa-user mr-1.5"></i>Nom d'utilisateur
+                    </button>
+                </div>
+
                 <!-- Champ Email -->
-                <div>
+                <div id="panelEmail" role="tabpanel" aria-labelledby="tabBtnEmail">
                     <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">
                         <i class="fas fa-envelope mr-2 text-blue-600"></i>Adresse email
                     </label>
@@ -61,8 +86,24 @@
                         name="email" 
                         required
                         autofocus
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                        class="login-identifier w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                         placeholder="votre@email.com"
+                        autocomplete="email"
+                    >
+                </div>
+
+                <!-- Champ nom d'utilisateur -->
+                <div id="panelUsername" role="tabpanel" aria-labelledby="tabBtnUsername" class="hidden">
+                    <label for="username" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-user mr-2 text-blue-600"></i>Nom d'utilisateur
+                    </label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        class="login-identifier w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                        placeholder="Votre identifiant"
+                        autocomplete="username"
                     >
                 </div>
 
@@ -125,6 +166,54 @@
 
 {% block extra_js %}
 <script>
+    (function () {
+        const loginModeInput = document.getElementById('login_mode');
+        const tabBtnEmail = document.getElementById('tabBtnEmail');
+        const tabBtnUsername = document.getElementById('tabBtnUsername');
+        const panelEmail = document.getElementById('panelEmail');
+        const panelUsername = document.getElementById('panelUsername');
+        const emailInput = document.getElementById('email');
+        const usernameInput = document.getElementById('username');
+
+        const activeTabClasses = 'flex-1 py-2.5 px-3 text-sm font-semibold rounded-md transition-colors bg-white text-blue-600 shadow-sm';
+        const inactiveTabClasses = 'flex-1 py-2.5 px-3 text-sm font-semibold rounded-md transition-colors text-gray-600 hover:text-gray-800';
+
+        function setMode(mode) {
+            const isEmail = mode === 'email';
+            loginModeInput.value = mode;
+
+            panelEmail.classList.toggle('hidden', !isEmail);
+            panelUsername.classList.toggle('hidden', isEmail);
+
+            tabBtnEmail.setAttribute('aria-selected', isEmail);
+            tabBtnUsername.setAttribute('aria-selected', !isEmail);
+            tabBtnEmail.className = isEmail ? activeTabClasses : inactiveTabClasses;
+            tabBtnUsername.className = !isEmail ? activeTabClasses : inactiveTabClasses;
+
+            if (isEmail) {
+                emailInput.removeAttribute('disabled');
+                emailInput.setAttribute('required', '');
+                usernameInput.removeAttribute('required');
+                usernameInput.setAttribute('disabled', '');
+                usernameInput.value = '';
+                setTimeout(function () { emailInput.focus(); }, 0);
+            } else {
+                usernameInput.removeAttribute('disabled');
+                usernameInput.setAttribute('required', '');
+                emailInput.removeAttribute('required');
+                emailInput.setAttribute('disabled', '');
+                emailInput.value = '';
+                setTimeout(function () { usernameInput.focus(); }, 0);
+            }
+        }
+
+        tabBtnEmail.addEventListener('click', function () { setMode('email'); });
+        tabBtnUsername.addEventListener('click', function () { setMode('username'); });
+
+        // Démarrage : onglet email (champ username désactivé pour ne pas envoyer de valeur vide ambiguë)
+        usernameInput.setAttribute('disabled', '');
+    })();
+
     // Toggle password visibility
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
