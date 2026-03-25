@@ -8,10 +8,11 @@ import uuid
 # Create your models here.
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('You did not enter a valid email address.')
+        if email:
+            email = self.normalize_email(email)
+        else:
+            email = None
 
-        email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -32,9 +33,14 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True, unique=True, editable=False)
     first_name = models.CharField(max_length=50,blank=False,null=False )
     last_name = models.CharField(max_length=50,blank=False, null=False)
-    email = models.EmailField(blank=True,null=True, error_messages={
-        'invalid': _("Veuillez entrer un mail valide"),
-    }, unique=True)
+    email = models.EmailField(
+        blank=True,
+        null=True,
+        error_messages={
+            'invalid': _("Veuillez entrer un mail valide"),
+        },
+        unique=True,
+    )
     username = models.CharField(
         max_length=150,
         unique=True,
@@ -82,6 +88,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         Returns:
             bool: True si l'email a été envoyé avec succès, False sinon
         """
+        if not self.email:
+            return False
         try:
             subject = 'Bienvenue sur Station Manager - Vos identifiants de connexion'
             

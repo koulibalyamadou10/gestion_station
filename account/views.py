@@ -58,21 +58,21 @@ def login_view(request):
     if request.method == 'POST':
         password = request.POST.get('password')
         login_mode = (request.POST.get('login_mode') or 'email').strip()
-        print(login_mode)
-        print(request.POST.get('username'))
-        print(request.POST.get('email'))
-        print(request.POST.get('password'))
-        print(request.POST.get('login_mode'))
+
         if login_mode == 'username':
             raw_username = (request.POST.get('username') or '').strip()
             if not raw_username or not password:
                 messages.error(request, 'Veuillez remplir tous les champs.')
                 return render(request, 'account/login.html')
-            user_row = CustomUser.objects.filter(username__iexact=raw_username).only('email').first()
+            user_row = CustomUser.objects.filter(username__iexact=raw_username).first()
             if user_row is None:
                 messages.error(request, 'Nom d’utilisateur ou mot de passe incorrect.')
                 return render(request, 'account/login.html')
-            user = authenticate(request, username=user_row.email, password=password)
+            # Sans email, authenticate(username=…) ne peut pas fonctionner (USERNAME_FIELD = email).
+            if user_row.email:
+                user = authenticate(request, username=user_row.email, password=password)
+            else:
+                user = user_row if user_row.check_password(password) else None
         else:
             email = (request.POST.get('email') or '').strip()
             if not email or not password:
@@ -361,7 +361,9 @@ def create_manager_view(request):
     if request.method == 'POST':
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
-        email = request.POST.get('email')
+        email = (request.POST.get('email') or '').strip() or None
+        if email:
+            email = CustomUser.objects.normalize_email(email)
         phone_code = request.POST.get('phone_code')
         phone_number = request.POST.get('phone_number')
         station_id = (request.POST.get('station_id') or '').strip()
@@ -384,9 +386,7 @@ def create_manager_view(request):
         if not first_name or not last_name:
             errors.append('Le prénom et le nom sont requis.')
         
-        if not email:
-            errors.append('L\'email est requis.')
-        elif CustomUser.objects.filter(email=email).exists():
+        if email and CustomUser.objects.filter(email=email).exists():
             errors.append('Cet email est déjà utilisé.')
         
         if not phone_code or not phone_number:
@@ -444,20 +444,25 @@ def create_manager_view(request):
                         defaults={'manager': manager},
                     )
                 
-                # Envoyer l'email avec le mot de passe via la méthode du modèle
                 login_url = request.build_absolute_uri('/login/')
-                email_sent = manager.send_credentials_email(generated_password, login_url)
-                
-                if email_sent:
-                    messages.success(
-                        request, 
-                        f'Gérant {manager.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {manager.email}.'
-                    )
+                if manager.email:
+                    email_sent = manager.send_credentials_email(generated_password, login_url)
+                    if email_sent:
+                        messages.success(
+                            request,
+                            f'Gérant {manager.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {manager.email}.',
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            f'Gérant {manager.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
+                            f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).',
+                        )
                 else:
-                    messages.warning(
-                        request, 
-                        f'Gérant {manager.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
-                        f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
+                    messages.success(
+                        request,
+                        f'Gérant {manager.get_full_name()} créé (sans email). Nom d’utilisateur : {manager.username}. '
+                        f'Mot de passe à communiquer manuellement : {generated_password}',
                     )
                 
                 return redirect('account:managers_list')
