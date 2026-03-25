@@ -47,6 +47,40 @@ def _quantity_sold_for_reading(reading):
     return qty if qty > 0 else Decimal("0")
 
 
+def _qty_gas_diesel_for_pump_delta(pump, previous_current_index, new_current_index):
+    """Litres essence / gazoil vendus pour un écart d'index sur cette pompe (nom = essence ou gazoil)."""
+    qty = new_current_index - previous_current_index
+    if qty < 0:
+        qty = Decimal("0")
+    pump_name = (pump.name or "").lower()
+    is_essence = "essence" in pump_name
+    if is_essence:
+        return qty, Decimal("0")
+    return Decimal("0"), qty
+
+
+def _station_has_stock_for_sale(station, qty_gasoline, qty_diesel, scope_label="cette opération"):
+    """
+    Vérifie stock_gasoline / stock_diesel sur la station (cuves) avant enregistrement d'une vente.
+    Retourne (True, None) ou (False, message d'erreur).
+    """
+    g = station.stock_gasoline or Decimal("0")
+    d = station.stock_diesel or Decimal("0")
+    qg = qty_gasoline or Decimal("0")
+    qd = qty_diesel or Decimal("0")
+    if qg > 0 and g < qg:
+        return False, (
+            f"Stock essence insuffisant : {g.quantize(Decimal('0.01'))} L en cuve, "
+            f"{qg.quantize(Decimal('0.01'))} L requis pour {scope_label}."
+        )
+    if qd > 0 and d < qd:
+        return False, (
+            f"Stock gazoil insuffisant : {d.quantize(Decimal('0.01'))} L en cuve, "
+            f"{qd.quantize(Decimal('0.01'))} L requis pour {scope_label}."
+        )
+    return True, None
+
+
 def _create_sale_from_reading(reading, recorded_by):
     """
     Crée automatiquement une vente à partir d'une lecture de pompe.
@@ -650,89 +684,111 @@ def create_reading_view(request, pump_uuid):
                     )
                     return redirect('pumps:pumps_list')
 
-                with transaction.atomic():
-                    # Créer la lecture
-                    reading = PumpReading.objects.create(
-                        pump=pump,
-                        employee=employee,
-                        current_index=current_index_decimal,
-                        reading_date=today,
-                    )
-                    sale = _create_sale_from_reading(reading, request.user)
-                    _trace_daily_stock_from_sale(sale, request.user)
-                    _record_inventory_out_and_decrease_station_stock(sale)
-                    total_amount = sale.total_amount or Decimal("0")
+                qg_need, qd_need = _qty_gas_diesel_for_pump_delta(
+                    pump, previous_current, current_index_decimal
+                )
 
-                    allocations = []
-                    if allocations_json:
-                        try:
-                            parsed = json.loads(allocations_json)
-                            if isinstance(parsed, list):
-                                allocations = parsed
-                        except json.JSONDecodeError:
-                            allocations = []
+                try:
+                    with transaction.atomic():
+                        station = Station.objects.select_for_update().get(pk=pump.station_id)
+                        ok_stock, err_stock = _station_has_stock_for_sale(
+                            station, qg_need, qd_need, scope_label="cette lecture"
+                        )
+                        if not ok_stock:
+                            raise ValueError(err_stock)
 
-                    allocations_by_uuid = {}
-                    for item in allocations:
-                        wallet_uuid = str(item.get("wallet_uuid", "")).strip()
-                        amount_raw = str(item.get("amount", "")).strip()
-                        if not wallet_uuid:
-                            continue
-                        try:
-                            amount = Decimal(amount_raw)
-                        except (InvalidOperation, ValueError):
-                            messages.error(request, "Montant wallet invalide.")
-                            return redirect('pumps:pumps_list')
+                        reading = PumpReading.objects.create(
+                            pump=pump,
+                            employee=employee,
+                            current_index=current_index_decimal,
+                            reading_date=today,
+                        )
+                        sale = _create_sale_from_reading(reading, request.user)
+                        _trace_daily_stock_from_sale(sale, request.user)
+                        _record_inventory_out_and_decrease_station_stock(sale)
+                        total_amount = sale.total_amount or Decimal("0")
 
-                        if amount < 0:
-                            messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
-                            return redirect('pumps:pumps_list')
-                        allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
+                        allocations = []
+                        if allocations_json:
+                            try:
+                                parsed = json.loads(allocations_json)
+                                if isinstance(parsed, list):
+                                    allocations = parsed
+                            except json.JSONDecodeError:
+                                allocations = []
 
-                    if total_amount > 0:
-                        # Auto-répartition si un seul wallet et aucune allocation envoyée
-                        if not allocations_by_uuid and len(station_wallets) == 1:
-                            allocations_by_uuid[str(station_wallets[0].uuid)] = total_amount
+                        allocations_by_uuid = {}
+                        for item in allocations:
+                            wallet_uuid = str(item.get("wallet_uuid", "")).strip()
+                            amount_raw = str(item.get("amount", "")).strip()
+                            if not wallet_uuid:
+                                continue
+                            try:
+                                amount = Decimal(amount_raw)
+                            except (InvalidOperation, ValueError):
+                                messages.error(request, "Montant wallet invalide.")
+                                raise ValueError("Montant wallet invalide.")
 
-                        if not allocations_by_uuid:
-                            messages.error(
-                                request,
-                                "Veuillez répartir le montant de la vente dans au moins un wallet.",
-                            )
-                            return redirect("pumps:pumps_list")
+                            if amount < 0:
+                                messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
+                                raise ValueError("wallet_negatif")
 
-                        valid_wallets_map = {str(w.uuid): w for w in station_wallets}
-                        for wallet_uuid in allocations_by_uuid.keys():
-                            if wallet_uuid not in valid_wallets_map:
+                            allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
+
+                        if total_amount > 0:
+                            # Auto-répartition si un seul wallet et aucune allocation envoyée
+                            if not allocations_by_uuid and len(station_wallets) == 1:
+                                allocations_by_uuid[str(station_wallets[0].uuid)] = total_amount
+
+                            if not allocations_by_uuid:
                                 messages.error(
                                     request,
-                                    "Un wallet sélectionné est invalide pour cette station.",
+                                    "Veuillez répartir le montant de la vente dans au moins un wallet.",
                                 )
-                                return redirect("pumps:pumps_list")
+                                raise ValueError("wallet_repartition")
 
-                        allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
-                        if allocated_sum.quantize(Decimal("0.01")) != total_amount.quantize(Decimal("0.01")):
-                            messages.error(
-                                request,
-                                "La somme répartie dans les wallets doit être égale au montant total de la vente.",
-                            )
-                            return redirect("pumps:pumps_list")
+                            valid_wallets_map = {str(w.uuid): w for w in station_wallets}
+                            for wallet_uuid in allocations_by_uuid.keys():
+                                if wallet_uuid not in valid_wallets_map:
+                                    messages.error(
+                                        request,
+                                        "Un wallet sélectionné est invalide pour cette station.",
+                                    )
+                                    raise ValueError("wallet_invalide")
 
-                        for wallet_uuid, amount in allocations_by_uuid.items():
-                            if amount <= 0:
-                                continue
-                            wallet = valid_wallets_map[wallet_uuid]
-                            wallet.balance = (wallet.balance or Decimal("0")) + amount
-                            wallet.save(update_fields=["balance", "updated_at"])
+                            allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
+                            if allocated_sum.quantize(Decimal("0.01")) != total_amount.quantize(Decimal("0.01")):
+                                messages.error(
+                                    request,
+                                    "La somme répartie dans les wallets doit être égale au montant total de la vente.",
+                                )
+                                raise ValueError("wallet_somme")
 
-                messages.success(request, 'Lecture enregistrée avec succès.')
-                return redirect('pumps:pumps_list')
-                
+                            for wallet_uuid, amount in allocations_by_uuid.items():
+                                if amount <= 0:
+                                    continue
+                                wallet = valid_wallets_map[wallet_uuid]
+                                wallet.balance = (wallet.balance or Decimal("0")) + amount
+                                wallet.save(update_fields=["balance", "updated_at"])
+
+                except ValueError as exc:
+                    err_msg = str(exc)
+                    if err_msg in ("wallet_negatif", "wallet_repartition", "wallet_invalide", "wallet_somme"):
+                        pass
+                    elif err_msg == "Montant wallet invalide.":
+                        pass
+                    else:
+                        messages.error(request, err_msg)
+                    return redirect("pumps:pumps_list")
+
+                messages.success(request, "Lecture enregistrée avec succès.")
+                return redirect("pumps:pumps_list")
+
             except ValueError:
-                messages.error(request, 'Les index doivent être des nombres valides.')
-                return redirect('pumps:pumps_list')
+                messages.error(request, "Les index doivent être des nombres valides.")
+                return redirect("pumps:pumps_list")
             except Exception as e:
-                messages.error(request, f'Erreur lors de l\'enregistrement de la lecture : {str(e)}')
+                messages.error(request, f"Erreur lors de l'enregistrement de la lecture : {str(e)}")
         
         return redirect('pumps:pumps_list')
     except Exception as e:
@@ -915,8 +971,27 @@ def bulk_pump_reading_view(request):
         else:
             allocations_by_uuid = {}
 
+        total_qg = Decimal("0")
+        total_qd = Decimal("0")
+        for row in prepared:
+            g, d = _qty_gas_diesel_for_pump_delta(
+                row["pump"], row["previous_current"], row["current_index"]
+            )
+            total_qg += g
+            total_qd += d
+
         try:
             with transaction.atomic():
+                station_locked = Station.objects.select_for_update().get(pk=station.pk)
+                ok_stock, err_stock = _station_has_stock_for_sale(
+                    station_locked,
+                    total_qg,
+                    total_qd,
+                    scope_label="cette saisie groupée",
+                )
+                if not ok_stock:
+                    raise ValueError(err_stock)
+
                 for row in prepared:
                     reading = PumpReading.objects.create(
                         pump=row["pump"],
@@ -936,6 +1011,9 @@ def bulk_pump_reading_view(request):
                     )
                     w.balance = (w.balance or Decimal("0")) + amount
                     w.save(update_fields=["balance", "updated_at"])
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("pumps:bulk_pump_reading")
         except IntegrityError as exc:
             messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
             return redirect("pumps:bulk_pump_reading")
