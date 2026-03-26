@@ -849,11 +849,17 @@ def bulk_pump_reading_view(request):
         or request.POST.get("reading_date")
         or ""
     ).strip()
+    if request.method == "POST" and not selected_date_raw:
+        messages.error(request, "La date de lecture est obligatoire.")
+        return redirect("pumps:bulk_pump_reading")
     selected_reading_date = timezone.now().date()
     if selected_date_raw:
         parsed_selected = parse_date(selected_date_raw)
         if parsed_selected:
             selected_reading_date = parsed_selected
+        elif request.method == "POST":
+            messages.error(request, "Date de lecture invalide.")
+            return redirect("pumps:bulk_pump_reading")
     station_wallets_list = list(
         Account.objects.filter(station=station, uuid__isnull=False).order_by("name")
     )
@@ -912,6 +918,50 @@ def bulk_pump_reading_view(request):
 
         if not isinstance(readings_data, list) or not readings_data:
             messages.error(request, "Ajoutez au moins une lecture de pompe.")
+            return redirect("pumps:bulk_pump_reading")
+
+        required_pump_uuids = []
+        required_pump_names_by_uuid = {}
+        for p in pumps_qs:
+            if not p.pump_uuid:
+                continue
+            existing_for_date = PumpReading.objects.filter(pump=p, reading_date=today).exists()
+            latest_for_pump = (
+                PumpReading.objects.filter(pump=p)
+                .order_by("-reading_date", "-created_at", "-id")
+                .first()
+            )
+            blocked_by_chronology = bool(latest_for_pump and today < latest_for_pump.reading_date)
+            if existing_for_date or blocked_by_chronology:
+                continue
+            pu = str(p.pump_uuid)
+            required_pump_uuids.append(pu)
+            required_pump_names_by_uuid[pu] = p.name
+
+        if not required_pump_uuids:
+            messages.error(request, "Aucune pompe restante à saisir pour cette date.")
+            return redirect("pumps:bulk_pump_reading")
+
+        submitted_uuids = {
+            str(item.get("pump_uuid", "")).strip()
+            for item in readings_data
+            if str(item.get("pump_uuid", "")).strip()
+        }
+        missing_uuids = [u for u in required_pump_uuids if u not in submitted_uuids]
+        extra_uuids = [u for u in submitted_uuids if u not in required_pump_uuids]
+        if missing_uuids or extra_uuids:
+            missing_names = [required_pump_names_by_uuid.get(u, u) for u in missing_uuids]
+            if missing_names:
+                messages.error(
+                    request,
+                    "Saisie incomplète : vous devez enregistrer toutes les pompes restantes pour cette date. "
+                    f"Manquantes : {', '.join(missing_names)}.",
+                )
+            else:
+                messages.error(
+                    request,
+                    "Saisie invalide : certaines pompes ne sont pas autorisées pour cette date.",
+                )
             return redirect("pumps:bulk_pump_reading")
 
         if not station_wallets_list:
