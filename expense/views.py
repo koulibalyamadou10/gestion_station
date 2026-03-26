@@ -6,7 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_date
 
 from expense.models import Expense
 from stations.models import Station, StationManager
@@ -214,6 +215,8 @@ def expense_list_view(request):
         "total_expenses": expenses_qs.count(),
         "sum_amount": stats["total_amount"] or Decimal("0"),
         "can_create_expense": request.user.role == "manager",
+        "can_edit_expense": request.user.role == "manager",
+        "can_delete_expense": request.user.role == "admin",
         "show_station_filter": show_station_filter,
         "show_station_column": show_station_column,
         "manager_station": manager_station,
@@ -221,3 +224,179 @@ def expense_list_view(request):
         "expense_categories": EXPENSE_CATEGORY_LABELS,
     }
     return render(request, "expense_content.html", context)
+
+
+@login_required
+def update_expense_view(request, pk):
+    """
+    Modification d'une dépense — gérant uniquement, station du compte.
+
+    Wallet : réintégration de l'ancien montant sur le(s) compte(s), puis débit du nouveau montant
+    (équivalent au delta si le compte ne change pas). Refus si solde insuffisant pour le nouveau débit.
+    """
+    if request.user.role != "manager":
+        messages.error(request, "Seul un gérant peut modifier une dépense.")
+        return redirect("expense:expense_list")
+
+    if request.method != "POST":
+        messages.error(request, "Méthode non autorisée.")
+        return redirect("expense:expense_list")
+
+    station_manager = (
+        StationManager.objects.filter(manager=request.user)
+        .select_related("station")
+        .first()
+    )
+    if not station_manager:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+    manager_station = station_manager.station
+
+    expense = get_object_or_404(
+        Expense.objects.select_related("account"),
+        pk=pk,
+        account__station=manager_station,
+    )
+
+    account_id = request.POST.get("account_id", "").strip()
+    amount_raw = request.POST.get("amount", "").strip()
+    expense_date_raw = request.POST.get("expense_date", "").strip()
+    category = _normalize_category(request.POST.get("category", ""))
+    description = request.POST.get("description", "").strip() or None
+    currency = request.POST.get("currency", expense.currency or "GNF").strip() or "GNF"
+
+    if not category:
+        messages.error(request, "Veuillez sélectionner une catégorie de dépense.")
+        return redirect("expense:expense_list")
+
+    if not account_id or not amount_raw or not expense_date_raw:
+        messages.error(request, "Wallet, montant et date sont obligatoires.")
+        return redirect("expense:expense_list")
+
+    amount_raw = _normalize_amount_raw(amount_raw)
+    new_account = Account.objects.filter(
+        pk=account_id, station=manager_station
+    ).first()
+    if not new_account:
+        messages.error(request, "Wallet invalide.")
+        return redirect("expense:expense_list")
+
+    try:
+        new_amount = Decimal(amount_raw)
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Montant invalide.")
+        return redirect("expense:expense_list")
+
+    if new_amount <= 0:
+        messages.error(request, "Le montant doit être supérieur à 0.")
+        return redirect("expense:expense_list")
+
+    parsed_date = parse_date(expense_date_raw)
+    if not parsed_date:
+        messages.error(request, "Date invalide.")
+        return redirect("expense:expense_list")
+
+    old_amount = expense.amount
+
+    try:
+        with transaction.atomic():
+            exp = (
+                Expense.objects.select_for_update()
+                .select_related("account")
+                .get(pk=expense.pk)
+            )
+            old_acc = Account.objects.select_for_update().get(pk=exp.account_id)
+            new_acc = Account.objects.select_for_update().get(pk=new_account.pk)
+
+            if old_acc.station_id != manager_station.id or new_acc.station_id != manager_station.id:
+                raise ValueError("invalid_wallet")
+
+            old_bal = old_acc.balance or Decimal("0")
+            old_acc.balance = old_bal + old_amount
+            old_acc.save(update_fields=["balance", "updated_at"])
+
+            if new_acc.pk == old_acc.pk:
+                new_acc.refresh_from_db()
+
+            new_bal = new_acc.balance or Decimal("0")
+            if new_bal < new_amount:
+                raise ValueError("insufficient_balance")
+
+            new_acc.balance = new_bal - new_amount
+            new_acc.save(update_fields=["balance", "updated_at"])
+
+            exp.account = new_acc
+            exp.amount = new_amount
+            exp.currency = currency
+            exp.expense_date = parsed_date
+            exp.category = category
+            exp.description = description
+            exp.save()
+    except Expense.DoesNotExist:
+        messages.error(request, "Dépense introuvable.")
+        return redirect("expense:expense_list")
+    except Exception as exc:
+        if str(exc) == "invalid_wallet":
+            messages.error(request, "Wallet invalide pour votre station.")
+            return redirect("expense:expense_list")
+        if str(exc) == "insufficient_balance":
+            messages.error(
+                request,
+                "Solde insuffisant sur le compte : après réintégration de l'ancienne dépense, "
+                "le solde ne permet pas de débiter le nouveau montant (par ex. si vous augmentez "
+                "le montant, le wallet doit couvrir ce supplément).",
+            )
+            return redirect("expense:expense_list")
+        messages.error(request, f"Erreur lors de la modification : {exc}")
+        return redirect("expense:expense_list")
+
+    messages.success(request, "Dépense modifiée.")
+    return redirect("expense:expense_list")
+
+
+@login_required
+def delete_expense_view(request, pk):
+    """
+    Suppression d'une dépense — admin uniquement (stations dont il est propriétaire).
+    Recrédite le wallet du montant de la dépense.
+    """
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut supprimer une dépense.")
+        return redirect("expense:expense_list")
+
+    if request.method != "POST":
+        messages.error(request, "Méthode non autorisée.")
+        return redirect("expense:expense_list")
+
+    expense = get_object_or_404(
+        Expense.objects.select_related("account", "account__station"),
+        pk=pk,
+        account__station__owner=request.user,
+    )
+
+    amount = expense.amount
+    try:
+        with transaction.atomic():
+            acc = (
+                Account.objects.select_for_update()
+                .select_related("station")
+                .get(pk=expense.account_id)
+            )
+            if acc.station.owner_id != request.user.id:
+                messages.error(request, "Compte invalide.")
+                return redirect("expense:expense_list")
+
+            bal = acc.balance or Decimal("0")
+            acc.balance = bal + amount
+            acc.save(update_fields=["balance", "updated_at"])
+
+            expense.delete()
+    except Exception as exc:
+        messages.error(request, f"Erreur lors de la suppression : {exc}")
+        return redirect("expense:expense_list")
+
+    messages.success(
+        request,
+        "Dépense supprimée : le montant a été recrédité sur le wallet.",
+    )
+    return redirect("expense:expense_list")

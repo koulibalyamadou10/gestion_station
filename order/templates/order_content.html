@@ -273,7 +273,7 @@
                             <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix / L (GNF) — grille tarifaire</label>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Essence)</label>
                             <p class="w-full px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-800 tabular-nums text-sm font-semibold">{{ default_order_price_essence|money_fr }}</p>
                             <input type="hidden" id="createPriceEssenceVal" value="{{ default_order_price_essence }}">
                         </div>
@@ -288,7 +288,7 @@
                             <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix / L (GNF) — grille tarifaire</label>
+                            <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Gasoil)</label>
                             <p class="w-full px-3 py-2.5 border border-gray-200 rounded-lg bg-gray-100 text-gray-800 tabular-nums text-sm font-semibold">{{ default_order_price_diesel|money_fr }}</p>
                             <input type="hidden" id="createPriceDieselVal" value="{{ default_order_price_diesel }}">
                         </div>

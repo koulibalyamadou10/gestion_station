@@ -58,6 +58,7 @@
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Justificatif</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Enregistré par</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -69,21 +70,67 @@
                         <td class="px-6 py-4 text-sm text-gray-900">{{ d.account.station.name }}</td>
                         {% endif %}
                         <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ d.account.name }}</td>
-                        <td class="px-6 py-4 text-sm font-semibold text-green-700">+ {{ d.amount|money_fr }} {{ d.currency }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-700">
+                        <td class="px-6 py-4 text-sm font-semibold text-gray-900">{{ d.amount|money_fr }} {{ d.currency }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700 align-middle">
                             {% if d.receipt_file %}
-                                <a href="{{ d.receipt_file.url }}" target="_blank" rel="noopener" class="text-blue-600 hover:underline">Voir</a>
+                                {% with fn=d.receipt_file.name|lower %}
+                                <a href="{{ d.receipt_file.url }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 group" title="Ouvrir le justificatif">
+                                    {% if ".pdf" in fn %}
+                                        <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-red-50 text-red-600 group-hover:border-red-300 group-hover:bg-red-100 transition-colors">
+                                            <i class="fas fa-file-pdf text-2xl"></i>
+                                        </span>
+                                        <span class="text-xs text-blue-600 group-hover:underline">PDF</span>
+                                    {% elif ".jpg" in fn or ".jpeg" in fn or ".png" in fn or ".webp" in fn or ".gif" in fn %}
+                                        <img src="{{ d.receipt_file.url }}" alt="" class="h-14 w-14 shrink-0 rounded-lg border border-gray-200 object-cover shadow-sm group-hover:ring-2 group-hover:ring-blue-400 transition-shadow" loading="lazy" decoding="async">
+                                    {% else %}
+                                        <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 group-hover:bg-gray-100">
+                                            <i class="fas fa-file-alt text-xl"></i>
+                                        </span>
+                                        <span class="text-xs text-blue-600 group-hover:underline">Voir</span>
+                                    {% endif %}
+                                </a>
+                                {% endwith %}
                             {% else %}
                                 —
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ d.notes|default:'' }}">{{ d.notes|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-600">{{ d.recorded_by.get_full_name|default:d.recorded_by.email }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            <div class="flex items-center gap-1">
+                            {% if can_edit_deposit %}
+                            <button type="button"
+                                    class="open-edit-deposit inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                    title="Modifier"
+                                    aria-label="Modifier"
+                                    data-url="{% url 'deposit:deposit_update' d.pk %}"
+                                    data-account-id="{{ d.account_id }}"
+                                    data-amount="{{ d.amount }}"
+                                    data-date="{{ d.deposit_date|date:'Y-m-d' }}"
+                                    data-currency="{{ d.currency }}"
+                                    data-notes="{{ d.notes|default:''|escape }}">
+                                <i class="fas fa-pen text-sm"></i>
+                            </button>
+                            {% endif %}
+                            {% if can_delete_deposit %}
+                            <button type="button"
+                                    class="open-delete-deposit inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                    title="Supprimer"
+                                    aria-label="Supprimer"
+                                    data-url="{% url 'deposit:deposit_delete' d.pk %}"
+                                    data-station="{{ d.account.station.name|escape }}"
+                                    data-account="{{ d.account.name|escape }}"
+                                    data-amount-label="{{ d.amount|money_fr }} {{ d.currency }}">
+                                <i class="fas fa-trash-alt text-sm"></i>
+                            </button>
+                            {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="{% if show_station_column %}7{% else %}6{% endif %}" class="px-6 py-10 text-center text-gray-500">Aucun versement trouvé.</td>
+                        <td colspan="{% if show_station_column %}8{% else %}7{% endif %}" class="px-6 py-10 text-center text-gray-500">Aucun versement trouvé.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -105,6 +152,79 @@
 </div>
 {% endif %}
 
+{% if can_edit_deposit %}
+<div id="editDepositModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800">Modifier le versement</h3>
+            <button type="button" id="closeEditDepositModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="editDepositForm" method="POST" action="" enctype="multipart/form-data" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="currency" id="edit_currency" value="GNF">
+            {% if manager_station %}
+            <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Station</p>
+                <p class="text-sm font-bold text-gray-900">{{ manager_station.name }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte à débiter <span class="text-red-500">*</span></label>
+                <select name="account_id" id="edit_account_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sélectionner un compte</option>
+                    {% for a in accounts %}
+                        <option value="{{ a.id }}">{{ a.station.name }} — {{ a.name }} ({{ a.balance|money_fr }} {{ a.currency }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-900">
+                <p class="font-semibold mb-1">Ajustement du compte</p>
+                <p class="leading-relaxed">Le système réintègre d'abord l'ancien montant sur le compte, puis débite le nouveau. Si vous augmentez le versement, le solde doit couvrir ce supplément ; si vous le diminuez, le compte est recrédité de la différence.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Montant (GNF) <span class="text-red-500">*</span></label>
+                    <input type="text" id="edit_deposit_amount_display" required inputmode="decimal" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0">
+                    <input type="hidden" name="amount" id="edit_deposit_amount_raw">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="deposit_date" id="edit_deposit_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Justificatif</label>
+                <p class="text-xs text-gray-500 mb-2">Laisser vide pour conserver le fichier actuel. Si vous choisissez un nouveau fichier, l'ancien justificatif est supprimé.</p>
+                <input type="file" name="receipt_file" accept=".pdf,.jpg,.jpeg,.png,.webp,image/*" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                <textarea name="notes" id="edit_deposit_notes" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Détail optionnel"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelEditDepositModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_delete_deposit %}
+<div id="deleteDepositModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+        <h3 class="text-lg font-bold text-gray-800">Supprimer ce versement ?</h3>
+        <p id="deleteDepositSummary" class="text-sm text-gray-700 mt-3 leading-relaxed"></p>
+        <p class="text-xs text-gray-500 mt-2">Le montant sera recrédité sur le compte associé.</p>
+        <form id="deleteDepositForm" method="POST" action="" class="mt-6 flex justify-end gap-2">
+            {% csrf_token %}
+            <button type="button" id="cancelDeleteDepositModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Supprimer</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 {% if can_create_deposit %}
 <div id="createDepositModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -121,7 +241,7 @@
             </div>
             {% endif %}
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte Provenance <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte à débiter <span class="text-red-500">*</span></label>
                 <select name="account_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                     <option value="">Sélectionner un compte</option>
                     {% for a in accounts %}
@@ -157,16 +277,8 @@
 </div>
 {% endif %}
 
-{% if can_create_deposit %}
+{% if can_create_deposit or can_edit_deposit or can_delete_deposit %}
 <script>
-    const createModal = document.getElementById('createDepositModal');
-    const openBtn = document.getElementById('openCreateDepositModal');
-    const closeBtn = document.getElementById('closeCreateDepositModal');
-    const cancelBtn = document.getElementById('cancelCreateDepositModal');
-    const depositAmountDisplay = document.getElementById('deposit_amount_display');
-    const depositAmountRaw = document.getElementById('deposit_amount_raw');
-    const depositForm = createModal?.querySelector('form');
-
     function normalizeAmount(value) {
         return (value || '').replace(/\s/g, '').replace(',', '.');
     }
@@ -180,19 +292,27 @@
         return parts.length > 1 ? `${formattedInt}.${parts.slice(1).join('')}` : formattedInt;
     }
 
-    function openModal() {
-        createModal.classList.remove('hidden');
+    const createModal = document.getElementById('createDepositModal');
+    const openBtn = document.getElementById('openCreateDepositModal');
+    const closeBtn = document.getElementById('closeCreateDepositModal');
+    const cancelBtn = document.getElementById('cancelCreateDepositModal');
+    const depositAmountDisplay = document.getElementById('deposit_amount_display');
+    const depositAmountRaw = document.getElementById('deposit_amount_raw');
+    const depositForm = createModal?.querySelector('form');
+
+    function openCreateModal() {
+        createModal?.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
-    function closeModal() {
-        createModal.classList.add('hidden');
+    function closeCreateModal() {
+        createModal?.classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
-    openBtn?.addEventListener('click', openModal);
-    closeBtn?.addEventListener('click', closeModal);
-    cancelBtn?.addEventListener('click', closeModal);
+    openBtn?.addEventListener('click', openCreateModal);
+    closeBtn?.addEventListener('click', closeCreateModal);
+    cancelBtn?.addEventListener('click', closeCreateModal);
     createModal?.addEventListener('click', function(e) {
-        if (e.target === createModal) closeModal();
+        if (e.target === createModal) closeCreateModal();
     });
 
     depositAmountDisplay?.addEventListener('input', function() {
@@ -202,6 +322,94 @@
 
     depositForm?.addEventListener('submit', function() {
         depositAmountRaw.value = normalizeAmount(depositAmountDisplay?.value || '');
+    });
+
+    const editModal = document.getElementById('editDepositModal');
+    const editForm = document.getElementById('editDepositForm');
+    const closeEditBtn = document.getElementById('closeEditDepositModal');
+    const cancelEditBtn = document.getElementById('cancelEditDepositModal');
+    const editAmountDisplay = document.getElementById('edit_deposit_amount_display');
+    const editAmountRaw = document.getElementById('edit_deposit_amount_raw');
+    const editAccountSelect = document.getElementById('edit_account_id');
+    const editDateInput = document.getElementById('edit_deposit_date');
+    const editNotes = document.getElementById('edit_deposit_notes');
+    const editCurrency = document.getElementById('edit_currency');
+
+    function openEditModal() {
+        editModal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeEditModal() {
+        editModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+    closeEditBtn?.addEventListener('click', closeEditModal);
+    cancelEditBtn?.addEventListener('click', closeEditModal);
+    editModal?.addEventListener('click', function(e) {
+        if (e.target === editModal) closeEditModal();
+    });
+
+    editAmountDisplay?.addEventListener('input', function() {
+        editAmountDisplay.value = formatWithSpaces(editAmountDisplay.value);
+        editAmountRaw.value = normalizeAmount(editAmountDisplay.value);
+    });
+
+    editForm?.addEventListener('submit', function() {
+        editAmountRaw.value = normalizeAmount(editAmountDisplay?.value || '');
+    });
+
+    document.querySelectorAll('.open-edit-deposit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const url = btn.getAttribute('data-url');
+            const accountId = btn.getAttribute('data-account-id');
+            const amount = btn.getAttribute('data-amount') || '';
+            const dateVal = btn.getAttribute('data-date') || '';
+            const currency = btn.getAttribute('data-currency') || 'GNF';
+            if (editForm && url) editForm.setAttribute('action', url);
+            if (editCurrency) editCurrency.value = currency;
+            if (editAccountSelect && accountId) editAccountSelect.value = accountId;
+            if (editDateInput) editDateInput.value = dateVal;
+            if (editNotes) editNotes.value = btn.getAttribute('data-notes') || '';
+            if (editAmountDisplay && editAmountRaw) {
+                const raw = normalizeAmount(String(amount).replace(',', '.'));
+                editAmountRaw.value = raw;
+                editAmountDisplay.value = raw ? formatWithSpaces(raw) : '';
+            }
+            const fileInput = editForm?.querySelector('input[type="file"][name="receipt_file"]');
+            if (fileInput) fileInput.value = '';
+
+            openEditModal();
+        });
+    });
+
+    const deleteModal = document.getElementById('deleteDepositModal');
+    const deleteForm = document.getElementById('deleteDepositForm');
+    const deleteSummary = document.getElementById('deleteDepositSummary');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteDepositModal');
+
+    function closeDeleteModal() {
+        deleteModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+    cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
+    deleteModal?.addEventListener('click', function(e) {
+        if (e.target === deleteModal) closeDeleteModal();
+    });
+
+    document.querySelectorAll('.open-delete-deposit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const url = btn.getAttribute('data-url');
+            if (deleteForm && url) deleteForm.setAttribute('action', url);
+            const station = btn.getAttribute('data-station') || '';
+            const account = btn.getAttribute('data-account') || '';
+            const amt = btn.getAttribute('data-amount-label') || '';
+            if (deleteSummary) {
+                const parts = [station, account, amt].filter(Boolean);
+                deleteSummary.textContent = parts.length ? parts.join(' — ') : '—';
+            }
+            deleteModal?.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        });
     });
 </script>
 {% endif %}
