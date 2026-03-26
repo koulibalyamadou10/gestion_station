@@ -271,7 +271,7 @@
         const row = document.createElement('div');
         row.className = 'reading-row border border-gray-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-12 gap-2 items-end';
         row.innerHTML = `
-            <div class="md:col-span-5">
+            <div class="md:col-span-4">
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Pompe</label>
                 <select class="reading-pump-select w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></select>
             </div>
@@ -283,9 +283,9 @@
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Index actuel</label>
                 <input type="text" inputmode="decimal" class="reading-current-index w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0">
             </div>
-            <div class="md:col-span-1 flex items-center justify-between md:flex-col md:items-end">
-                <span class="text-xs text-gray-500">Ligne</span>
-                <span class="reading-line-amount text-sm font-bold text-gray-900">0,00</span>
+            <div class="md:col-span-2 flex items-center justify-between md:block md:text-right min-w-0">
+                <span class="text-xs text-gray-500 block">Ligne</span>
+                <span class="reading-line-amount text-sm font-bold text-gray-900 block whitespace-nowrap">0,00</span>
             </div>
         `;
         readingRowsContainer.appendChild(row);

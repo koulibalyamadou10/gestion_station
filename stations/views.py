@@ -554,16 +554,24 @@ def assign_manager_view(request, station_uuid):
                     station=station,
                     defaults={'manager': new_manager}
                 )
-                from employee.models import EmployeeStation
-                # faire un update_or_create
-                EmployeeStation.objects.update_or_create(
-                    employee=new_manager,
-                    station=station,
-                    defaults={'is_manager': True},
-                )
+                
                 if not created:
                     station_manager.manager = new_manager
                     station_manager.save()
+                
+                try:
+                    from employee.models import EmployeeStation, Employee
+                    employee = Employee.objects.get(
+                        user=new_manager
+                    )
+                    # faire un update_or_create
+                    EmployeeStation.objects.update_or_create(
+                        employee=employee,
+                        station=station,
+                        defaults={'is_manager': True},
+                    )
+                except:
+                    pass
                 
                 messages.success(request, f'Le gérant "{new_manager.get_full_name}" a été assigné à la station "{station.name}" avec succès.')
             except CustomUser.DoesNotExist:
