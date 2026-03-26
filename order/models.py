@@ -47,9 +47,7 @@ class Order(models.Model):
 
     @property
     def estimated_line_total(self):
-        """Total estimé : ligne fournisseur si confirmée, sinon quantités demandées × prix paramètres."""
-        from django.conf import settings
-
+        """Total estimé : ligne fournisseur si confirmée, sinon quantités demandées × grille ProductPrice (date commande)."""
         line = self.order_suppliers.first()
         if line:
             qg = line.qty_gasoline if line.qty_gasoline is not None else Decimal("0")
@@ -67,9 +65,12 @@ class Order(models.Model):
             return qg * pg + qd * pd
         qg = self.requested_qty_gasoline or Decimal("0")
         qd = self.requested_qty_diesel or Decimal("0")
-        pg = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0)))
-        pd = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0)))
-        return qg * pg + qd * pd
+        from product_price.utils import get_product_price_for_date
+
+        pp = get_product_price_for_date(self.order_date)
+        if not pp:
+            return Decimal("0")
+        return qg * pp.price_gasoline + qd * pp.price_diesel
 
 
 class OrderSupplier(models.Model):

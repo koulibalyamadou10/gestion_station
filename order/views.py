@@ -1,15 +1,16 @@
 from decimal import Decimal, InvalidOperation
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from permissions_web import admin_required
+from product_price.utils import get_product_price_for_date
 from delivery.models import Delivery
 from inventory.models import Inventory
 from order.models import Order, OrderSupplier
@@ -69,6 +70,20 @@ def order_list_view(request):
 
         if not order_date:
             messages.error(request, "La date de commande est obligatoire.")
+            return redirect("order:order_list")
+
+        order_date_parsed = parse_date(order_date)
+        if not order_date_parsed:
+            messages.error(request, "Date de commande invalide.")
+            return redirect("order:order_list")
+
+        price_row = get_product_price_for_date(order_date_parsed)
+        if not price_row:
+            messages.error(
+                request,
+                "Aucune grille tarifaire ne s'applique à cette date de commande. "
+                "Créez une grille dans Paramétrages → Prix carburants.",
+            )
             return redirect("order:order_list")
 
         try:
@@ -152,6 +167,13 @@ def order_list_view(request):
     paginator = Paginator(orders_qs, 10)
     page_obj = paginator.get_page(page_number)
 
+    today = timezone.now().date()
+    price_for_today = get_product_price_for_date(today)
+    for o in page_obj.object_list:
+        pp = get_product_price_for_date(o.order_date)
+        o.display_unit_price_essence = pp.price_gasoline if pp else Decimal("0")
+        o.display_unit_price_diesel = pp.price_diesel if pp else Decimal("0")
+
     pending_count = orders_qs.filter(status=Order.STATUS_PENDING).count()
     confirmed_count = orders_qs.filter(status=Order.STATUS_CONFIRMED).count()
     delivered_count = orders_qs.filter(status=Order.STATUS_DELIVERED).count()
@@ -168,7 +190,7 @@ def order_list_view(request):
         "total_orders": orders_qs.count(),
         "show_station_filter": show_station_filter,
         "show_station_column": show_station_column,
-        "can_create_order": request.user.role == "manager",
+        "can_create_order": request.user.role == "manager" and price_for_today is not None,
         "can_edit_order_quantities": request.user.role in ("admin", "manager"),
         "manager_station": manager_station,
         "status_choices": Order.STATUS_CHOICES,
@@ -176,12 +198,14 @@ def order_list_view(request):
         "confirmed_count": confirmed_count,
         "delivered_count": delivered_count,
         "cancelled_count": cancelled_count,
-        "default_order_price_essence": getattr(
-            settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0
+        "default_order_price_essence": (
+            price_for_today.price_gasoline if price_for_today else None
         ),
-        "default_order_price_diesel": getattr(
-            settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0
+        "default_order_price_diesel": (
+            price_for_today.price_diesel if price_for_today else None
         ),
+        "order_prices_missing": request.user.role == "manager"
+        and price_for_today is None,
         "can_admin_orders": request.user.role == "admin",
         "suppliers_for_confirm": suppliers_for_confirm,
         "can_deliver_order": request.user.role == "manager",
@@ -216,11 +240,13 @@ def order_detail_view(request, order_uuid):
             * (order_supplier.unit_price_diesel or Decimal("0"))
         )
     else:
-        pg = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0)))
-        pd = Decimal(str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0)))
-        total_estimated = (order.requested_qty_gasoline or Decimal("0")) * pg + (
-            order.requested_qty_diesel or Decimal("0")
-        ) * pd
+        pp = get_product_price_for_date(order.order_date)
+        if pp:
+            total_estimated = (order.requested_qty_gasoline or Decimal("0")) * pp.price_gasoline + (
+                order.requested_qty_diesel or Decimal("0")
+            ) * pp.price_diesel
+        else:
+            total_estimated = Decimal("0")
 
     if order_supplier:
         deliveries = order_supplier.delivery_set.all().order_by(
@@ -379,12 +405,17 @@ def order_confirm_view(request, order_uuid):
         )
         return redirect("order:order_list")
 
-    unit_price_gasoline = _clean_decimal(
-        str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_ESSENCE", 0))
-    )
-    unit_price_diesel = _clean_decimal(
-        str(getattr(settings, "PRODUCT_PRICE_AT_ORDER_DIESEL", 0))
-    )
+    pp = get_product_price_for_date(order.order_date)
+    if not pp:
+        messages.error(
+            request,
+            "Aucune grille tarifaire ne s'applique à la date de cette commande. "
+            "Ajoutez une grille dans Paramétrages → Prix carburants.",
+        )
+        return redirect("order:order_list")
+
+    unit_price_gasoline = pp.price_gasoline
+    unit_price_diesel = pp.price_diesel
 
     purchase_order_reference = (request.POST.get("purchase_order_reference") or "").strip() or None
     purchase_order_file = request.FILES.get("purchase_order_file")
