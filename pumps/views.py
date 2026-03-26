@@ -15,6 +15,7 @@ from employee.models import Employee
 from inventory.models import Inventory
 from stations.models import Station, StationManager
 from wallet.models import Account
+from product_price.utils import get_product_price_for_date
 from permissions_web import manager_required
 
 
@@ -995,6 +996,8 @@ def bulk_pump_reading_view(request):
         )
         return redirect("pumps:pumps_list")
 
+    today = timezone.now().date()
+    product_price_row = get_product_price_for_date(today)
     context = {
         "station": station,
         "bulk_reading_station_uuid": bulk_station_uuid_for_form,
@@ -1008,11 +1011,12 @@ def bulk_pump_reading_view(request):
             for w in station_wallets_list
         ],
         "product_price_essence": str(
-            Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
+            product_price_row.price_gasoline if product_price_row else Decimal("0")
         ),
         "product_price_diesel": str(
-            Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+            product_price_row.price_diesel if product_price_row else Decimal("0")
         ),
+        "bulk_product_price_found": product_price_row is not None,
     }
     return render(request, "pumps/bulk_pump_reading.html", context)
 
