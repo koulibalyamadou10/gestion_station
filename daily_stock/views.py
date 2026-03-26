@@ -117,7 +117,7 @@ def daily_sales_view(request):
 
 @login_required
 def daily_stock_create_view(request):
-    """Création / mise à jour d'une entrée stock journalier (gérant uniquement)."""
+    """Création d'une entrée stock journalier (gérant uniquement, 1 insertion/jour)."""
     if request.method != "POST":
         return redirect("daily_stock:daily_sales")
 
@@ -132,11 +132,7 @@ def daily_stock_create_view(request):
         messages.error(request, "Aucune station ne vous est assignée.")
         return redirect("account:dashboard")
 
-    stock_date_raw = (request.POST.get("stock_date") or "").strip()
-    stock_date = parse_date(stock_date_raw)
-    if not stock_date:
-        messages.error(request, "La date du stock est obligatoire.")
-        return redirect("daily_stock:daily_sales")
+    stock_date = date.today()
 
     try:
         qty_gasoline = Decimal((request.POST.get("qty_gasoline") or "0").replace(",", ".").strip() or "0")
@@ -153,15 +149,24 @@ def daily_stock_create_view(request):
 
     try:
         with transaction.atomic():
-            DailyStock.objects.update_or_create(
+            existing_today = DailyStock.objects.filter(
                 station=station_manager.station,
                 stock_date=stock_date,
-                defaults={
-                    "recorded_by": request.user,
-                    "qty_gasoline": qty_gasoline,
-                    "qty_diesel": qty_diesel,
-                    "notes": notes,
-                },
+            ).exists()
+            if existing_today:
+                messages.error(
+                    request,
+                    "Une entrée de stock journalier existe déjà aujourd'hui pour cette station.",
+                )
+                return redirect("daily_stock:daily_sales")
+
+            DailyStock.objects.create(
+                station=station_manager.station,
+                stock_date=stock_date,
+                recorded_by=request.user,
+                qty_gasoline=qty_gasoline,
+                qty_diesel=qty_diesel,
+                notes=notes,
             )
     except Exception as exc:
         messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
