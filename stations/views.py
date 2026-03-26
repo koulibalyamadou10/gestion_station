@@ -7,10 +7,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.http import JsonResponse
+from django.utils import timezone
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 from city.models import City
 from inventory.models import Inventory
+from daily_stock.models import DailyStock
 
 @login_required
 def stations_list_view(request):
@@ -144,6 +146,7 @@ def create_station_view(request):
         address = request.POST.get('address', '').strip()
         latitude = request.POST.get('latitude', '').strip()
         longitude = request.POST.get('longitude', '').strip()
+        stock_entry_date_raw = request.POST.get('stock_entry_date', '').strip()
         
         # Déterminer le propriétaire selon le rôle
         if request.user.role == 'super_admin':
@@ -167,6 +170,9 @@ def create_station_view(request):
         if not name or not city_id or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations:stations_list')
+        if not stock_entry_date_raw:
+            messages.error(request, 'Veuillez renseigner la date d’entrée du stock.')
+            return redirect('stations:stations_list')
         
         if not latitude or not longitude:
             messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
@@ -182,6 +188,11 @@ def create_station_view(request):
                 city = City.objects.get(id=city_id)
             except City.DoesNotExist:
                 messages.error(request, 'La ville sélectionnée est invalide.')
+                return redirect('stations:stations_list')
+            try:
+                stock_entry_date = timezone.datetime.strptime(stock_entry_date_raw, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, 'Date d’entrée du stock invalide.')
                 return redirect('stations:stations_list')
 
             try:
@@ -230,10 +241,27 @@ def create_station_view(request):
                     return redirect('stations:stations_list')
                 StationManager.objects.create(station=station, manager=manager)
 
-            Inventory.objects.create(
+            inv = Inventory.objects.create(
                 station=station,
                 qty_gasoline=stock_gasoline,
                 qty_diesel=stock_diesel,
+            )
+            entry_dt = timezone.make_aware(
+                timezone.datetime.combine(stock_entry_date, timezone.datetime.min.time()),
+                timezone.get_current_timezone(),
+            )
+            inv.created_at = entry_dt
+            inv.save(update_fields=['created_at'])
+
+            DailyStock.objects.update_or_create(
+                station=station,
+                stock_date=stock_entry_date,
+                defaults={
+                    'recorded_by': request.user,
+                    'qty_gasoline': stock_gasoline,
+                    'qty_diesel': stock_diesel,
+                    'notes': 'Stock initial à la création de la station',
+                },
             )
 
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
