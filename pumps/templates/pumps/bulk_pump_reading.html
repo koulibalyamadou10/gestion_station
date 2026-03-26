@@ -43,6 +43,19 @@
                 <i class="fas fa-plus mr-2"></i>Ajouter une pompe
             </button>
         </div>
+        {% if already_sent_today %}
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p class="text-xs font-semibold text-amber-800 uppercase mb-2">Déjà envoyées aujourd'hui</p>
+            <div class="space-y-1">
+                {% for item in already_sent_today %}
+                <p class="text-sm text-amber-900">
+                    <span class="font-semibold">{{ item.name }}</span>
+                    - index envoyé: <span class="font-semibold">{{ item.current_index }}</span>
+                </p>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <div id="readingRowsContainer" class="space-y-3"></div>
         <p id="emptyRowsHint" class="text-sm text-gray-500 mt-2">Cliquez sur « Ajouter une pompe » pour commencer.</p>
     </div>
@@ -109,6 +122,29 @@
 </form>
 {% endif %}
 
+<div id="noRemainingPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800">
+                <i class="fas fa-info-circle mr-2 text-amber-600"></i>Information
+            </h3>
+            <button type="button" id="closeNoRemainingPumpModalBtn" class="text-gray-500 hover:text-gray-700 text-2xl" aria-label="Fermer">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-6">
+            <p id="noRemainingPumpModalMessage" class="text-sm text-gray-700 mb-5">
+                Aucune pompe restante à saisir aujourd'hui.
+            </p>
+            <div class="flex justify-end">
+                <button type="button" id="confirmNoRemainingPumpModalBtn" class="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{ pumps_data|json_script:"pumps-data" }}
 {{ station_wallets|json_script:"station-wallets-data" }}
 
@@ -131,6 +167,23 @@
     const noWalletMessage = document.getElementById('noWalletMessage');
     const bulkForm = document.getElementById('bulkReadingForm');
     const salesSummaryBody = document.getElementById('salesSummaryBody');
+    const noRemainingPumpModal = document.getElementById('noRemainingPumpModal');
+    const noRemainingPumpModalMessage = document.getElementById('noRemainingPumpModalMessage');
+
+    function openInfoModal(message) {
+        if (!noRemainingPumpModal || !noRemainingPumpModalMessage) return;
+        noRemainingPumpModalMessage.textContent = message || "Aucune pompe restante à saisir aujourd'hui.";
+        noRemainingPumpModal.classList.remove('hidden');
+        noRemainingPumpModal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeInfoModal() {
+        if (!noRemainingPumpModal) return;
+        noRemainingPumpModal.classList.add('hidden');
+        noRemainingPumpModal.classList.remove('flex');
+        document.body.style.overflow = 'auto';
+    }
 
     function formatAmount(value) {
         const n = Number(value || 0);
@@ -184,7 +237,7 @@
     function buildPumpOptions(excludeUuid) {
         const taken = new Set(getSelectedPumpUuids());
         if (excludeUuid) taken.delete(excludeUuid);
-        return PUMPS_DATA.filter((p) => p.pump_uuid && !taken.has(p.pump_uuid));
+        return PUMPS_DATA.filter((p) => p.pump_uuid && !p.sent_today && !taken.has(p.pump_uuid));
     }
 
     function refreshAllPumpSelects() {
@@ -335,7 +388,7 @@
         row.innerHTML = `
             <div class="col-span-6">
                 <select class="wallet-select w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="">Wallet</option>
+                    <option value="">Sélectionner un compte</option>
                     ${opts}
                 </select>
             </div>
@@ -380,8 +433,11 @@
 
     addReadingRowBtn?.addEventListener('click', () => {
         if (!PUMPS_DATA.length) return;
-        if (buildPumpOptions(null).length === 0 && getSelectedPumpUuids().length >= PUMPS_DATA.length) {
-            alert('Toutes les pompes sont déjà ajoutées.');
+        if (buildPumpOptions(null).length === 0) {
+            const hasSentToday = PUMPS_DATA.some((p) => p.sent_today);
+            openInfoModal(hasSentToday
+                ? "Aucune pompe restante à saisir aujourd'hui."
+                : 'Toutes les pompes sont déjà ajoutées.');
             return;
         }
         addReadingRow();
@@ -397,6 +453,19 @@
         if (!readings.length) {
             e.preventDefault();
             alert('Ajoutez au moins une lecture.');
+            return;
+        }
+        let hasMissingAccount = false;
+        walletAllocationsContainer.querySelectorAll('.wallet-allocation-row').forEach((row) => {
+            const walletUuid = row.querySelector('.wallet-select')?.value || '';
+            const amount = parseAmountInput(row.querySelector('.wallet-amount')?.value || '0');
+            if (amount > 0 && !walletUuid) {
+                hasMissingAccount = true;
+            }
+        });
+        if (hasMissingAccount) {
+            e.preventDefault();
+            alert('Veuillez sélectionner un compte pour chaque montant saisi.');
             return;
         }
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
@@ -415,9 +484,19 @@
     });
 
     if (PUMPS_DATA.length && bulkForm) {
-        addReadingRow();
+        if (buildPumpOptions(null).length > 0) {
+            addReadingRow();
+        } else {
+            emptyRowsHint.textContent = "Aucune pompe restante à saisir pour aujourd'hui.";
+        }
         renderWalletSection();
     }
+
+    document.getElementById('closeNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
+    document.getElementById('confirmNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
+    noRemainingPumpModal?.addEventListener('click', function(e) {
+        if (e.target === noRemainingPumpModal) closeInfoModal();
+    });
 })();
 </script>
 {% endblock %}

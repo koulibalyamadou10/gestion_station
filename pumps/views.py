@@ -840,16 +840,35 @@ def bulk_pump_reading_view(request):
     )
 
     pumps_data = []
+    already_sent_today = []
+    today = timezone.now().date()
     for p in pumps_qs:
         if not p.pump_uuid:
             continue
+        readings_count = p.readings.count()
+        today_reading = (
+            p.readings.filter(reading_date=today)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+        is_sent_today = bool(readings_count > 1 and today_reading)
         lr = p.readings.order_by("-reading_date", "-created_at").first()
         prev = lr.current_index if lr else Decimal("0")
+        if is_sent_today:
+            already_sent_today.append(
+                {
+                    "pump_uuid": str(p.pump_uuid),
+                    "name": p.name,
+                    "current_index": str(today_reading.current_index),
+                }
+            )
         pumps_data.append(
             {
                 "pump_uuid": str(p.pump_uuid),
                 "name": p.name,
                 "previous_index": str(prev),
+                "sent_today": is_sent_today,
+                "sent_current_index": str(today_reading.current_index) if today_reading else "",
             }
         )
 
@@ -1038,6 +1057,7 @@ def bulk_pump_reading_view(request):
             product_price_row.price_diesel if product_price_row else Decimal("0")
         ),
         "bulk_product_price_found": product_price_row is not None,
+        "already_sent_today": already_sent_today,
     }
     return render(request, "pumps/bulk_pump_reading.html", context)
 
