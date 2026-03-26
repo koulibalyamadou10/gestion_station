@@ -205,6 +205,7 @@
     const noRemainingPumpModal = document.getElementById('noRemainingPumpModal');
     const noRemainingPumpModalMessage = document.getElementById('noRemainingPumpModalMessage');
     const noPumpReasonText = document.getElementById('noPumpReasonText');
+    const draftStorageKey = `bulk-reading-draft:${window.location.pathname}:${'{{ station.id }}'}`;
 
     function openInfoModal(message) {
         if (!noRemainingPumpModal || !noRemainingPumpModalMessage) return;
@@ -287,6 +288,56 @@
             missingDaysText.textContent = `${missing.length} jour(s) sans lecture avant ${formatIsoToFr(selectedIso)}. Derniers manquants: ${preview}.`;
         } else {
             missingDaysText.textContent = `Aucune lecture enregistrée pour: ${preview}.`;
+        }
+    }
+
+    function saveDraft() {
+        if (!bulkForm) return;
+        const draft = {
+            reading_date: readingDateInput?.value || '',
+            readings: JSON.parse(readingsJsonInput?.value || '[]'),
+            wallet_allocations: JSON.parse(walletAllocationsInput?.value || '[]'),
+        };
+        try {
+            localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+        } catch (e) {
+            // ignore storage errors
+        }
+    }
+
+    function loadDraft() {
+        try {
+            const raw = localStorage.getItem(draftStorageKey);
+            if (!raw) return false;
+            const draft = JSON.parse(raw);
+            if (!draft || typeof draft !== 'object') return false;
+
+            if (readingDateInput && draft.reading_date) {
+                readingDateInput.value = draft.reading_date;
+            }
+
+            readingRowsContainer.innerHTML = '';
+            const draftReadings = Array.isArray(draft.readings) ? draft.readings : [];
+            draftReadings.forEach((item) => {
+                addReadingRow(item.pump_uuid || '', item.current_index || '');
+            });
+
+            walletAllocationsContainer.innerHTML = '';
+            const draftWallets = Array.isArray(draft.wallet_allocations) ? draft.wallet_allocations : [];
+            if (draftWallets.length) {
+                draftWallets.forEach((item) => {
+                    createWalletRow(item.wallet_uuid || '', item.amount || '');
+                });
+            } else {
+                renderWalletSection();
+            }
+
+            refreshAllPumpSelects();
+            syncReadingsJson();
+            syncWalletAllocations();
+            return true;
+        } catch (e) {
+            return false;
         }
     }
 
@@ -462,7 +513,7 @@
         `).join('');
     }
 
-    function addReadingRow() {
+    function addReadingRow(defaultPumpUuid = '', defaultCurrentIndex = '') {
         const row = document.createElement('div');
         row.className = 'reading-row border border-gray-200 rounded-lg p-3 grid grid-cols-1 md:grid-cols-12 gap-2 items-end';
         row.innerHTML = `
@@ -485,14 +536,27 @@
         `;
         readingRowsContainer.appendChild(row);
         const sel = row.querySelector('.reading-pump-select');
+        const currentInput = row.querySelector('.reading-current-index');
         sel.addEventListener('change', () => {
             const meta = getPumpMeta(sel.value);
             row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
             syncReadingsJson();
             refreshAllPumpSelects();
+            saveDraft();
         });
-        row.querySelector('.reading-current-index').addEventListener('input', syncReadingsJson);
+        currentInput.addEventListener('input', () => {
+            syncReadingsJson();
+            saveDraft();
+        });
         refreshAllPumpSelects();
+        if (defaultPumpUuid) {
+            sel.value = defaultPumpUuid;
+            const meta = getPumpMeta(defaultPumpUuid);
+            row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
+        }
+        if (defaultCurrentIndex !== null && defaultCurrentIndex !== undefined && String(defaultCurrentIndex) !== '') {
+            currentInput.value = String(defaultCurrentIndex);
+        }
         syncReadingsJson();
     }
 
@@ -518,6 +582,7 @@
         walletAllocationsInput.value = JSON.stringify(allocations);
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
         walletRemainingAmount.textContent = formatAmount(batchTotal - allocatedSum);
+        saveDraft();
     }
 
     function createWalletRow(defaultUuid = '', defaultAmount = '') {
@@ -545,16 +610,22 @@
         row.querySelector('.remove-wallet-row').addEventListener('click', () => {
             row.remove();
             syncWalletAllocations();
+            saveDraft();
         });
-        row.querySelector('.wallet-select').addEventListener('change', syncWalletAllocations);
+        row.querySelector('.wallet-select').addEventListener('change', () => {
+            syncWalletAllocations();
+            saveDraft();
+        });
         const amtInput = row.querySelector('.wallet-amount');
         amtInput.addEventListener('input', () => {
             amtInput.value = amtInput.value.replace(/[^\d\s,\.]/g, '');
             syncWalletAllocations();
+            saveDraft();
         });
         amtInput.addEventListener('blur', () => {
             amtInput.value = formatAmount(parseAmountInput(amtInput.value));
             syncWalletAllocations();
+            saveDraft();
         });
     }
 
@@ -593,6 +664,7 @@
     addWalletAllocationBtn?.addEventListener('click', () => {
         createWalletRow('', '');
         syncWalletAllocations();
+        saveDraft();
     });
 
     bulkForm?.addEventListener('submit', function(e) {
@@ -650,14 +722,21 @@
     });
 
     if (PUMPS_DATA.length && bulkForm) {
-        refreshMissingDaysInfo();
-        if (buildPumpOptions(null).length > 0) {
-            addReadingRow();
+        const restored = loadDraft();
+        if (!restored) {
+            refreshMissingDaysInfo();
+            if (buildPumpOptions(null).length > 0) {
+                addReadingRow();
+            } else {
+                emptyRowsHint.textContent = "Aucune pompe restante à saisir pour la date sélectionnée.";
+            }
+            refreshNoPumpReason();
+            renderWalletSection();
+            saveDraft();
         } else {
-            emptyRowsHint.textContent = "Aucune pompe restante à saisir pour la date sélectionnée.";
+            refreshMissingDaysInfo();
+            refreshNoPumpReason();
         }
-        refreshNoPumpReason();
-        renderWalletSection();
     }
 
     readingDateInput?.addEventListener('change', function() {
@@ -665,6 +744,7 @@
         refreshAllPumpSelects();
         syncReadingsJson();
         refreshNoPumpReason();
+        saveDraft();
     });
 
     document.getElementById('closeNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
