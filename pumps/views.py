@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from django.db.models import Q
@@ -17,6 +16,14 @@ from stations.models import Station, StationManager
 from wallet.models import Account
 from product_price.utils import get_product_price_for_date
 from permissions_web import manager_required
+
+
+def _get_unit_prices_for_date(d):
+    """Retourne (prix_essence, prix_gazoil) depuis ProductPrice à la date donnée."""
+    pp = get_product_price_for_date(d)
+    if not pp:
+        return Decimal("0"), Decimal("0")
+    return pp.price_gasoline or Decimal("0"), pp.price_diesel or Decimal("0")
 
 
 def _previous_reading_strictly_before(reading):
@@ -91,8 +98,7 @@ def _create_sale_from_reading(reading, recorded_by):
     pump_name = (reading.pump.name or "").lower()
     is_essence = "essence" in pump_name
 
-    unit_price_essence = Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
-    unit_price_diesel = Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+    unit_price_essence, unit_price_diesel = _get_unit_prices_for_date(reading.reading_date)
 
     qty_gasoline = qty if is_essence else Decimal("0")
     qty_diesel = qty if not is_essence else Decimal("0")
@@ -140,8 +146,7 @@ def _compute_sale_total_for_pump_reading(pump, previous_current_index, new_curre
         qty = Decimal("0")
     pump_name = (pump.name or "").lower()
     is_essence = "essence" in pump_name
-    unit_price_essence = Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0)))
-    unit_price_diesel = Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0)))
+    unit_price_essence, unit_price_diesel = _get_unit_prices_for_date(timezone.now().date())
     qty_gasoline = qty if is_essence else Decimal("0")
     qty_diesel = qty if not is_essence else Decimal("0")
     return (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
@@ -305,6 +310,7 @@ def pumps_list_view(request):
                     "balance": str(wallet.balance),
                 })
 
+        unit_price_essence, unit_price_diesel = _get_unit_prices_for_date(timezone.now().date())
         context = {
             'pumps': pumps,
             'station': station,  # Pour compatibilité avec le template
@@ -317,8 +323,8 @@ def pumps_list_view(request):
             'station_filter': station_filter,
             'is_read_only': request.user.role == 'admin',  # Lecture seule pour les admins
             'station_wallets': station_wallets,
-            'product_price_essence': Decimal(str(getattr(settings, "PRODUCT_PRICE_ESSENCE", 0))),
-            'product_price_diesel': Decimal(str(getattr(settings, "PRODUCT_PRICE_DIESEL", 0))),
+            'product_price_essence': unit_price_essence,
+            'product_price_diesel': unit_price_diesel,
         }
         
         return render(request, 'pumps/pumps_list.html', context)
@@ -478,8 +484,9 @@ def pump_detail_view(request, pump_uuid):
             r.quantity_sold = _quantity_sold_for_reading(r)
         latest_reading = PumpReading.objects.filter(pump=pump).order_by('-reading_date', '-created_at').first()
         employees = (
-            pump.station.employee_set
+            Employee.objects.filter(employeestation__station=pump.station)
             .select_related('user')
+            .distinct()
             .order_by('first_name', 'last_name')
         )
 
@@ -649,7 +656,14 @@ def create_reading_view(request, pump_uuid):
                     messages.error(request, 'Une lecture a déjà été enregistrée aujourd\'hui pour cette pompe.')
                     return redirect('pumps:pumps_list')
                 
-                employee = Employee.objects.filter(user=request.user, station=pump.station).first()
+                employee = (
+                    Employee.objects.filter(
+                        user=request.user,
+                        employeestation__station=pump.station,
+                    )
+                    .distinct()
+                    .first()
+                )
                 station_wallets = list(Account.objects.filter(station=pump.station).order_by("name"))
                 if not station_wallets:
                     messages.error(
@@ -861,7 +875,14 @@ def bulk_pump_reading_view(request):
             )
             return redirect("pumps:bulk_pump_reading")
 
-        employee = Employee.objects.filter(user=request.user, station=station).first()
+        employee = (
+            Employee.objects.filter(
+                user=request.user,
+                employeestation__station=station,
+            )
+            .distinct()
+            .first()
+        )
         seen_uuids = set()
         prepared = []
 
@@ -994,7 +1015,7 @@ def bulk_pump_reading_view(request):
             request,
             f"{len(prepared)} lecture(s) enregistrée(s) et montants répartis sur les wallets.",
         )
-        return redirect("pumps:pumps_list")
+        return redirect("daily_stock:daily_sales")
 
     today = timezone.now().date()
     product_price_row = get_product_price_for_date(today)
