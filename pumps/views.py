@@ -5,6 +5,7 @@ from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from decimal import Decimal, InvalidOperation
 import json
@@ -835,13 +836,31 @@ def bulk_pump_reading_view(request):
         .select_related("station")
         .order_by("name")
     )
+    station_reading_dates = sorted(
+        {
+            d.isoformat()
+            for d in PumpReading.objects.filter(pump__station=station)
+            .values_list("reading_date", flat=True)
+            if d
+        }
+    )
+    selected_date_raw = (
+        request.GET.get("reading_date")
+        or request.POST.get("reading_date")
+        or ""
+    ).strip()
+    selected_reading_date = timezone.now().date()
+    if selected_date_raw:
+        parsed_selected = parse_date(selected_date_raw)
+        if parsed_selected:
+            selected_reading_date = parsed_selected
     station_wallets_list = list(
         Account.objects.filter(station=station, uuid__isnull=False).order_by("name")
     )
 
     pumps_data = []
     already_sent_today = []
-    today = timezone.now().date()
+    today = selected_reading_date
     for p in pumps_qs:
         if not p.pump_uuid:
             continue
@@ -851,9 +870,15 @@ def bulk_pump_reading_view(request):
             .order_by("-created_at", "-id")
             .first()
         )
-        is_sent_today = bool(readings_count > 1 and today_reading)
+        is_sent_today = bool(today_reading)
         lr = p.readings.order_by("-reading_date", "-created_at").first()
         prev = lr.current_index if lr else Decimal("0")
+        latest_reading_date = lr.reading_date.isoformat() if lr and lr.reading_date else ""
+        recorded_dates = [
+            d.isoformat()
+            for d in p.readings.values_list("reading_date", flat=True).distinct().order_by("reading_date")
+            if d
+        ]
         if is_sent_today:
             already_sent_today.append(
                 {
@@ -869,13 +894,15 @@ def bulk_pump_reading_view(request):
                 "previous_index": str(prev),
                 "sent_today": is_sent_today,
                 "sent_current_index": str(today_reading.current_index) if today_reading else "",
+                "latest_reading_date": latest_reading_date,
+                "recorded_dates": recorded_dates,
             }
         )
 
     if request.method == "POST":
         readings_json = request.POST.get("readings_json", "").strip()
         allocations_json = request.POST.get("wallet_allocations", "").strip()
-        today = timezone.now().date()
+        today = selected_reading_date
 
         try:
             readings_data = json.loads(readings_json) if readings_json else []
@@ -950,14 +977,20 @@ def bulk_pump_reading_view(request):
                 )
                 return redirect("pumps:bulk_pump_reading")
 
-            readings_count = PumpReading.objects.filter(pump=pump).count()
             existing_today = PumpReading.objects.filter(
                 pump=pump, reading_date=today
             ).first()
-            if readings_count > 1 and existing_today:
+            if existing_today:
                 messages.error(
                     request,
-                    f'Une lecture a déjà été enregistrée aujourd\'hui pour "{pump.name}".',
+                    f'Une lecture a déjà été enregistrée le {today.strftime("%d/%m/%Y")} pour "{pump.name}".',
+                )
+                return redirect("pumps:bulk_pump_reading")
+            if latest and today < latest.reading_date:
+                messages.error(
+                    request,
+                    f'Impossible de saisir "{pump.name}" au {today.strftime("%d/%m/%Y")} '
+                    f'car une lecture plus récente existe déjà ({latest.reading_date.strftime("%d/%m/%Y")}).',
                 )
                 return redirect("pumps:bulk_pump_reading")
 
@@ -1058,6 +1091,8 @@ def bulk_pump_reading_view(request):
         ),
         "bulk_product_price_found": product_price_row is not None,
         "already_sent_today": already_sent_today,
+        "selected_reading_date": selected_reading_date.isoformat(),
+        "station_reading_dates": station_reading_dates,
     }
     return render(request, "pumps/bulk_pump_reading.html", context)
 

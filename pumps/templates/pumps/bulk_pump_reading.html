@@ -35,6 +35,24 @@
     <input type="hidden" name="wallet_allocations" id="walletAllocationsInput" value="[]">
 
     <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">Date de lecture (optionnel)</label>
+        <input
+            type="date"
+            id="readingDateInput"
+            name="reading_date"
+            value="{{ selected_reading_date }}"
+            class="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg"
+        >
+        <p class="text-xs text-gray-500 mt-2">
+            Si aucune date n'est sélectionnée, la date actuelle sera utilisée.
+        </p>
+        <div id="missingDaysAlert" class="hidden mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p class="text-xs font-semibold text-amber-800 uppercase mb-1">Jours sans lecture détectés</p>
+            <p id="missingDaysText" class="text-sm text-amber-900"></p>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-gray-800">
                 <i class="fas fa-gas-pump mr-2 text-blue-600"></i>Lectures
@@ -45,7 +63,7 @@
         </div>
         {% if already_sent_today %}
         <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p class="text-xs font-semibold text-amber-800 uppercase mb-2">Déjà envoyées aujourd'hui</p>
+            <p class="text-xs font-semibold text-amber-800 uppercase mb-2">Déjà envoyées pour la date sélectionnée</p>
             <div class="space-y-1">
                 {% for item in already_sent_today %}
                 <p class="text-sm text-amber-900">
@@ -147,13 +165,16 @@
 
 {{ pumps_data|json_script:"pumps-data" }}
 {{ station_wallets|json_script:"station-wallets-data" }}
+{{ station_reading_dates|json_script:"station-reading-dates" }}
 
 <script>
 (function() {
     const PUMPS_DATA = JSON.parse(document.getElementById('pumps-data')?.textContent || '[]');
     const STATION_WALLETS = JSON.parse(document.getElementById('station-wallets-data')?.textContent || '[]');
+    const STATION_READING_DATES = JSON.parse(document.getElementById('station-reading-dates')?.textContent || '[]');
     const PRODUCT_PRICE_ESSENCE = parseFloat('{{ product_price_essence }}') || 0;
     const PRODUCT_PRICE_DIESEL = parseFloat('{{ product_price_diesel }}') || 0;
+    const DEFAULT_SELECTED_DATE = '{{ selected_reading_date }}';
 
     const readingRowsContainer = document.getElementById('readingRowsContainer');
     const addReadingRowBtn = document.getElementById('addReadingRowBtn');
@@ -167,6 +188,9 @@
     const noWalletMessage = document.getElementById('noWalletMessage');
     const bulkForm = document.getElementById('bulkReadingForm');
     const salesSummaryBody = document.getElementById('salesSummaryBody');
+    const readingDateInput = document.getElementById('readingDateInput');
+    const missingDaysAlert = document.getElementById('missingDaysAlert');
+    const missingDaysText = document.getElementById('missingDaysText');
     const noRemainingPumpModal = document.getElementById('noRemainingPumpModal');
     const noRemainingPumpModalMessage = document.getElementById('noRemainingPumpModalMessage');
 
@@ -195,6 +219,63 @@
         const normalized = String(value).replace(/\s/g, '').replace(',', '.');
         const parsed = parseFloat(normalized);
         return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function getSelectedReadingDate() {
+        const val = (readingDateInput?.value || '').trim();
+        if (val) return val;
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    function dateToObj(iso) {
+        if (!iso) return null;
+        const [y, m, d] = iso.split('-').map((x) => parseInt(x, 10));
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
+    }
+
+    function formatIsoToFr(iso) {
+        const d = dateToObj(iso);
+        if (!d) return iso;
+        return d.toLocaleDateString('fr-FR');
+    }
+
+    function computeMissingDays(selectedIso) {
+        if (!selectedIso || !STATION_READING_DATES.length) return [];
+        const selected = dateToObj(selectedIso);
+        if (!selected) return [];
+        const existingSet = new Set(STATION_READING_DATES);
+        const before = STATION_READING_DATES.filter((x) => x < selectedIso).sort();
+        if (!before.length) return [];
+        const first = dateToObj(before[0]);
+        if (!first) return [];
+        const out = [];
+        const cur = new Date(first.getTime());
+        while (cur < selected) {
+            const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+            if (!existingSet.has(iso)) out.push(iso);
+            cur.setDate(cur.getDate() + 1);
+        }
+        return out;
+    }
+
+    function refreshMissingDaysInfo() {
+        if (!missingDaysAlert || !missingDaysText) return;
+        const selectedIso = getSelectedReadingDate();
+        const missing = computeMissingDays(selectedIso);
+        if (!missing.length) {
+            missingDaysAlert.classList.add('hidden');
+            missingDaysText.textContent = '';
+            return;
+        }
+        missingDaysAlert.classList.remove('hidden');
+        const preview = missing.slice(-7).map(formatIsoToFr).join(', ');
+        if (missing.length > 7) {
+            missingDaysText.textContent = `${missing.length} jour(s) sans lecture avant ${formatIsoToFr(selectedIso)}. Derniers manquants: ${preview}.`;
+        } else {
+            missingDaysText.textContent = `Aucune lecture enregistrée pour: ${preview}.`;
+        }
     }
 
     function getPumpMeta(pumpUuid) {
@@ -234,10 +315,19 @@
             .filter(Boolean);
     }
 
+    function pumpBlockedForSelectedDate(meta) {
+        const selectedIso = getSelectedReadingDate();
+        if (!meta || !selectedIso) return false;
+        const recorded = Array.isArray(meta.recorded_dates) ? meta.recorded_dates : [];
+        if (recorded.includes(selectedIso)) return true;
+        if (meta.latest_reading_date && selectedIso < meta.latest_reading_date) return true;
+        return false;
+    }
+
     function buildPumpOptions(excludeUuid) {
         const taken = new Set(getSelectedPumpUuids());
         if (excludeUuid) taken.delete(excludeUuid);
-        return PUMPS_DATA.filter((p) => p.pump_uuid && !p.sent_today && !taken.has(p.pump_uuid));
+        return PUMPS_DATA.filter((p) => p.pump_uuid && !pumpBlockedForSelectedDate(p) && !taken.has(p.pump_uuid));
     }
 
     function refreshAllPumpSelects() {
@@ -434,10 +524,15 @@
     addReadingRowBtn?.addEventListener('click', () => {
         if (!PUMPS_DATA.length) return;
         if (buildPumpOptions(null).length === 0) {
-            const hasSentToday = PUMPS_DATA.some((p) => p.sent_today);
-            openInfoModal(hasSentToday
-                ? "Aucune pompe restante à saisir aujourd'hui."
-                : 'Toutes les pompes sont déjà ajoutées.');
+            const selectedIso = getSelectedReadingDate();
+            const hasSentForSelected = PUMPS_DATA.some((p) => {
+                const recorded = Array.isArray(p.recorded_dates) ? p.recorded_dates : [];
+                return recorded.includes(selectedIso);
+            });
+            const sel = formatIsoToFr(getSelectedReadingDate());
+            openInfoModal(hasSentForSelected
+                ? `Aucune pompe restante à saisir pour la date ${sel}.`
+                : 'Toutes les pompes disponibles sont déjà ajoutées.');
             return;
         }
         addReadingRow();
@@ -484,13 +579,20 @@
     });
 
     if (PUMPS_DATA.length && bulkForm) {
+        refreshMissingDaysInfo();
         if (buildPumpOptions(null).length > 0) {
             addReadingRow();
         } else {
-            emptyRowsHint.textContent = "Aucune pompe restante à saisir pour aujourd'hui.";
+            emptyRowsHint.textContent = "Aucune pompe restante à saisir pour la date sélectionnée.";
         }
         renderWalletSection();
     }
+
+    readingDateInput?.addEventListener('change', function() {
+        refreshMissingDaysInfo();
+        refreshAllPumpSelects();
+        syncReadingsJson();
+    });
 
     document.getElementById('closeNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
     document.getElementById('confirmNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
