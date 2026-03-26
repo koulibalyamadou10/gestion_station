@@ -7,6 +7,8 @@ class Delivery(models.Model):
     
     delivered_qty_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     delivered_qty_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    missing_qty_gasoline = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    missing_qty_diesel = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     delivery_date = models.DateField()
     
     truck_number = models.CharField(max_length=50, null=True, blank=True)
