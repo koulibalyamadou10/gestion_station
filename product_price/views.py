@@ -1,4 +1,3 @@
-from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -45,10 +44,10 @@ def product_price_list_view(request):
             return redirect("product_price:product_price_list")
 
         today = timezone.now().date()
-        if parsed_date <= today:
+        if parsed_date < today:
             messages.error(
                 request,
-                "La date d'application doit être postérieure à la date du jour (à partir de demain).",
+                "La date d'application ne peut pas être dans le passé.",
             )
             return redirect("product_price:product_price_list")
 
@@ -80,11 +79,10 @@ def product_price_list_view(request):
     today = timezone.now().date()
     prices = ProductPrice.objects.all()
     active = _product_price_in_effect_for_date(today)
-    min_effective_date = today + timedelta(days=1)
     context = {
         "prices": prices,
         "today": today,
-        "min_effective_date": min_effective_date,
+        "min_effective_date": today,
         "active_product_price_uuid": active.uuid if active else None,
     }
     return render(request, "product_price_content.html", context)
@@ -111,4 +109,61 @@ def delete_product_price_view(request, uuid):
 
     obj.delete()
     messages.success(request, "La grille de prix a été supprimée.")
+    return redirect("product_price:product_price_list")
+
+
+@login_required
+def update_product_price_view(request, uuid):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:dashboard")
+
+    if request.method != "POST":
+        return redirect("product_price:product_price_list")
+
+    obj = get_object_or_404(ProductPrice, uuid=uuid)
+    today = timezone.now().date()
+
+    # Modification autorisée uniquement pour les grilles non encore en vigueur.
+    if obj.effective_from <= today:
+        messages.error(
+            request,
+            "Seules les grilles non encore en vigueur peuvent être modifiées.",
+        )
+        return redirect("product_price:product_price_list")
+
+    effective_raw = request.POST.get("effective_from", "").strip()
+    pg_raw = _normalize_decimal_input(request.POST.get("price_gasoline", ""))
+    pd_raw = _normalize_decimal_input(request.POST.get("price_diesel", ""))
+
+    parsed_date = parse_date(effective_raw)
+    if not parsed_date:
+        messages.error(request, "Date d'application invalide.")
+        return redirect("product_price:product_price_list")
+    if parsed_date < today:
+        messages.error(request, "La date d'application ne peut pas être dans le passé.")
+        return redirect("product_price:product_price_list")
+
+    try:
+        price_gasoline = Decimal(pg_raw)
+        price_diesel = Decimal(pd_raw)
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Les montants doivent être des nombres valides.")
+        return redirect("product_price:product_price_list")
+
+    if price_gasoline < 0 or price_diesel < 0:
+        messages.error(request, "Les prix ne peuvent pas être négatifs.")
+        return redirect("product_price:product_price_list")
+
+    obj.effective_from = parsed_date
+    obj.price_gasoline = price_gasoline
+    obj.price_diesel = price_diesel
+    try:
+        obj.save()
+        messages.success(request, "La grille de prix a été modifiée.")
+    except IntegrityError:
+        messages.error(
+            request,
+            "Une grille de prix existe déjà pour cette date d'application.",
+        )
     return redirect("product_price:product_price_list")

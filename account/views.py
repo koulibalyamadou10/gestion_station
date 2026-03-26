@@ -566,12 +566,11 @@ def create_manager_view(request):
                 )
 
                 # creer l'employé aussi tout simplement quoi 
-                Employee.objects.create(
+                employee = Employee.objects.create(
                     first_name=first_name,
                     last_name=last_name,
                     phone=phone_number,
                     user=manager,
-                    station=station,
                     position=None,
                     hire_date=None,
                     # owner=request.user
@@ -579,10 +578,17 @@ def create_manager_view(request):
 
                 if station:
                     from stations.models import StationManager
+                    from employee.models import EmployeeStation
 
                     StationManager.objects.update_or_create(
                         station=station,
                         defaults={'manager': manager},
+                    )
+
+                    EmployeeStation.objects.create(
+                        employee=employee,
+                        station=station,
+                        is_manager=True,
                     )
                 
                 login_url = request.build_absolute_uri('/login/')

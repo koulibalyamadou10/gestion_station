@@ -1,4 +1,5 @@
 from account.models import CustomUser
+from employee.models import EmployeeStation
 from stations.models import StationManager
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -60,14 +61,18 @@ def employee_list_view(request):
                 )
                 return redirect("employee:employee_list")
 
-        Employee.objects.create(
+        employee = Employee.objects.create(
             first_name=first_name,
             last_name=last_name,
             phone=phone or None,
             hire_date=hire_date or None,
-            station=station,
             position=position,
             user=user,
+        )
+        EmployeeStation.objects.create(
+            employee=employee,
+            station=station,
+            is_manager=False,
         )
         messages.success(request, "Employé créé avec succès.")
         return redirect("employee:employee_list")
