@@ -50,13 +50,18 @@ def employee_list_view(request):
                 return redirect("employee:employee_list")
 
             # Empêcher qu'un même gérant soit rattaché à plusieurs stations.
-            existing_employee = Employee.objects.filter(user=user).exclude(station=station).first()
-            if existing_employee:
+            existing_assignment = (
+                EmployeeStation.objects.select_related("station")
+                .filter(employee__user=user)
+                .exclude(station=station)
+                .first()
+            )
+            if existing_assignment:
                 messages.error(
                     request,
                     (
                         f"Ce gérant est déjà rattaché à la station "
-                        f"\"{existing_employee.station.name}\"."
+                        f"\"{existing_assignment.station.name}\"."
                     ),
                 )
                 return redirect("employee:employee_list")
@@ -82,9 +87,11 @@ def employee_list_view(request):
     position_filter = request.GET.get("position", "").strip()
     page_number = request.GET.get("page")
 
-    employees_queryset = Employee.objects.select_related(
-        "position", "station", "user"
-    ).order_by("-created_at")
+    employees_queryset = (
+        Employee.objects.select_related("position", "user")
+        .prefetch_related("employeestation_set__station")
+        .order_by("-created_at")
+    )
 
     if search_query:
         employees_queryset = employees_queryset.filter(
@@ -92,17 +99,24 @@ def employee_list_view(request):
             | Q(last_name__icontains=search_query)
             | Q(phone__icontains=search_query)
             | Q(position__title__icontains=search_query)
-            | Q(station__name__icontains=search_query)
+            | Q(employeestation__station__name__icontains=search_query)
         )
 
     if station_filter:
-        employees_queryset = employees_queryset.filter(station_id=station_filter)
+        employees_queryset = employees_queryset.filter(
+            employeestation__station_id=station_filter
+        )
 
     if position_filter:
         employees_queryset = employees_queryset.filter(position_id=position_filter)
 
+    employees_queryset = employees_queryset.distinct()
+
     paginator = Paginator(employees_queryset, 10)
     page_obj = paginator.get_page(page_number)
+    for employee in page_obj.object_list:
+        relation = employee.employeestation_set.first()
+        employee.primary_station = relation.station if relation else None
 
     context = {
         "employees": page_obj.object_list,
@@ -147,13 +161,19 @@ def update_employee_view(request, employee_uuid):
         position = get_object_or_404(Position, id=position_id)
 
     if employee.user:
-        existing_employee = Employee.objects.filter(user=employee.user).exclude(id=employee.id).exclude(station=station).first()
-        if existing_employee:
+        existing_assignment = (
+            EmployeeStation.objects.select_related("station")
+            .filter(employee__user=employee.user)
+            .exclude(employee=employee)
+            .exclude(station=station)
+            .first()
+        )
+        if existing_assignment:
             messages.error(
                 request,
                 (
                     f"Ce gérant est déjà rattaché à la station "
-                    f"\"{existing_employee.station.name}\"."
+                    f"\"{existing_assignment.station.name}\"."
                 ),
             )
             return redirect("employee:employee_list")
@@ -162,9 +182,20 @@ def update_employee_view(request, employee_uuid):
     employee.last_name = last_name
     employee.phone = phone or None
     employee.hire_date = hire_date or None
-    employee.station = station
     employee.position = position
     employee.save()
+
+    employee_station_rel = EmployeeStation.objects.filter(employee=employee).first()
+    if employee_station_rel:
+        employee_station_rel.station = station
+        employee_station_rel.is_manager = False
+        employee_station_rel.save(update_fields=["station", "is_manager", "updated_at"])
+    else:
+        EmployeeStation.objects.create(
+            employee=employee,
+            station=station,
+            is_manager=False,
+        )
 
     # si c'est un manager on doit redefinir sa station que il gere quoi en faisant un update or create de StationManager
     if employee.user and employee.user.role == "manager":

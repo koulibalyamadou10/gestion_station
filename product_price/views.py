@@ -43,14 +43,6 @@ def product_price_list_view(request):
             messages.error(request, "Date d'application invalide.")
             return redirect("product_price:product_price_list")
 
-        today = timezone.now().date()
-        if parsed_date < today:
-            messages.error(
-                request,
-                "La date d'application ne peut pas être dans le passé.",
-            )
-            return redirect("product_price:product_price_list")
-
         try:
             price_gasoline = Decimal(pg_raw)
             price_diesel = Decimal(pd_raw)

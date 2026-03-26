@@ -554,6 +554,13 @@ def assign_manager_view(request, station_uuid):
                     station=station,
                     defaults={'manager': new_manager}
                 )
+                from employee.models import EmployeeStation
+                # faire un update_or_create
+                EmployeeStation.objects.update_or_create(
+                    employee=new_manager,
+                    station=station,
+                    defaults={'is_manager': True},
+                )
                 if not created:
                     station_manager.manager = new_manager
                     station_manager.save()
