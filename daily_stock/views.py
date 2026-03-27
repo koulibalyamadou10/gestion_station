@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
@@ -117,7 +117,7 @@ def daily_sales_view(request):
 
 @login_required
 def daily_stock_create_view(request):
-    """Création d'une entrée stock journalier (gérant uniquement, 1 insertion/jour)."""
+    """Création d'une entrée stock journalier (gérant uniquement, 1 insertion par station et par date)."""
     if request.method != "POST":
         return redirect("daily_stock:daily_sales")
 
@@ -132,7 +132,11 @@ def daily_stock_create_view(request):
         messages.error(request, "Aucune station ne vous est assignée.")
         return redirect("account:dashboard")
 
-    stock_date = date.today()
+    stock_date_raw = (request.POST.get("stock_date") or "").strip()
+    stock_date = parse_date(stock_date_raw) if stock_date_raw else None
+    if not stock_date:
+        messages.error(request, "La date du stock est obligatoire et doit être valide.")
+        return redirect("daily_stock:daily_sales")
 
     try:
         qty_gasoline = Decimal((request.POST.get("qty_gasoline") or "0").replace(",", ".").strip() or "0")
@@ -149,14 +153,13 @@ def daily_stock_create_view(request):
 
     try:
         with transaction.atomic():
-            existing_today = DailyStock.objects.filter(
+            if DailyStock.objects.filter(
                 station=station_manager.station,
                 stock_date=stock_date,
-            ).exists()
-            if existing_today:
+            ).exists():
                 messages.error(
                     request,
-                    "Une entrée de stock journalier existe déjà aujourd'hui pour cette station.",
+                    f"Une entrée de stock journalier existe déjà pour le {stock_date.strftime('%d/%m/%Y')} sur cette station.",
                 )
                 return redirect("daily_stock:daily_sales")
 
@@ -168,6 +171,12 @@ def daily_stock_create_view(request):
                 qty_diesel=qty_diesel,
                 notes=notes,
             )
+    except IntegrityError:
+        messages.error(
+            request,
+            f"Une entrée existe déjà pour le {stock_date.strftime('%d/%m/%Y')} sur cette station.",
+        )
+        return redirect("daily_stock:daily_sales")
     except Exception as exc:
         messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
         return redirect("daily_stock:daily_sales")
