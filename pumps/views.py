@@ -121,23 +121,24 @@ def _create_sale_from_reading(reading, recorded_by):
 
 def _record_inventory_out_and_decrease_station_stock(sale):
     """
-    Insère une ligne Inventory (sorties en litres négatifs) et diminue stock sur la station.
-    Les entrées (livraisons, initial) restent positives : la somme des lignes = historique net des cuves.
+    Diminue le stock cuves sur la station, puis enregistre une ligne Inventory avec les
+    **mêmes valeurs** que station.stock_gasoline / stock_diesel après la vente (snapshot).
     """
     inc_gas = sale.qty_gasoline or Decimal("0")
     inc_die = sale.qty_diesel or Decimal("0")
     if inc_gas == 0 and inc_die == 0:
         return
 
-    Inventory.objects.create(
-        station_id=sale.station_id,
-        qty_gasoline=-inc_gas,
-        qty_diesel=-inc_die,
-    )
     station = Station.objects.select_for_update().get(pk=sale.station_id)
     station.stock_gasoline = (station.stock_gasoline or Decimal("0")) - inc_gas
     station.stock_diesel = (station.stock_diesel or Decimal("0")) - inc_die
     station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+
+    Inventory.objects.create(
+        station_id=sale.station_id,
+        qty_gasoline=station.stock_gasoline,
+        qty_diesel=station.stock_diesel,
+    )
 
 
 def _compute_sale_total_for_pump_reading(pump, previous_current_index, new_current_index):

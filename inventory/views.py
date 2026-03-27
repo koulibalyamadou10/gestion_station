@@ -5,7 +5,6 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Sum
-from django.db.models.functions import Coalesce
 from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
 
@@ -95,22 +94,27 @@ def _allowed_stations_for_compare(user):
 
 def _system_stock_from_inventory_cumulative(station_id, as_of_date):
     """
-    Stock théorique dans les cuves à la fin du jour `as_of_date` (inclus),
-    = somme algébrique des mouvements Inventory (entrées +, sorties −) jusqu’à cette date.
+    Stock théorique dans les cuves à la fin du jour `as_of_date` (inclus).
+
+    Chaque ligne Inventory reflète le niveau des cuves après l’opération (création station,
+    livraisons si enregistrées ainsi, ventes pompes). On prend la **dernière** ligne
+    jusqu’à cette date (pas une somme des quantités).
     """
-    inv = Inventory.objects.filter(station_id=station_id, created_at__date__lte=as_of_date)
-    a = inv.aggregate(
-        g=Coalesce(Sum("qty_gasoline"), Decimal("0")),
-        d=Coalesce(Sum("qty_diesel"), Decimal("0")),
+    last = (
+        Inventory.objects.filter(station_id=station_id, created_at__date__lte=as_of_date)
+        .order_by("-created_at", "-id")
+        .first()
     )
-    return a["g"] or Decimal("0"), a["d"] or Decimal("0")
+    if not last:
+        return Decimal("0"), Decimal("0")
+    return (last.qty_gasoline or Decimal("0"), last.qty_diesel or Decimal("0"))
 
 
 @login_required
 def compare_receptions_vs_sales_view(request):
     """
-    Compare le stock déclaré par le gérant (DailyStock) au stock calculé par le système
-    (historique des mouvements dans Inventory : réceptions +, ventes −).
+    Compare le stock déclaré par le gérant (DailyStock) au stock dérivé du dernier
+    enregistrement Inventory (niveaux de cuves après chaque opération).
     """
     if request.user.role not in ("admin", "super_admin"):
         messages.error(request, "Accès réservé aux administrateurs.")

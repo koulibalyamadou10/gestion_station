@@ -2,9 +2,10 @@ from django.db import models
 
 class Inventory(models.Model):
     """
-    Historique des mouvements de stock en cuves : entrées en positif (création station,
-    livraison commande), sorties en négatif (ventes via pompes). La somme algébrique
-    jusqu’à une date donne le stock système à cette date (comparé au relevé DailyStock).
+    Historique des niveaux de cuves : chaque ligne enregistre les quantités essence / gasoil
+    **après** l’opération (création station, vente pompes, etc.), alignées sur Station.stock_*.
+    Pour le stock à une date donnée, on utilise la dernière ligne jusqu’à cette date
+    (voir inventory.views._system_stock_from_inventory_cumulative).
     """
 
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
