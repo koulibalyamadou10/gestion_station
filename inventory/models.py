@@ -5,7 +5,7 @@ class Inventory(models.Model):
     Historique des niveaux de cuves : chaque ligne enregistre les quantités essence / gasoil
     **après** l’opération (création station, vente pompes, etc.), alignées sur Station.stock_*.
     Pour le stock à une date donnée, on utilise la dernière ligne jusqu’à cette date
-    (voir inventory.views._system_stock_from_inventory_cumulative).
+    (voir inventory.views._system_stock_from_inventory_cumulative et _system_stock_for_daily_compare).
     """
 
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)

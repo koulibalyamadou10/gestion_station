@@ -11,10 +11,13 @@
         Stock déclaré (gérant) vs stock calculé (système)
     </h2>
     <p class="text-sm text-slate-200 leading-relaxed max-w-4xl">
-        <strong>Stock journalier</strong> (<span class="text-amber-200">daily_stock</span>) : relevé saisi par le gérant pour une date donnée.
-        <strong>Inventaire système</strong> (<span class="text-cyan-200">inventory</span>) : historique des mouvements enregistrés automatiquement
-        (création station / livraisons en <span class="text-green-300">+</span>, ventes pompes en <span class="text-red-300">−</span>).
-        Le <strong>stock système</strong> à la date du relevé est la somme algébrique de tous les mouvements jusqu’à cette date (fin de journée incluse).
+        <strong>Relevé gérant</strong> — table <span class="text-amber-200">daily_stock</span> : chaque jour, pour chaque station,
+        le gérant envoie <strong>une ligne</strong> (essence + gazoil déclarés).
+        <strong>Inventaire système</strong> — table <span class="text-cyan-200">inventory</span> : le système enregistre
+        <strong>une ou plusieurs lignes</strong> selon les opérations (livraisons, ventes pompes, etc.) ; chaque ligne donne le
+        <strong>niveau des cuves après</strong> l’opération (pas une somme de plusieurs jours).
+        La comparaison aligne le relevé du <strong>jour J</strong> sur le <strong>dernier inventaire système enregistré le même jour J</strong>
+        ; s’il n’y en a pas ce jour-là, on affiche le <strong>dernier état connu</strong> jusqu’à cette date.
     </p>
 </div>
 
@@ -53,7 +56,9 @@
             <i class="fas fa-clipboard-check text-emerald-600"></i>
             Comparaison par relevé ({{ daily_stock_count }} ligne{{ daily_stock_count|pluralize }})
         </h3>
-        <p class="text-xs text-gray-500 mt-1">Écart = déclaré gérant − stock système (à la même date)</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Écart = déclaré gérant (<span class="font-medium">daily_stock</span>) − stock système (<span class="font-medium">inventory</span>), pour la même date et la même station.
+        </p>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -82,9 +87,18 @@
                         {{ row.delta_gasoline|money_fr }}
                     </td>
                     <td class="px-4 py-3 text-right">{{ ds.qty_diesel|money_fr }}</td>
-                    <td class="px-4 py-3 text-right text-slate-700">{{ row.system_diesel|money_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700" title="{% if row.system_source == 'same_day' %}Dernier inventaire enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Aucune ligne inventaire ce jour — dernier état connu à cette date{% else %}Aucun inventaire système jusqu’à cette date{% endif %}">{{ row.system_diesel|money_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
                         {{ row.delta_diesel|money_fr }}
+                    </td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                        {% if row.system_source == 'same_day' %}
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium" title="Ligne inventory le jour J">Jour J</span>
+                        {% elif row.system_source == 'cumulative' %}
+                        <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-medium" title="Pas d’inventory ce jour — état cumulé">Cumul</span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-medium" title="Aucune donnée inventory">—</span>
+                        {% endif %}
                     </td>
                     <td class="px-4 py-3 text-gray-600">{{ ds.recorded_by.get_full_name|default:ds.recorded_by.email }}</td>
                 </tr>
@@ -97,11 +111,11 @@
     {% if page_obj.has_other_pages %}
     <div class="px-6 py-4 border-t border-gray-100 flex justify-center gap-2">
         {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}&station={{ station_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Précédent</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if station_filter %}&station={{ station_filter }}{% endif %}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Précédent</a>
         {% endif %}
         <span class="px-4 py-2 text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&station={{ station_filter }}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Suivant</a>
+            <a href="?page={{ page_obj.next_page_number }}{% if station_filter %}&station={{ station_filter }}{% endif %}&date_from={{ date_from }}&date_to={{ date_to }}" class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Suivant</a>
         {% endif %}
     </div>
     {% endif %}
@@ -117,9 +131,10 @@
 <div class="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-700">
     <h4 class="font-bold text-slate-800 mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Lecture des écarts</h4>
     <ul class="list-disc list-inside space-y-1 text-slate-600">
-        <li>Écart proche de 0 : le relevé gérant est cohérent avec les mouvements enregistrés.</li>
-        <li>Écart important : saisie, vol, pertes, ou mouvements non passés par l’app (à investiguer).</li>
-        <li>Les ventes pompe enregistrées <strong>avant</strong> la prise en charge des quantités négatives dans l’inventaire peuvent encore apparaître en positif dans l’historique : la somme cumulée peut être faussée jusqu’à correction des lignes concernées.</li>
+        <li><strong>Jour J</strong> : le système a au moins une ligne <code class="text-xs bg-slate-200 px-1 rounded">inventory</code> le même jour que le relevé — les colonnes « Syst. » reprennent le dernier snapshot de ce jour.</li>
+        <li><strong>Cumul</strong> : pas d’inventaire ce jour-là ; on affiche le dernier niveau connu jusqu’à cette date (dernière ligne <code class="text-xs bg-slate-200 px-1 rounded">inventory</code> antérieure ou égale).</li>
+        <li>Écart proche de 0 : déclaratif gérant aligné sur l’état système retenu pour cette ligne.</li>
+        <li>Écart important : erreur de saisie, pertes, ou opérations hors application à vérifier.</li>
     </ul>
 </div>
 {% endblock %}

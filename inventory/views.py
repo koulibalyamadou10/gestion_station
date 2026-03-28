@@ -94,11 +94,8 @@ def _allowed_stations_for_compare(user):
 
 def _system_stock_from_inventory_cumulative(station_id, as_of_date):
     """
-    Stock théorique dans les cuves à la fin du jour `as_of_date` (inclus).
-
-    Chaque ligne Inventory reflète le niveau des cuves après l’opération (création station,
-    livraisons si enregistrées ainsi, ventes pompes). On prend la **dernière** ligne
-    jusqu’à cette date (pas une somme des quantités).
+    Dernier snapshot cuves (Inventory) dont la date de création est <= as_of_date (inclus).
+    Chaque ligne Inventory = niveau essence + gazoil après une opération système (pas une somme).
     """
     last = (
         Inventory.objects.filter(station_id=station_id, created_at__date__lte=as_of_date)
@@ -110,11 +107,37 @@ def _system_stock_from_inventory_cumulative(station_id, as_of_date):
     return (last.qty_gasoline or Decimal("0"), last.qty_diesel or Decimal("0"))
 
 
+def _system_stock_for_daily_compare(station_id, stock_date):
+    """
+    Pour une ligne DailyStock à la date ``stock_date`` :
+    - priorité : dernière ligne Inventory créée **le même jour calendaire** (ce que le système
+      a enregistré ce jour-là pour cette station) ;
+    - sinon : dernier état connu jusqu’à cette date (relevé gérant sans mouvement inventaire ce jour).
+    Retourne (qty_essence, qty_gazoil, source) avec source parmi same_day | cumulative | none.
+    """
+    same_day = (
+        Inventory.objects.filter(station_id=station_id, created_at__date=stock_date)
+        .order_by("-created_at", "-id")
+        .first()
+    )
+    if same_day:
+        return (
+            same_day.qty_gasoline or Decimal("0"),
+            same_day.qty_diesel or Decimal("0"),
+            "same_day",
+        )
+    sys_g, sys_d = _system_stock_from_inventory_cumulative(station_id, stock_date)
+    has_row = Inventory.objects.filter(
+        station_id=station_id, created_at__date__lte=stock_date
+    ).exists()
+    return sys_g, sys_d, ("cumulative" if has_row else "none")
+
+
 @login_required
 def compare_receptions_vs_sales_view(request):
     """
-    Compare le stock déclaré par le gérant (DailyStock) au stock dérivé du dernier
-    enregistrement Inventory (niveaux de cuves après chaque opération).
+    Compare jour à jour : relevé gérant (DailyStock, une ligne / station / jour) vs
+    inventaire système (Inventory : dernier enregistrement du même jour, ou dernier état connu).
     """
     if request.user.role not in ("admin", "super_admin"):
         messages.error(request, "Accès réservé aux administrateurs.")
@@ -152,27 +175,19 @@ def compare_receptions_vs_sales_view(request):
 
     comparison_rows = []
     for ds in ds_qs:
-        sys_g, sys_d = _system_stock_from_inventory_cumulative(ds.station_id, ds.stock_date)
+        sys_g, sys_d, system_source = _system_stock_for_daily_compare(
+            ds.station_id, ds.stock_date
+        )
         comparison_rows.append(
             {
                 "daily": ds,
                 "system_gasoline": sys_g,
                 "system_diesel": sys_d,
+                "system_source": system_source,
                 "delta_gasoline": (ds.qty_gasoline or Decimal("0")) - sys_g,
                 "delta_diesel": (ds.qty_diesel or Decimal("0")) - sys_d,
             }
         )
-
-    inv_detail_qs = Inventory.objects.select_related("station").filter(
-        station__in=allowed_stations
-    )
-    if station_filter:
-        inv_detail_qs = inv_detail_qs.filter(station_id=station_filter)
-    if date_from:
-        inv_detail_qs = inv_detail_qs.filter(created_at__date__gte=date_from)
-    if date_to:
-        inv_detail_qs = inv_detail_qs.filter(created_at__date__lte=date_to)
-    inv_detail_qs = inv_detail_qs.order_by("-created_at", "-id")[:50]
 
     paginator = Paginator(comparison_rows, 12)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -184,7 +199,6 @@ def compare_receptions_vs_sales_view(request):
         "date_to": date_to_raw,
         "page_obj": page_obj,
         "comparison_rows": page_obj.object_list,
-        "inventory_movements": inv_detail_qs,
         "daily_stock_count": ds_qs.count(),
     }
     return render(request, "compare_inventory_and_daily_stock.html", context)
