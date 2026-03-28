@@ -18,15 +18,20 @@
         <strong>niveau des cuves après</strong> l’opération (pas une somme de plusieurs jours).
         La comparaison aligne le relevé du <strong>jour J</strong> sur le <strong>dernier inventaire système enregistré le même jour J</strong>
         ; s’il n’y en a pas ce jour-là, on affiche le <strong>dernier état connu</strong> jusqu’à cette date.
+        {% if allowed_station_count > 1 %}
+        <span class="block mt-2 text-amber-100/95">Choisissez une <strong>station</strong> dans le filtre pour afficher le tableau de comparaison.</span>
+        {% endif %}
     </p>
 </div>
 
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
     <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
         <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Station</label>
-            <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                <option value="">Toutes</option>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Station {% if allowed_station_count > 1 %}<span class="text-red-500">*</span>{% endif %}</label>
+            <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg" {% if allowed_station_count > 1 %}required{% endif %}>
+                {% if allowed_station_count > 1 %}
+                <option value="" {% if not station_filter %}selected{% endif %}>Choisir une station</option>
+                {% endif %}
                 {% for station in stations %}
                     <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
                 {% endfor %}
@@ -49,12 +54,18 @@
     </form>
 </div>
 
-{% if daily_stock_count %}
+{% if not show_comparison_table %}
+<div class="bg-slate-100 border border-slate-200 rounded-xl p-8 text-center text-slate-700 mb-6">
+    <i class="fas fa-map-marker-alt text-3xl mb-3 text-slate-400"></i>
+    <p class="font-semibold text-slate-800">Sélectionnez une station</p>
+    <p class="text-sm mt-2 max-w-md mx-auto">Le tableau de comparaison s’affiche uniquement lorsqu’une station est choisie dans le filtre ci-dessus.</p>
+</div>
+{% elif daily_stock_count %}
 <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
     <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
         <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
             <i class="fas fa-clipboard-check text-emerald-600"></i>
-            Comparaison par relevé ({{ daily_stock_count }} ligne{{ daily_stock_count|pluralize }})
+            Comparaison par relevé ({{ daily_stock_count|qty_fr }} ligne{{ daily_stock_count|pluralize }})
         </h3>
         <p class="text-xs text-gray-500 mt-1">
             Écart = déclaré gérant (<span class="font-medium">daily_stock</span>) − stock système (<span class="font-medium">inventory</span>), pour la même date et la même station.
@@ -71,6 +82,7 @@
                     <th class="px-4 py-3 text-right">Décl. gazoil (L)</th>
                     <th class="px-4 py-3 text-right">Syst. gazoil (L)</th>
                     <th class="px-4 py-3 text-right">Écart gaz.</th>
+                    <th class="px-4 py-3 text-center">Système</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -78,15 +90,15 @@
                 {% with ds=row.daily %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3 whitespace-nowrap font-medium">{{ ds.stock_date|date:"d/m/Y" }}</td>
-                    <td class="px-4 py-3 text-right">{{ ds.qty_gasoline|money_fr }}</td>
-                    <td class="px-4 py-3 text-right text-slate-700">{{ row.system_gasoline|money_fr }}</td>
-                    <td class="px-4 py-3 text-right font-semibold {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
-                        {{ row.delta_gasoline|money_fr }}
+                    <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_gasoline|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums">{{ row.system_gasoline|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                        {{ row.delta_gasoline|qty_fr }}
                     </td>
-                    <td class="px-4 py-3 text-right">{{ ds.qty_diesel|money_fr }}</td>
-                    <td class="px-4 py-3 text-right text-slate-700" title="{% if row.system_source == 'same_day' %}Dernier inventaire enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Aucune ligne inventaire ce jour — dernier état connu à cette date{% else %}Aucun inventaire système jusqu’à cette date{% endif %}">{{ row.system_diesel|money_fr }}</td>
-                    <td class="px-4 py-3 text-right font-semibold {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
-                        {{ row.delta_diesel|money_fr }}
+                    <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_diesel|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier inventaire enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Aucune ligne inventaire ce jour — dernier état connu à cette date{% else %}Aucun inventaire système jusqu’à cette date{% endif %}">{{ row.system_diesel|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                        {{ row.delta_diesel|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         {% if row.system_source == 'same_day' %}
@@ -119,7 +131,7 @@
 {% else %}
 <div class="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center text-amber-900 mb-6">
     <i class="fas fa-inbox text-3xl mb-2"></i>
-    <p class="font-semibold">Aucun stock journalier sur cette période / filtre.</p>
+    <p class="font-semibold">Aucun relevé stock journalier pour cette station sur la période.</p>
     <p class="text-sm mt-2">Les relevés sont créés dans <strong>Stock journalier</strong> (saisie gérant).</p>
 </div>
 {% endif %}

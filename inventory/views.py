@@ -148,6 +148,14 @@ def compare_receptions_vs_sales_view(request):
     date_from_raw = request.GET.get("date_from", "").strip()
     date_to_raw = request.GET.get("date_to", "").strip()
 
+    allowed_station_count = allowed_stations.count()
+    if allowed_station_count == 1:
+        station_filter = str(allowed_stations.first().pk)
+    elif station_filter and not allowed_stations.filter(pk=station_filter).exists():
+        station_filter = ""
+
+    show_comparison_table = bool(station_filter)
+
     today = date.today()
     first_of_month = date(today.year, today.month, 1)
     if not date_from_raw:
@@ -161,33 +169,35 @@ def compare_receptions_vs_sales_view(request):
     else:
         date_to = parse_date(date_to_raw)
 
-    ds_qs = DailyStock.objects.select_related("station", "recorded_by").filter(
-        station__in=allowed_stations
-    )
-    if station_filter:
-        ds_qs = ds_qs.filter(station_id=station_filter)
-    if date_from:
-        ds_qs = ds_qs.filter(stock_date__gte=date_from)
-    if date_to:
-        ds_qs = ds_qs.filter(stock_date__lte=date_to)
-
-    ds_qs = ds_qs.order_by("-stock_date", "-id")
-
     comparison_rows = []
-    for ds in ds_qs:
-        sys_g, sys_d, system_source = _system_stock_for_daily_compare(
-            ds.station_id, ds.stock_date
+    daily_stock_count = 0
+    if show_comparison_table:
+        ds_qs = DailyStock.objects.select_related("station", "recorded_by").filter(
+            station__in=allowed_stations,
+            station_id=station_filter,
         )
-        comparison_rows.append(
-            {
-                "daily": ds,
-                "system_gasoline": sys_g,
-                "system_diesel": sys_d,
-                "system_source": system_source,
-                "delta_gasoline": (ds.qty_gasoline or Decimal("0")) - sys_g,
-                "delta_diesel": (ds.qty_diesel or Decimal("0")) - sys_d,
-            }
-        )
+        if date_from:
+            ds_qs = ds_qs.filter(stock_date__gte=date_from)
+        if date_to:
+            ds_qs = ds_qs.filter(stock_date__lte=date_to)
+
+        ds_qs = ds_qs.order_by("-stock_date", "-id")
+        daily_stock_count = ds_qs.count()
+
+        for ds in ds_qs:
+            sys_g, sys_d, system_source = _system_stock_for_daily_compare(
+                ds.station_id, ds.stock_date
+            )
+            comparison_rows.append(
+                {
+                    "daily": ds,
+                    "system_gasoline": sys_g,
+                    "system_diesel": sys_d,
+                    "system_source": system_source,
+                    "delta_gasoline": (ds.qty_gasoline or Decimal("0")) - sys_g,
+                    "delta_diesel": (ds.qty_diesel or Decimal("0")) - sys_d,
+                }
+            )
 
     paginator = Paginator(comparison_rows, 12)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -195,10 +205,12 @@ def compare_receptions_vs_sales_view(request):
     context = {
         "stations": allowed_stations,
         "station_filter": station_filter,
+        "allowed_station_count": allowed_station_count,
+        "show_comparison_table": show_comparison_table,
         "date_from": date_from_raw,
         "date_to": date_to_raw,
         "page_obj": page_obj,
         "comparison_rows": page_obj.object_list,
-        "daily_stock_count": ds_qs.count(),
+        "daily_stock_count": daily_stock_count,
     }
     return render(request, "compare_inventory_and_daily_stock.html", context)
