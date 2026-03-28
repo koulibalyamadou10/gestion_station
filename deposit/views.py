@@ -47,14 +47,14 @@ def deposit_list_view(request):
         accounts_qs = Account.objects.filter(station=manager_station)
 
         if not account_id or not amount_raw or not deposit_date:
-            messages.error(request, "Wallet, montant et date sont obligatoires.")
+            messages.error(request, "Compte, montant et date sont obligatoires.")
             return redirect("deposit:deposit_list")
 
         amount_raw = amount_raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
 
         account = accounts_qs.filter(pk=account_id).first()
         if not account:
-            messages.error(request, "Wallet invalide.")
+            messages.error(request, "Compte invalide.")
             return redirect("deposit:deposit_list")
 
         try:
@@ -90,7 +90,7 @@ def deposit_list_view(request):
                 acc.save(update_fields=["balance", "updated_at"])
         except Exception as exc:
             if str(exc) == "invalid_wallet":
-                messages.error(request, "Wallet invalide pour votre station.")
+                messages.error(request, "Compte invalide pour votre station.")
                 return redirect("deposit:deposit_list")
             if str(exc) == "insufficient_balance":
                 messages.error(

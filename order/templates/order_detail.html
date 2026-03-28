@@ -31,7 +31,7 @@
         </p>
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-        <p class="text-xs uppercase text-gray-500">Total estimé</p>
+        <p class="text-xs uppercase text-gray-500">Montant</p>
         <p class="text-xl font-bold text-green-700 mt-2">{{ total_estimated|money_fr }} GNF</p>
     </div>
 </div>
@@ -60,10 +60,10 @@
     <h3 class="text-lg font-bold text-gray-800 mb-4">Ligne commande carburant (confirmée)</h3>
     {% if order_supplier %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-        <div><span class="text-gray-500">Quantité essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_gasoline|money_fr }}</span></div>
-        <div><span class="text-gray-500">Prix unitaire essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_fr }} GNF</span></div>
-        <div><span class="text-gray-500">Quantité gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_diesel|money_fr }}</span></div>
-        <div><span class="text-gray-500">Prix unitaire gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_fr }} GNF</span></div>
+        <div><span class="text-gray-500">Quantité (E) :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_gasoline|money_fr }}</span></div>
+        <div><span class="text-gray-500">Prix essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_fr }} GNF</span></div>
+        <div><span class="text-gray-500">Quantité (G) :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_diesel|money_fr }}</span></div>
+        <div><span class="text-gray-500">Prix gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_fr }} GNF</span></div>
         <div class="md:col-span-2"><span class="text-gray-500">Fournisseur :</span> <span class="font-semibold text-gray-800">{{ order_supplier.supplier.name|default:"Non défini" }}</span></div>
     </div>
     {% else %}
@@ -89,10 +89,10 @@
     <div class="{% if not forloop.first %}mt-6 pt-6 border-t border-gray-100{% endif %}">
         <p class="text-xs uppercase text-gray-500 mb-3">Livraison du {{ d.delivery_date|date:"d/m/Y" }}</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div><span class="text-gray-500">Quantité livrée essence :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_gasoline|money_fr }}</span></div>
-            <div><span class="text-gray-500">Prix unitaire essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_fr }} GNF</span></div>
-            <div><span class="text-gray-500">Quantité livrée gasoil :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_diesel|money_fr }}</span></div>
-            <div><span class="text-gray-500">Prix unitaire gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_fr }} GNF</span></div>
+            <div><span class="text-gray-500">Quantité livrée (E) :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_gasoline|money_fr }}</span></div>
+            <div><span class="text-gray-500">Prix essence :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_fr }} GNF</span></div>
+            <div><span class="text-gray-500">Quantité livrée (G) :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_diesel|money_fr }}</span></div>
+            <div><span class="text-gray-500">Prix gasoil :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_fr }} GNF</span></div>
             <div><span class="text-gray-500">Camion :</span> <span class="font-semibold text-gray-800">{{ d.truck_number|default:"—" }}</span></div>
             <div><span class="text-gray-500">Chauffeur :</span> <span class="font-semibold text-gray-800">{{ d.driver_name|default:"—" }}</span></div>
             <div class="md:col-span-2"><span class="text-gray-500">Réf. / bon :</span> <span class="font-semibold text-gray-800">{{ d.delivery_notes|default:"—" }}</span></div>

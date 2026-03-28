@@ -65,14 +65,12 @@
             <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
                 <tr>
                     <th class="px-4 py-3 text-left">Date</th>
-                    <th class="px-4 py-3 text-left">Station</th>
                     <th class="px-4 py-3 text-right">Décl. essence (L)</th>
                     <th class="px-4 py-3 text-right">Syst. essence (L)</th>
                     <th class="px-4 py-3 text-right">Écart ess.</th>
                     <th class="px-4 py-3 text-right">Décl. gazoil (L)</th>
                     <th class="px-4 py-3 text-right">Syst. gazoil (L)</th>
                     <th class="px-4 py-3 text-right">Écart gaz.</th>
-                    <th class="px-4 py-3 text-left">Saisi par</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -80,7 +78,6 @@
                 {% with ds=row.daily %}
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3 whitespace-nowrap font-medium">{{ ds.stock_date|date:"d/m/Y" }}</td>
-                    <td class="px-4 py-3">{{ ds.station.name }}</td>
                     <td class="px-4 py-3 text-right">{{ ds.qty_gasoline|money_fr }}</td>
                     <td class="px-4 py-3 text-right text-slate-700">{{ row.system_gasoline|money_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
@@ -100,7 +97,6 @@
                         <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-medium" title="Aucune donnée inventory">—</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3 text-gray-600">{{ ds.recorded_by.get_full_name|default:ds.recorded_by.email }}</td>
                 </tr>
                 {% endwith %}
                 {% endfor %}
