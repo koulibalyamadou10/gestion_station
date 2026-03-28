@@ -1131,27 +1131,8 @@ def bulk_pump_reading_view(request):
         else:
             allocations_by_uuid = {}
 
-        total_qg = Decimal("0")
-        total_qd = Decimal("0")
-        for row in prepared:
-            g, d = _qty_gas_diesel_for_pump_delta(
-                row["pump"], row["previous_current"], row["current_index"]
-            )
-            total_qg += g
-            total_qd += d
-
         try:
             with transaction.atomic():
-                station_locked = Station.objects.select_for_update().get(pk=station.pk)
-                ok_stock, err_stock = _station_has_stock_for_sale(
-                    station_locked,
-                    total_qg,
-                    total_qd,
-                    scope_label="cette saisie groupée",
-                )
-                if not ok_stock:
-                    raise ValueError(err_stock)
-
                 batch_stock_changed = False
                 for row in prepared:
                     reading = PumpReading.objects.create(
