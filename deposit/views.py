@@ -49,9 +49,6 @@ def deposit_list_view(request):
         if not account_id or not amount_raw or not deposit_date:
             messages.error(request, "Wallet, montant et date sont obligatoires.")
             return redirect("deposit:deposit_list")
-        if not receipt_file:
-            messages.error(request, "Le justificatif est obligatoire.")
-            return redirect("deposit:deposit_list")
 
         amount_raw = amount_raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
 

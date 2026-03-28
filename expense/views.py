@@ -39,6 +39,11 @@ def _normalize_category(raw: str) -> Optional[str]:
     return None
 
 
+def _normalize_amount_raw(raw: str) -> str:
+    """Montant saisi (espaces, nbsp, virgule) → chaîne prête pour Decimal."""
+    return (raw or "").replace(" ", "").replace("\u00a0", "").replace(",", ".")
+
+
 @login_required
 def expense_list_view(request):
     """
@@ -88,7 +93,7 @@ def expense_list_view(request):
             messages.error(request, "Wallet, montant et date sont obligatoires.")
             return redirect("expense:expense_list")
 
-        amount_raw = amount_raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
+        amount_raw = _normalize_amount_raw(amount_raw)
 
         account = accounts_qs.filter(pk=account_id).first()
         if not account:
