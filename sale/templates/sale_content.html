@@ -12,7 +12,7 @@
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
         <p class="text-sm text-gray-600">Montant total</p>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_amount|floatformat:2 }}</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_amount|money_gnf }}</p>
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
         <p class="text-sm text-gray-600">Qté Essence / Diesel</p>
@@ -70,7 +70,7 @@
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.pump_reading.pump.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_gasoline|money_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_diesel|money_fr }}</td>
-                        <td class="px-6 py-4 text-sm font-semibold text-blue-700">{{ sale.total_amount|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm font-semibold text-blue-700">{{ sale.total_amount|money_gnf }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.recorded_by.get_full_name|default:sale.recorded_by.email }}</td>
                     </tr>
                     {% endfor %}
@@ -89,10 +89,10 @@
     <p class="text-sm text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
     <div class="flex gap-2">
         {% if page_obj.has_previous %}
-            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&sale_date={{ date_filter }}{% endif %}">Precedent</a>
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.previous_page_number }}&date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}{% if station_filter %}&station={{ station_filter }}{% endif %}">Précédent</a>
         {% endif %}
         {% if page_obj.has_next %}
-            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&sale_date={{ date_filter }}{% endif %}">Suivant</a>
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.next_page_number }}&date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}{% if station_filter %}&station={{ station_filter }}{% endif %}">Suivant</a>
         {% endif %}
     </div>
 </div>

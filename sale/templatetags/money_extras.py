@@ -41,3 +41,29 @@ def money_fr(value):
     whole_fmt = _group_thousands(whole)
     out = f"{whole_fmt},{frac}"
     return f"-{out}" if neg else out
+
+
+@register.filter(name="money_gnf")
+def money_gnf(value):
+    """
+    Montant en GNF : espaces comme séparateurs de milliers, suffixe GNF.
+    Pas de partie décimale affichée si elle est nulle (.00).
+    """
+    if value is None or value == "":
+        return "—"
+    try:
+        d = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return value
+    neg = d < 0
+    d = abs(d)
+    d = d.quantize(Decimal("0.01"))
+    if d == d.to_integral_value():
+        whole_fmt = _group_thousands(str(int(d)))
+        out = f"{whole_fmt} GNF"
+    else:
+        s = format(d, "f")
+        whole, frac = s.split(".", 1)
+        whole_fmt = _group_thousands(whole)
+        out = f"{whole_fmt},{frac} GNF"
+    return f"-{out}" if neg else out
