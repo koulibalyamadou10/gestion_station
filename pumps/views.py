@@ -129,26 +129,40 @@ def _create_sale_from_reading(reading, recorded_by):
     )
 
 
-def _record_inventory_out_and_decrease_station_stock(sale):
+def _decrease_station_stock_for_sale(sale):
     """
-    Diminue le stock cuves sur la station, puis enregistre une ligne Inventory avec les
-    **mêmes valeurs** que station.stock_gasoline / stock_diesel après la vente (snapshot).
+    Diminue stock_gasoline / stock_diesel sur la station (verrouillée).
+    Retourne True si le stock a été modifié, False sinon.
     """
     inc_gas = sale.qty_gasoline or Decimal("0")
     inc_die = sale.qty_diesel or Decimal("0")
     if inc_gas == 0 and inc_die == 0:
-        return
+        return False
 
     station = Station.objects.select_for_update().get(pk=sale.station_id)
     station.stock_gasoline = (station.stock_gasoline or Decimal("0")) - inc_gas
     station.stock_diesel = (station.stock_diesel or Decimal("0")) - inc_die
     station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+    return True
 
+
+def _record_inventory_snapshot_for_station(station_id):
+    """Une ligne Inventory = niveaux cuves actuels (essence + gazoil) après l'opération."""
+    station = Station.objects.select_for_update().get(pk=station_id)
     Inventory.objects.create(
-        station_id=sale.station_id,
+        station_id=station_id,
         qty_gasoline=station.stock_gasoline,
         qty_diesel=station.stock_diesel,
     )
+
+
+def _record_inventory_out_and_decrease_station_stock(sale):
+    """
+    Diminue le stock cuves, puis une ligne Inventory avec les niveaux finaux essence + gazoil.
+    Utilisé pour une vente unitaire (une ligne Inventory par vente).
+    """
+    if _decrease_station_stock_for_sale(sale):
+        _record_inventory_snapshot_for_station(sale.station_id)
 
 
 def _compute_sale_total_for_pump_reading(
@@ -1110,6 +1124,7 @@ def bulk_pump_reading_view(request):
                 if not ok_stock:
                     raise ValueError(err_stock)
 
+                batch_stock_changed = False
                 for row in prepared:
                     reading = PumpReading.objects.create(
                         pump=row["pump"],
@@ -1118,7 +1133,10 @@ def bulk_pump_reading_view(request):
                         reading_date=today,
                     )
                     sale = _create_sale_from_reading(reading, request.user)
-                    _record_inventory_out_and_decrease_station_stock(sale)
+                    if _decrease_station_stock_for_sale(sale):
+                        batch_stock_changed = True
+                if batch_stock_changed:
+                    _record_inventory_snapshot_for_station(station.pk)
 
                 for wallet_uuid, amount in allocations_by_uuid.items():
                     if amount <= 0:

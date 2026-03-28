@@ -4,7 +4,6 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Sum
 from django.shortcuts import redirect, render
 from django.utils.dateparse import parse_date
 
@@ -50,13 +49,14 @@ def inventory_by_delivery_view(request):
     if date_to:
         qs = qs.filter(created_at__date__lte=date_to)
 
-    stats = qs.aggregate(
-        total_gasoline=Sum("qty_gasoline"),
-        total_diesel=Sum("qty_diesel"),
-    )
-    total_gasoline = stats["total_gasoline"] or Decimal("0")
-    total_diesel = stats["total_diesel"] or Decimal("0")
     total_entries = qs.count()
+    last_row = qs.order_by("-created_at", "-id").first()
+    if last_row:
+        total_gasoline = last_row.qty_gasoline or Decimal("0")
+        total_diesel = last_row.qty_diesel or Decimal("0")
+    else:
+        total_gasoline = Decimal("0")
+        total_diesel = Decimal("0")
 
     sort_map = {
         "created_desc": ("-created_at", "-id"),
