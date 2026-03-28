@@ -1,4 +1,6 @@
+from django.urls import reverse
 from django.shortcuts import render, redirect, get_object_or_404
+from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -17,6 +19,30 @@ from stations.models import Station, StationManager
 from wallet.models import Account
 from product_price.utils import get_product_price_for_date
 from permissions_web import manager_required
+
+BULK_PUMP_READING_DRAFT_SESSION_KEY = "bulk_pump_reading_draft"
+
+
+def _stash_bulk_pump_reading_draft(request, station):
+    request.session[BULK_PUMP_READING_DRAFT_SESSION_KEY] = {
+        "station_id": station.pk,
+        "reading_date": request.POST.get("reading_date", "").strip(),
+        "readings_json": request.POST.get("readings_json", "").strip(),
+        "wallet_allocations": request.POST.get("wallet_allocations", "").strip(),
+    }
+
+
+def _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form):
+    """Sauvegarde la saisie puis redirige avec ?restore=1 pour réafficher les champs."""
+    _stash_bulk_pump_reading_draft(request, station)
+    params = {"restore": "1"}
+    if bulk_station_uuid_for_form:
+        params["station_uuid"] = str(bulk_station_uuid_for_form)
+    rd = request.POST.get("reading_date", "").strip()
+    if rd:
+        params["reading_date"] = rd
+    url = reverse("pumps:bulk_pump_reading") + "?" + urlencode(params)
+    return redirect(url)
 
 
 def _get_unit_prices_for_date(d):
@@ -185,7 +211,7 @@ def _parse_and_validate_wallet_allocations(
     request, allocations_json, station_wallets, total_expected
 ):
     """
-    Retourne (dict wallet_uuid -> Decimal, None) ou (None, redirect_response).
+    Retourne (dict wallet_uuid -> Decimal, None) ou (None, True) si erreur (messages déjà posés).
     total_expected : Decimal
     """
     allocations = []
@@ -207,11 +233,11 @@ def _parse_and_validate_wallet_allocations(
             amount = Decimal(amount_raw)
         except (InvalidOperation, ValueError):
             messages.error(request, "Montant wallet invalide.")
-            return None, redirect("pumps:bulk_pump_reading")
+            return None, True
 
         if amount < 0:
             messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
-            return None, redirect("pumps:bulk_pump_reading")
+            return None, True
         allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
 
     if not allocations_by_uuid and len(station_wallets) == 1:
@@ -219,13 +245,13 @@ def _parse_and_validate_wallet_allocations(
 
     if not allocations_by_uuid:
         messages.error(request, "Veuillez répartir le montant dans au moins un wallet.")
-        return None, redirect("pumps:bulk_pump_reading")
+        return None, True
 
     valid_wallets_map = {str(w.uuid): w for w in station_wallets}
     for wallet_uuid in allocations_by_uuid.keys():
         if wallet_uuid not in valid_wallets_map:
             messages.error(request, "Un wallet sélectionné est invalide pour cette station.")
-            return None, redirect("pumps:bulk_pump_reading")
+            return None, True
 
     allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
     if allocated_sum.quantize(Decimal("0.01")) != total_expected.quantize(Decimal("0.01")):
@@ -233,7 +259,7 @@ def _parse_and_validate_wallet_allocations(
             request,
             "La somme répartie dans les wallets doit être égale au montant total des ventes.",
         )
-        return None, redirect("pumps:bulk_pump_reading")
+        return None, True
 
     return allocations_by_uuid, None
 
@@ -879,7 +905,7 @@ def bulk_pump_reading_view(request):
     ).strip()
     if request.method == "POST" and not selected_date_raw:
         messages.error(request, "La date de lecture est obligatoire.")
-        return redirect("pumps:bulk_pump_reading")
+        return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
     selected_reading_date = timezone.now().date()
     if selected_date_raw:
         parsed_selected = parse_date(selected_date_raw)
@@ -887,7 +913,7 @@ def bulk_pump_reading_view(request):
             selected_reading_date = parsed_selected
         elif request.method == "POST":
             messages.error(request, "Date de lecture invalide.")
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
     station_wallets_list = list(
         Account.objects.filter(station=station, uuid__isnull=False).order_by("name")
     )
@@ -940,7 +966,7 @@ def bulk_pump_reading_view(request):
                 "Les prix essence et gazoil ne sont pas définis pour la date de lecture choisie. "
                 "Configurez la grille tarifaire ou contactez l'administrateur.",
             )
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         readings_json = request.POST.get("readings_json", "").strip()
         allocations_json = request.POST.get("wallet_allocations", "").strip()
@@ -950,11 +976,11 @@ def bulk_pump_reading_view(request):
             readings_data = json.loads(readings_json) if readings_json else []
         except json.JSONDecodeError:
             messages.error(request, "Données de lecture invalides.")
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         if not isinstance(readings_data, list) or not readings_data:
             messages.error(request, "Ajoutez au moins une lecture de pompe.")
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         required_pump_uuids = []
         required_pump_names_by_uuid = {}
@@ -976,7 +1002,7 @@ def bulk_pump_reading_view(request):
 
         if not required_pump_uuids:
             messages.error(request, "Aucune pompe restante à saisir pour cette date.")
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         submitted_uuids = {
             str(item.get("pump_uuid", "")).strip()
@@ -998,14 +1024,14 @@ def bulk_pump_reading_view(request):
                     request,
                     "Saisie invalide : certaines pompes ne sont pas autorisées pour cette date.",
                 )
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         if not station_wallets_list:
             messages.error(
                 request,
                 "Aucun wallet n'est configuré pour cette station.",
             )
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         employee = (
             Employee.objects.filter(
@@ -1026,19 +1052,19 @@ def bulk_pump_reading_view(request):
                     request,
                     f"Lecture {idx + 1} : pompe et index actuel obligatoires.",
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
             if pu in seen_uuids:
                 messages.error(
                     request,
                     "Vous ne pouvez pas saisir deux fois la même pompe dans une même saisie.",
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
             seen_uuids.add(pu)
 
             pump = Pump.objects.filter(pump_uuid=pu, station=station).first()
             if not pump:
                 messages.error(request, "Pompe invalide ou non autorisée.")
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
             try:
                 current_index_decimal = Decimal(ci_raw)
@@ -1047,7 +1073,7 @@ def bulk_pump_reading_view(request):
                     request,
                     f'Index actuel invalide pour "{pump.name}".',
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
             latest = (
                 PumpReading.objects.filter(pump=pump)
@@ -1061,7 +1087,7 @@ def bulk_pump_reading_view(request):
                     request,
                     f'L\'index actuel doit être supérieur à l\'index précédent pour "{pump.name}".',
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
             existing_today = PumpReading.objects.filter(
                 pump=pump, reading_date=today
@@ -1071,14 +1097,14 @@ def bulk_pump_reading_view(request):
                     request,
                     f'Une lecture a déjà été enregistrée le {today.strftime("%d/%m/%Y")} pour "{pump.name}".',
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
             if latest and today < latest.reading_date:
                 messages.error(
                     request,
                     f'Impossible de saisir "{pump.name}" au {today.strftime("%d/%m/%Y")} '
                     f'car une lecture plus récente existe déjà ({latest.reading_date.strftime("%d/%m/%Y")}).',
                 )
-                return redirect("pumps:bulk_pump_reading")
+                return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
             prepared.append(
                 {
@@ -1099,7 +1125,9 @@ def bulk_pump_reading_view(request):
                 request, allocations_json, station_wallets_list, total_batch
             )
             if err_resp is not None:
-                return err_resp
+                return _redirect_bulk_pump_reading_after_error(
+                    request, station, bulk_station_uuid_for_form
+                )
         else:
             allocations_by_uuid = {}
 
@@ -1148,10 +1176,10 @@ def bulk_pump_reading_view(request):
                     w.save(update_fields=["balance", "updated_at"])
         except ValueError as exc:
             messages.error(request, str(exc))
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
         except IntegrityError as exc:
             messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
-            return redirect("pumps:bulk_pump_reading")
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
         messages.success(
             request,
@@ -1184,6 +1212,26 @@ def bulk_pump_reading_view(request):
         "selected_reading_date": selected_reading_date.isoformat(),
         "station_reading_dates": station_reading_dates,
     }
+
+    bulk_restore_payload = None
+    if request.GET.get("restore") == "1":
+        draft = request.session.pop(BULK_PUMP_READING_DRAFT_SESSION_KEY, None)
+        if draft and draft.get("station_id") == station.pk:
+            try:
+                readings = json.loads(draft.get("readings_json") or "[]")
+            except json.JSONDecodeError:
+                readings = []
+            try:
+                wallets = json.loads(draft.get("wallet_allocations") or "[]")
+            except json.JSONDecodeError:
+                wallets = []
+            bulk_restore_payload = {
+                "reading_date": draft.get("reading_date") or "",
+                "readings": readings if isinstance(readings, list) else [],
+                "wallet_allocations": wallets if isinstance(wallets, list) else [],
+            }
+
+    context["bulk_restore_payload"] = bulk_restore_payload
     return render(request, "pumps/bulk_pump_reading.html", context)
 
 

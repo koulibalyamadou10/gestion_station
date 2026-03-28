@@ -181,6 +181,11 @@
 {{ pumps_data|json_script:"pumps-data" }}
 {{ station_wallets|json_script:"station-wallets-data" }}
 {{ station_reading_dates|json_script:"station-reading-dates" }}
+{% if bulk_restore_payload %}
+{{ bulk_restore_payload|json_script:"bulk-restore-data" }}
+{% else %}
+<script type="application/json" id="bulk-restore-data">null</script>
+{% endif %}
 
 <script>
 (function() {
@@ -210,7 +215,19 @@
     const noRemainingPumpModal = document.getElementById('noRemainingPumpModal');
     const noRemainingPumpModalMessage = document.getElementById('noRemainingPumpModalMessage');
     const noPumpReasonText = document.getElementById('noPumpReasonText');
-    const draftStorageKey = `bulk-reading-draft:${window.location.pathname}:${'{{ station.id }}'}`;
+
+    let SERVER_RESTORE = null;
+    try {
+        const _brEl = document.getElementById('bulk-restore-data');
+        if (_brEl && _brEl.textContent) {
+            const _parsed = JSON.parse(_brEl.textContent.trim());
+            if (_parsed != null && typeof _parsed === 'object' && !Array.isArray(_parsed)) {
+                SERVER_RESTORE = _parsed;
+            }
+        }
+    } catch (e) {
+        SERVER_RESTORE = null;
+    }
 
     function openInfoModal(message) {
         if (!noRemainingPumpModal || !noRemainingPumpModalMessage) return;
@@ -296,54 +313,36 @@
         }
     }
 
-    function saveDraft() {
-        if (!bulkForm) return;
-        const draft = {
-            reading_date: readingDateInput?.value || '',
-            readings: JSON.parse(readingsJsonInput?.value || '[]'),
-            wallet_allocations: JSON.parse(walletAllocationsInput?.value || '[]'),
-        };
-        try {
-            localStorage.setItem(draftStorageKey, JSON.stringify(draft));
-        } catch (e) {
-            // ignore storage errors
-        }
-    }
+    /** Reprise de la saisie uniquement après erreur serveur (session + ?restore=1). */
+    function applyServerRestore() {
+        if (!SERVER_RESTORE || typeof SERVER_RESTORE !== 'object' || !bulkForm) return false;
+        const rd = SERVER_RESTORE.reading_date || '';
+        if (rd && readingDateInput) readingDateInput.value = rd;
 
-    function loadDraft() {
-        try {
-            const raw = localStorage.getItem(draftStorageKey);
-            if (!raw) return false;
-            const draft = JSON.parse(raw);
-            if (!draft || typeof draft !== 'object') return false;
-
-            if (readingDateInput && draft.reading_date) {
-                readingDateInput.value = draft.reading_date;
-            }
-
-            readingRowsContainer.innerHTML = '';
-            const draftReadings = Array.isArray(draft.readings) ? draft.readings : [];
-            draftReadings.forEach((item) => {
-                addReadingRow(item.pump_uuid || '', item.current_index || '');
+        readingRowsContainer.innerHTML = '';
+        const readings = Array.isArray(SERVER_RESTORE.readings) ? SERVER_RESTORE.readings : [];
+        if (readings.length) {
+            readings.forEach((item) => {
+                addReadingRow(item.pump_uuid || '', item.current_index != null ? item.current_index : '');
             });
-
-            walletAllocationsContainer.innerHTML = '';
-            const draftWallets = Array.isArray(draft.wallet_allocations) ? draft.wallet_allocations : [];
-            if (draftWallets.length) {
-                draftWallets.forEach((item) => {
-                    createWalletRow(item.wallet_uuid || '', item.amount || '');
-                });
-            } else {
-                renderWalletSection();
-            }
-
-            refreshAllPumpSelects();
-            syncReadingsJson();
-            syncWalletAllocations();
-            return true;
-        } catch (e) {
-            return false;
+        } else if (buildPumpOptions(null).length > 0) {
+            addReadingRow();
         }
+
+        walletAllocationsContainer.innerHTML = '';
+        const w = Array.isArray(SERVER_RESTORE.wallet_allocations) ? SERVER_RESTORE.wallet_allocations : [];
+        if (w.length) {
+            w.forEach((item) => {
+                createWalletRow(item.wallet_uuid || '', item.amount != null ? item.amount : '');
+            });
+        } else {
+            renderWalletSection();
+        }
+
+        refreshAllPumpSelects();
+        syncReadingsJson();
+        syncWalletAllocations();
+        return true;
     }
 
     function refreshNoPumpReason() {
@@ -547,11 +546,9 @@
             row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
             syncReadingsJson();
             refreshAllPumpSelects();
-            saveDraft();
         });
         currentInput.addEventListener('input', () => {
             syncReadingsJson();
-            saveDraft();
         });
         refreshAllPumpSelects();
         if (defaultPumpUuid) {
@@ -587,7 +584,6 @@
         walletAllocationsInput.value = JSON.stringify(allocations);
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
         walletRemainingAmount.textContent = formatAmount(batchTotal - allocatedSum);
-        saveDraft();
     }
 
     function createWalletRow(defaultUuid = '', defaultAmount = '') {
@@ -615,22 +611,18 @@
         row.querySelector('.remove-wallet-row').addEventListener('click', () => {
             row.remove();
             syncWalletAllocations();
-            saveDraft();
         });
         row.querySelector('.wallet-select').addEventListener('change', () => {
             syncWalletAllocations();
-            saveDraft();
         });
         const amtInput = row.querySelector('.wallet-amount');
         amtInput.addEventListener('input', () => {
             amtInput.value = amtInput.value.replace(/[^\d\s,\.]/g, '');
             syncWalletAllocations();
-            saveDraft();
         });
         amtInput.addEventListener('blur', () => {
             amtInput.value = formatAmount(parseAmountInput(amtInput.value));
             syncWalletAllocations();
-            saveDraft();
         });
     }
 
@@ -669,7 +661,6 @@
     addWalletAllocationBtn?.addEventListener('click', () => {
         createWalletRow('', '');
         syncWalletAllocations();
-        saveDraft();
     });
 
     bulkForm?.addEventListener('submit', function(e) {
@@ -727,8 +718,11 @@
     });
 
     if (PUMPS_DATA.length && bulkForm) {
-        const restored = loadDraft();
-        if (!restored) {
+        const restoredServer = applyServerRestore();
+        if (restoredServer) {
+            refreshMissingDaysInfo();
+            refreshNoPumpReason();
+        } else {
             refreshMissingDaysInfo();
             if (buildPumpOptions(null).length > 0) {
                 addReadingRow();
@@ -737,10 +731,6 @@
             }
             refreshNoPumpReason();
             renderWalletSection();
-            saveDraft();
-        } else {
-            refreshMissingDaysInfo();
-            refreshNoPumpReason();
         }
     }
 
@@ -749,7 +739,6 @@
         refreshAllPumpSelects();
         syncReadingsJson();
         refreshNoPumpReason();
-        saveDraft();
     });
 
     document.getElementById('closeNoRemainingPumpModalBtn')?.addEventListener('click', closeInfoModal);
