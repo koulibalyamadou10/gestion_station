@@ -21,20 +21,30 @@
 </div>
 
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-    <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <input type="text" name="search" value="{{ search_query }}" placeholder="Station, pompe, utilisateur..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-            <option value="">Toutes les stations</option>
-            {% for station in stations %}
-                <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
-            {% endfor %}
-        </select>
-        <input type="date" name="sale_date" value="{{ date_filter }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-        <div class="flex gap-2">
-            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
-            <a href="{% url 'sale:sale_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Reset</a>
+    <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+        <div>
+            <label for="id_station" class="block text-xs font-semibold text-gray-600 mb-1">Station</label>
+            <select id="id_station" name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">Toutes les stations</option>
+                {% for station in stations %}
+                    <option value="{{ station.id }}" {% if station_filter == station.id|stringformat:"s" %}selected{% endif %}>{{ station.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="id_date_from" class="block text-xs font-semibold text-gray-600 mb-1">Période — début</label>
+            <input type="date" id="id_date_from" name="date_from" value="{{ date_from|date:'Y-m-d' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+        <div>
+            <label for="id_date_to" class="block text-xs font-semibold text-gray-600 mb-1">Période — fin</label>
+            <input type="date" id="id_date_to" name="date_to" value="{{ date_to|date:'Y-m-d' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+        <div class="flex gap-2 lg:col-span-2">
+            <button type="submit" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
+            <a href="{% url 'sale:sale_list' %}" class="flex-1 text-center bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">Réinitialiser</a>
         </div>
     </form>
+    <p class="text-xs text-gray-500 mt-3">Par défaut : du 1<sup>er</sup> du mois en cours jusqu’à aujourd’hui (si vous ouvrez la page sans paramètres ou après réinitialisation).</p>
 </div>
 
 <div class="bg-white rounded-xl shadow-lg overflow-hidden">

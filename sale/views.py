@@ -3,8 +3,10 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from pumps.models import PumpReading
 from sale.models import Sale
@@ -78,9 +80,29 @@ def sale_list_view(request):
         messages.success(request, "Vente enregistree avec succes.")
         return redirect("sale:sale_list")
 
-    search_query = request.GET.get("search", "").strip()
     station_filter = request.GET.get("station", "").strip()
-    date_filter = request.GET.get("sale_date", "").strip()
+
+    today = timezone.now().date()
+    default_date_from = today.replace(day=1)
+    default_date_to = today
+
+    date_from_raw = request.GET.get("date_from", "").strip()
+    date_to_raw = request.GET.get("date_to", "").strip()
+
+    if date_from_raw:
+        parsed_from = parse_date(date_from_raw)
+        date_from = parsed_from if parsed_from else default_date_from
+    else:
+        date_from = default_date_from
+
+    if date_to_raw:
+        parsed_to = parse_date(date_to_raw)
+        date_to = parsed_to if parsed_to else default_date_to
+    else:
+        date_to = default_date_to
+
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
 
     sales_queryset = Sale.objects.select_related(
         "station", "pump_reading", "pump_reading__pump", "recorded_by"
@@ -91,19 +113,10 @@ def sale_list_view(request):
     else:
         sales_queryset = sales_queryset.filter(station=allowed_stations.first())
 
-    if search_query:
-        sales_queryset = sales_queryset.filter(
-            Q(station__name__icontains=search_query)
-            | Q(pump_reading__pump__name__icontains=search_query)
-            | Q(recorded_by__first_name__icontains=search_query)
-            | Q(recorded_by__last_name__icontains=search_query)
-        )
-
     if station_filter:
         sales_queryset = sales_queryset.filter(station_id=station_filter)
 
-    if date_filter:
-        sales_queryset = sales_queryset.filter(sale_date=date_filter)
+    sales_queryset = sales_queryset.filter(sale_date__gte=date_from, sale_date__lte=date_to)
 
     paginator = Paginator(sales_queryset, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -121,9 +134,9 @@ def sale_list_view(request):
     context = {
         "sales": page_obj.object_list,
         "page_obj": page_obj,
-        "search_query": search_query,
         "station_filter": station_filter,
-        "date_filter": date_filter,
+        "date_from": date_from,
+        "date_to": date_to,
         "stations": allowed_stations,
         "pump_readings": pump_readings,
         "total_sales": sales_queryset.count(),

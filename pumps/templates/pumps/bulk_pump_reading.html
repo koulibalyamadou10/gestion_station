@@ -14,16 +14,21 @@
     </div>
 </div>
 
-{% if not bulk_product_price_found %}
-<div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-    <i class="fas fa-exclamation-triangle mr-2"></i>
-    Aucune grille tarifaire ProductPrice en vigueur aujourd'hui. Les montants affichés sont à 0.
-</div>
-{% endif %}
-
 {% if not pumps_data %}
 <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-yellow-800">
     Aucune pompe disponible pour cette station.
+</div>
+{% elif not bulk_product_price_found %}
+<div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+    <p class="font-semibold mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>Prix non configurés</p>
+    <p>
+        Les prix essence et gazoil ne sont pas définis pour la <strong>date de lecture</strong> affichée
+        (aucune grille tarifaire valable, ou un des prix est à zéro). Vous ne pouvez pas enregistrer de lectures
+        tant que l’administrateur n’a pas configuré les deux prix.
+    </p>
+    <p class="mt-3 text-xs text-amber-800">
+        Si vous avez modifié la date dans l’URL ou le champ date, rechargez la page pour vérifier les prix applicables à cette date.
+    </p>
 </div>
 {% else %}
 <form id="bulkReadingForm" method="POST" action="{% url 'pumps:bulk_pump_reading' %}" class="space-y-6">

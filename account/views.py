@@ -592,25 +592,25 @@ def create_manager_view(request):
                     )
                 
                 login_url = request.build_absolute_uri('/login/')
-                if manager.email:
-                    email_sent = manager.send_credentials_email(generated_password, login_url)
-                    if email_sent:
-                        messages.success(
-                            request,
-                            f'Gérant {manager.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {manager.email}.',
-                        )
-                    else:
-                        messages.warning(
-                            request,
-                            f'Gérant {manager.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
-                            f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).',
-                        )
-                else:
-                    messages.success(
-                        request,
-                        f'Gérant {manager.get_full_name()} créé (sans email). Nom d’utilisateur : {manager.username}. '
-                        f'Mot de passe à communiquer manuellement : {generated_password}',
-                    )
+                # if manager.email:
+                #     email_sent = manager.send_credentials_email(generated_password, login_url)
+                #     if email_sent:
+                #         messages.success(
+                #             request,
+                #             f'Gérant {manager.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {manager.email}.',
+                #         )
+                #     else:
+                #         messages.warning(
+                #             request,
+                #             f'Gérant {manager.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
+                #             f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).',
+                #         )
+                # else:
+                messages.success(
+                    request,
+                    f'Gérant {manager.get_full_name()} créé (sans email). Nom d’utilisateur : {manager.username}. '
+                    f'Mot de passe à communiquer manuellement : {generated_password}',
+                )
                 
                 return redirect('account:managers_list')
             except Exception as e:
@@ -785,18 +785,18 @@ def reset_manager_password_view(request, user_uuid):
             manager.save(update_fields=['password', 'updated_at'])
 
             login_url = request.build_absolute_uri('/login/')
-            email_sent = manager.send_credentials_email(generated_password, login_url)
+            # email_sent = manager.send_credentials_email(generated_password, login_url)
 
-            if email_sent:
-                messages.success(
-                    request,
-                    f"Mot de passe de {manager.get_full_name()} réinitialisé et envoyé par email."
-                )
-            else:
-                messages.warning(
-                    request,
-                    f"Mot de passe réinitialisé mais email non envoyé. Nouveau mot de passe: {generated_password}"
-                )
+            # if email_sent:
+            #     messages.success(
+            #         request,
+            #         f"Mot de passe de {manager.get_full_name()} réinitialisé et envoyé par email."
+            #     )
+            # else:
+            messages.warning(
+                request,
+                f"Mot de passe réinitialisé mais email non envoyé. Nouveau mot de passe: {generated_password}"
+            )
         except Exception as e:
             messages.error(request, f"Erreur lors de la réinitialisation: {str(e)}")
 

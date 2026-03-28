@@ -27,6 +27,16 @@ def _get_unit_prices_for_date(d):
     return pp.price_gasoline or Decimal("0"), pp.price_diesel or Decimal("0")
 
 
+def _bulk_prices_ok_for_date(d):
+    """Grille tarifaire présente et prix essence + gazoil strictement positifs."""
+    pp = get_product_price_for_date(d)
+    if not pp:
+        return False
+    g = pp.price_gasoline or Decimal("0")
+    dz = pp.price_diesel or Decimal("0")
+    return g > 0 and dz > 0
+
+
 def _previous_reading_strictly_before(reading):
     """Lecture immédiatement précédente (même pompe), pour calculer le volume vendu."""
     return (
@@ -141,14 +151,17 @@ def _record_inventory_out_and_decrease_station_stock(sale):
     )
 
 
-def _compute_sale_total_for_pump_reading(pump, previous_current_index, new_current_index):
+def _compute_sale_total_for_pump_reading(
+    pump, previous_current_index, new_current_index, price_date=None
+):
     """Montant de vente (GNF) pour une lecture, sans créer d'objet en base."""
     qty = new_current_index - previous_current_index
     if qty < 0:
         qty = Decimal("0")
     pump_name = (pump.name or "").lower()
     is_essence = "essence" in pump_name
-    unit_price_essence, unit_price_diesel = _get_unit_prices_for_date(timezone.now().date())
+    d = price_date if price_date is not None else timezone.now().date()
+    unit_price_essence, unit_price_diesel = _get_unit_prices_for_date(d)
     qty_gasoline = qty if is_essence else Decimal("0")
     qty_diesel = qty if not is_essence else Decimal("0")
     return (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
@@ -907,6 +920,14 @@ def bulk_pump_reading_view(request):
         )
 
     if request.method == "POST":
+        if not _bulk_prices_ok_for_date(selected_reading_date):
+            messages.error(
+                request,
+                "Les prix essence et gazoil ne sont pas définis pour la date de lecture choisie. "
+                "Configurez la grille tarifaire ou contactez l'administrateur.",
+            )
+            return redirect("pumps:bulk_pump_reading")
+
         readings_json = request.POST.get("readings_json", "").strip()
         allocations_json = request.POST.get("wallet_allocations", "").strip()
         today = selected_reading_date
@@ -1056,7 +1077,7 @@ def bulk_pump_reading_view(request):
         total_batch = Decimal("0")
         for row in prepared:
             total_batch += _compute_sale_total_for_pump_reading(
-                row["pump"], row["previous_current"], row["current_index"]
+                row["pump"], row["previous_current"], row["current_index"], today
             )
 
         if total_batch > 0:
@@ -1120,8 +1141,8 @@ def bulk_pump_reading_view(request):
         )
         return redirect("daily_stock:daily_sales")
 
-    today = timezone.now().date()
-    product_price_row = get_product_price_for_date(today)
+    product_price_row = get_product_price_for_date(selected_reading_date)
+    bulk_product_price_found = _bulk_prices_ok_for_date(selected_reading_date)
     context = {
         "station": station,
         "bulk_reading_station_uuid": bulk_station_uuid_for_form,
@@ -1140,7 +1161,7 @@ def bulk_pump_reading_view(request):
         "product_price_diesel": str(
             product_price_row.price_diesel if product_price_row else Decimal("0")
         ),
-        "bulk_product_price_found": product_price_row is not None,
+        "bulk_product_price_found": bulk_product_price_found,
         "already_sent_today": already_sent_today,
         "selected_reading_date": selected_reading_date.isoformat(),
         "station_reading_dates": station_reading_dates,

@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Sum
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock
@@ -184,5 +184,31 @@ def daily_stock_create_view(request):
     messages.success(
         request,
         f"Stock journalier enregistré pour le {stock_date.strftime('%d/%m/%Y')}.",
+    )
+    return redirect("daily_stock:daily_sales")
+
+
+@login_required
+def daily_stock_delete_view(request, pk):
+    """Suppression d'une entrée stock journalier — admin (propriétaire de la station) uniquement."""
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut supprimer une entrée de stock journalier.")
+        return redirect("daily_stock:daily_sales")
+
+    if request.method != "POST":
+        messages.error(request, "Méthode non autorisée.")
+        return redirect("daily_stock:daily_sales")
+
+    ds = get_object_or_404(
+        DailyStock.objects.select_related("station"),
+        pk=pk,
+        station__owner=request.user,
+    )
+    station_name = ds.station.name
+    d_str = ds.stock_date.strftime("%d/%m/%Y")
+    ds.delete()
+    messages.success(
+        request,
+        f"Entrée du {d_str} ({station_name}) supprimée. Le gérant peut en enregistrer une nouvelle.",
     )
     return redirect("daily_stock:daily_sales")
