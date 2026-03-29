@@ -12,7 +12,6 @@ from django.utils.dateparse import parse_date
 from daily_stock.models import DailyStock
 from delivery.models import Delivery
 from inventory.models import Inventory
-from sale.models import Sale
 from stations.models import Station, StationManager
 
 
@@ -47,14 +46,14 @@ def _stock_detail_allowed_stations(user):
     return Station.objects.none()
 
 
-def _opening_cuve_qty(station_id, day_before_start, station_fallback):
+def _inventory_qty_at_period_start(station_id, date_from, station_fallback):
     """
-    Stock cuve (essence ou gazoil via gasoline=True) à la fin de ``day_before_start``
-    (typiquement veille du premier jour de la période).
+    Stock cuve au début de la période : dernier inventaire système avec
+    ``created_at`` au plus tard le jour ``date_from`` (inclus), sinon stocks cuve sur la station.
     """
     last = (
         Inventory.objects.filter(
-            station_id=station_id, created_at__date__lte=day_before_start
+            station_id=station_id, created_at__date__lte=date_from
         )
         .order_by("-created_at", "-id")
         .first()
@@ -66,14 +65,16 @@ def _opening_cuve_qty(station_id, day_before_start, station_fallback):
     return g, d
 
 
-def _day_sale_totals(station_id, d):
-    agg = Sale.objects.filter(station_id=station_id, sale_date=d).aggregate(
-        g=Sum("qty_gasoline"),
-        dz=Sum("qty_diesel"),
+def _day_daily_stock_sortie(station_id, d):
+    """Sorties du jour : quantités enregistrées dans le stock journalier (DailyStock)."""
+    ds = (
+        DailyStock.objects.filter(station_id=station_id, stock_date=d)
+        .only("qty_gasoline", "qty_diesel")
+        .first()
     )
-    g = agg["g"] or Decimal("0")
-    dz = agg["dz"] or Decimal("0")
-    return g, dz
+    if not ds:
+        return Decimal("0"), Decimal("0")
+    return ds.qty_gasoline or Decimal("0"), ds.qty_diesel or Decimal("0")
 
 
 def _day_reception_net_totals(station_id, d):
@@ -98,11 +99,13 @@ def _day_reception_net_totals(station_id, d):
 
 
 def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
-    """Retourne la liste de lignes {date, label, entree, sortie, stock} pour une espèce (gazole=True essence)."""
-    day_before = date_from - timedelta(days=1)
-    open_g, open_d = _opening_cuve_qty(station_id, day_before, station_obj)
+    """
+    Grand livre cuves : entrées = réceptions (Delivery, net manquants),
+    sorties = stock journalier (DailyStock). Ligne initiale = inventaire (Inventory) à date début.
+    """
+    open_g, open_d = _inventory_qty_at_period_start(station_id, date_from, station_obj)
 
-    def build_one(opening: Decimal, sale_fn, recv_fn):
+    def build_one(opening: Decimal, sortie_fn, recv_fn):
         rows = []
         rows.append(
             {
@@ -116,16 +119,16 @@ def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
         cur = opening
         d = date_from
         while d <= date_to:
-            sold = sale_fn(d)
+            sortie_jour = sortie_fn(d)
             recv = recv_fn(d)
-            if sold > 0:
-                cur = cur - sold
+            if sortie_jour > 0:
+                cur = cur - sortie_jour
                 rows.append(
                     {
                         "date": d,
                         "label": "Vente",
                         "entree": None,
-                        "sortie": sold,
+                        "sortie": sortie_jour,
                         "stock": cur,
                     }
                 )
@@ -145,12 +148,12 @@ def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
 
     rows_e = build_one(
         open_g,
-        lambda day: _day_sale_totals(station_id, day)[0],
+        lambda day: _day_daily_stock_sortie(station_id, day)[0],
         lambda day: _day_reception_net_totals(station_id, day)[0],
     )
     rows_g = build_one(
         open_d,
-        lambda day: _day_sale_totals(station_id, day)[1],
+        lambda day: _day_daily_stock_sortie(station_id, day)[1],
         lambda day: _day_reception_net_totals(station_id, day)[1],
     )
     return rows_e, rows_g
@@ -175,7 +178,8 @@ def _ledger_period_stats(rows):
 @login_required
 def stock_detail_view(request):
     """
-    Détail mouvements cuves (ventes / réceptions) sur une période, par station.
+    Détail mouvements cuves sur une période : stock départ (Inventory),
+    sorties (DailyStock), entrées (Delivery net).
     """
     if request.user.role not in ("admin", "manager", "super_admin"):
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
