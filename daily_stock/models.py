@@ -11,7 +11,7 @@ class DailyStock(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "daily_stock"
+        db_table = "stock"
         constraints = [
             models.UniqueConstraint(
                 fields=["station", "stock_date"],

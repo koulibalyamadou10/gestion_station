@@ -1,4 +1,5 @@
 {% extends 'base_authenticated.html' %}
+{% load money_extras %}
 
 {% block title %}{{ supplier.name }}{% endblock %}
 {% block page_title %}Fournisseur : {{ supplier.name }}{% endblock %}
@@ -20,6 +21,14 @@
         <div>
             <dt class="text-gray-500 font-medium">Téléphone</dt>
             <dd class="text-gray-900 mt-1">{{ supplier.phone|default:"—" }}</dd>
+        </div>
+        <div>
+            <dt class="text-gray-500 font-medium">Prix essence</dt>
+            <dd class="text-gray-900 mt-1 tabular-nums">{{ supplier.price_gasoline|qty_fr }} <span class="text-gray-500 font-normal">GNF</span></dd>
+        </div>
+        <div>
+            <dt class="text-gray-500 font-medium">Prix gazoil</dt>
+            <dd class="text-gray-900 mt-1 tabular-nums">{{ supplier.price_diesel|qty_fr }} <span class="text-gray-500 font-normal">GNF</span></dd>
         </div>
         <div class="md:col-span-2">
             <dt class="text-gray-500 font-medium">Adresse</dt>

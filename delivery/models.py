@@ -22,7 +22,7 @@ class Delivery(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "deliveries"
+        db_table = "reception"
 
     def __str__(self):
         return f"Delivery #{self.id} - {self.delivery_date}"

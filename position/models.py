@@ -9,7 +9,7 @@ class Position(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "positions"
+        db_table = "postes"
 
     def __str__(self):
         return self.title

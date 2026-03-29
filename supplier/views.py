@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -6,6 +8,16 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from permissions_web import admin_required
 from supplier.models import Supplier
+
+
+def _parse_price_post(raw):
+    s = (raw or "").strip().replace(",", ".")
+    if not s:
+        return Decimal("0")
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return Decimal("0")
 
 
 @login_required
@@ -25,6 +37,8 @@ def supplier_list_view(request):
         contact = request.POST.get("contact", "").strip() or None
         address = request.POST.get("address", "").strip() or None
         phone = request.POST.get("phone", "").strip() or None
+        price_gasoline = _parse_price_post(request.POST.get("price_gasoline"))
+        price_diesel = _parse_price_post(request.POST.get("price_diesel"))
 
         if not name:
             messages.error(request, "Le nom du fournisseur est obligatoire.")
@@ -39,6 +53,8 @@ def supplier_list_view(request):
             contact=contact,
             address=address,
             phone=phone,
+            price_gasoline=price_gasoline,
+            price_diesel=price_diesel,
         )
         messages.success(request, "Fournisseur créé avec succès.")
         return redirect("supplier:supplier_list")
@@ -96,6 +112,8 @@ def supplier_update_view(request, uuid):
     contact = request.POST.get("contact", "").strip() or None
     address = request.POST.get("address", "").strip() or None
     phone = request.POST.get("phone", "").strip() or None
+    price_gasoline = _parse_price_post(request.POST.get("price_gasoline"))
+    price_diesel = _parse_price_post(request.POST.get("price_diesel"))
 
     if not name:
         messages.error(request, "Le nom du fournisseur est obligatoire.")
@@ -109,6 +127,8 @@ def supplier_update_view(request, uuid):
     supplier.contact = contact
     supplier.address = address
     supplier.phone = phone
+    supplier.price_gasoline = price_gasoline
+    supplier.price_diesel = price_diesel
     supplier.save()
     messages.success(request, "Fournisseur modifié avec succès.")
     return redirect("supplier:supplier_list")

@@ -1,4 +1,5 @@
 {% extends 'base_authenticated.html' %}
+{% load money_extras %}
 
 {% block title %}Fournisseurs{% endblock %}
 {% block page_title %}Fournisseurs{% endblock %}
@@ -37,6 +38,8 @@
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Contact</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Téléphone</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Adresse</th>
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Prix essence</th>
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Prix gazoil</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Créé le</th>
                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase">Actions</th>
                 </tr>
@@ -49,9 +52,11 @@
                         <td class="px-6 py-4 text-sm text-gray-700">{{ s.contact|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">{{ s.phone|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ s.address|default:'' }}">{{ s.address|default:"—" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900 text-right tabular-nums">{{ s.price_gasoline|qty_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900 text-right tabular-nums">{{ s.price_diesel|qty_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">{{ s.created_at|date:"d/m/Y H:i" }}</td>
                         <td class="px-6 py-4 text-center">
-                            <span id="supplier-address-{{ s.pk }}" class="hidden">{{ s.address|default:'' }}</span>
+                            <span id="supplier-address-{{ s.uuid }}" class="hidden">{{ s.address|default:'' }}</span>
                             <div class="flex items-center justify-center gap-2">
                                 <a
                                     href="{% url 'supplier:supplier_detail' s.uuid %}"
@@ -69,6 +74,8 @@
                                     data-name="{{ s.name }}"
                                     data-contact="{{ s.contact|default:'' }}"
                                     data-phone="{{ s.phone|default:'' }}"
+                                    data-price-gasoline="{{ s.price_gasoline }}"
+                                    data-price-diesel="{{ s.price_diesel }}"
                                 >
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -87,7 +94,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="6" class="px-6 py-10 text-center text-gray-500">Aucun fournisseur trouvé.</td>
+                        <td colspan="8" class="px-6 py-10 text-center text-gray-500">Aucun fournisseur trouvé.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -134,6 +141,20 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Adresse</label>
                 <textarea name="address" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Adresse complète"></textarea>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix essence</label>
+                    <input type="hidden" name="price_gasoline" id="create_h_pg" value="0.00">
+                    <input type="text" id="create_d_pg" data-hidden-id="create_h_pg" autocomplete="off" inputmode="decimal"
+                           class="supplier-gnf-input w-full px-4 py-2 border border-gray-300 rounded-lg" value="0 GNF" placeholder="0 GNF">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix gazoil</label>
+                    <input type="hidden" name="price_diesel" id="create_h_pd" value="0.00">
+                    <input type="text" id="create_d_pd" data-hidden-id="create_h_pd" autocomplete="off" inputmode="decimal"
+                           class="supplier-gnf-input w-full px-4 py-2 border border-gray-300 rounded-lg" value="0 GNF" placeholder="0 GNF">
+                </div>
+            </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelCreateSupplierModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
@@ -167,6 +188,20 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Adresse</label>
                 <textarea name="address" id="edit_supplier_address" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg"></textarea>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix essence</label>
+                    <input type="hidden" name="price_gasoline" id="edit_h_pg" value="0">
+                    <input type="text" id="edit_d_pg" data-hidden-id="edit_h_pg" autocomplete="off" inputmode="decimal"
+                           class="supplier-gnf-input w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0 GNF">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Prix gazoil</label>
+                    <input type="hidden" name="price_diesel" id="edit_h_pd" value="0">
+                    <input type="text" id="edit_d_pd" data-hidden-id="edit_h_pd" autocomplete="off" inputmode="decimal"
+                           class="supplier-gnf-input w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0 GNF">
+                </div>
+            </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelEditSupplierModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
                 <button type="submit" class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700">Enregistrer</button>
@@ -195,12 +230,85 @@
 </div>
 
 <script>
+    function parseGnf(str) {
+        if (!str) return 0;
+        var s = String(str).replace(/\s/g, '').replace(/GNF/gi, '').replace(',', '.').trim();
+        if (s === '' || s === '-') return 0;
+        var n = parseFloat(s);
+        return (isNaN(n) || n < 0) ? 0 : n;
+    }
+    function formatGnf(n) {
+        if (!isFinite(n) || n < 0) n = 0;
+        var neg = n < 0;
+        var abs = Math.abs(n);
+        var fixed = abs.toFixed(2);
+        var parts = fixed.split('.');
+        var w = parts[0];
+        var f = parts[1];
+        var wFmt = w.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        var out = (f === '00') ? (wFmt + ' GNF') : (wFmt + ',' + f + ' GNF');
+        return neg ? ('-' + out) : out;
+    }
+    function syncHiddenFromGnf(n, hiddenEl) {
+        if (!hiddenEl) return;
+        var v = Math.round(n * 100) / 100;
+        hiddenEl.value = v.toFixed(2);
+    }
+    function bindGnfInputs() {
+        document.querySelectorAll('.supplier-gnf-input').forEach(function(el) {
+            el.addEventListener('input', function() {
+                var n = parseGnf(el.value);
+                var hid = document.getElementById(el.getAttribute('data-hidden-id'));
+                syncHiddenFromGnf(n, hid);
+                el.value = formatGnf(n);
+                requestAnimationFrame(function() {
+                    try {
+                        el.setSelectionRange(el.value.length, el.value.length);
+                    } catch (e) {}
+                });
+            });
+            el.addEventListener('blur', function() {
+                var n = parseGnf(el.value);
+                var hid = document.getElementById(el.getAttribute('data-hidden-id'));
+                syncHiddenFromGnf(n, hid);
+                el.value = formatGnf(n);
+            });
+        });
+    }
+    bindGnfInputs();
+
+    function syncAllGnfBeforeSubmit(form) {
+        if (!form) return;
+        form.querySelectorAll('.supplier-gnf-input').forEach(function(el) {
+            var n = parseGnf(el.value);
+            var hid = document.getElementById(el.getAttribute('data-hidden-id'));
+            syncHiddenFromGnf(n, hid);
+        });
+    }
+    document.querySelector('#createSupplierModal form')?.addEventListener('submit', function(e) {
+        syncAllGnfBeforeSubmit(e.target);
+    });
+    document.getElementById('editSupplierForm')?.addEventListener('submit', function(e) {
+        syncAllGnfBeforeSubmit(e.target);
+    });
+
     const createModal = document.getElementById('createSupplierModal');
     const openBtn = document.getElementById('openCreateSupplierModal');
     const closeBtn = document.getElementById('closeCreateSupplierModal');
     const cancelBtn = document.getElementById('cancelCreateSupplierModal');
 
+    function resetCreateGnf() {
+        ['create_h_pg', 'create_h_pd'].forEach(function(id) {
+            var h = document.getElementById(id);
+            if (h) h.value = '0.00';
+        });
+        ['create_d_pg', 'create_d_pd'].forEach(function(id) {
+            var d = document.getElementById(id);
+            if (d) d.value = formatGnf(0);
+        });
+    }
     function openModal() {
+        resetCreateGnf();
         createModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
@@ -243,6 +351,12 @@
             document.getElementById('edit_supplier_contact').value = btn.getAttribute('data-contact') || '';
             document.getElementById('edit_supplier_phone').value = btn.getAttribute('data-phone') || '';
             document.getElementById('edit_supplier_address').value = address.trim();
+            var pg = parseFloat(btn.getAttribute('data-price-gasoline')) || 0;
+            var pd = parseFloat(btn.getAttribute('data-price-diesel')) || 0;
+            syncHiddenFromGnf(pg, document.getElementById('edit_h_pg'));
+            syncHiddenFromGnf(pd, document.getElementById('edit_h_pd'));
+            document.getElementById('edit_d_pg').value = formatGnf(pg);
+            document.getElementById('edit_d_pd').value = formatGnf(pd);
             editModal.classList.remove('hidden');
             lockBody(true);
         });

@@ -8,7 +8,7 @@ class City(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "cities"
+        db_table = "villes"
         verbose_name_plural = "cities"
 
     def __str__(self):

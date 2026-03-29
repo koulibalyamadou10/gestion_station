@@ -41,7 +41,7 @@
             <div id="activitesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}{% elif ns == 'order' and user.role != 'manager' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or urln == 'users_list' or urln == 'managers_list' %}hidden{% elif user.role == 'admin' or user.role == 'manager' or user.role == 'super_admin' %}{% else %}hidden{% endif %}">
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Commercial</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'sale:sale_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'sale' %}bg-blue-600{% endif %}">
                         <i class="fas fa-shopping-cart w-4"></i>
                         <span>Ventes</span>
@@ -50,7 +50,7 @@
                 {% endif %}
                 {% if user.role == 'admin' or user.role == 'manager' or user.role == 'super_admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Exploitation</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     {% if user.role == 'manager' %}
                     <!-- <a href="{% url 'pumps:pumps_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'pumps' and urln != 'bulk_pump_reading' %}bg-blue-600{% endif %}">
                         <i class="fas fa-gas-pump w-4"></i>
@@ -67,14 +67,18 @@
                         <span>Stock Réel</span>
                     </a>
                     {% endif %}
-                    <a href="{% url 'daily_stock:daily_sales' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' %}bg-blue-600{% endif %}">
+                    <a href="{% url 'daily_stock:daily_sales' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' and urln == 'daily_sales' %}bg-blue-600{% endif %}">
                         <i class="fas fa-calendar-day w-4"></i>
                         <span>Stock Jaugé</span>
                     </a>
                     {% if user.role == 'admin' or user.role == 'super_admin' %}
                     <a href="{% url 'inventory:compare_profit' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'compare_profit' %}bg-blue-600{% endif %}">
                         <i class="fas fa-clipboard-check w-4"></i>
-                        <span>Contrôle Stock</span>
+                        <span>Etat Stock</span>
+                    </a>
+                    <a href="{% url 'daily_stock:stock_detail' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' and urln == 'stock_detail' %}bg-blue-600{% endif %}">
+                        <i class="fas fa-list-alt w-4"></i>
+                        <span>Mouvement Stock</span>
                     </a>
                     {% endif %}
                     <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'deposit' %}bg-blue-600{% endif %}">
@@ -88,7 +92,7 @@
                 </div>
                 {% if user.role == 'manager' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Achats</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'order:order_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'order' %}bg-blue-600{% endif %}">
                         <i class="fas fa-clipboard-list w-4"></i>
                         <span>Commandes</span>
@@ -111,7 +115,7 @@
             <div id="parametragesSubmenu" class="pl-2 space-y-3 border-l border-gray-700 ml-4 {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' %}hidden{% elif ns == 'order' or ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or ns == 'product_price' or urln == 'users_list' or urln == 'managers_list' %}{% elif user.role == 'super_admin' %}{% else %}hidden{% endif %}">
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Réseau et sites</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'city:city_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'city' %}bg-blue-600{% endif %}">
                         <i class="fas fa-city w-4"></i>
                         <span>Villes</span>
@@ -125,7 +129,7 @@
 
                 {% if user.role == 'admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Achats</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'supplier:supplier_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'supplier' %}bg-blue-600{% endif %}">
                         <i class="fas fa-truck w-4"></i>
                         <span>Fournisseurs</span>
@@ -139,21 +143,21 @@
 
                 {% if user.role == 'admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Finances</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
                         <i class="fas fa-wallet w-4"></i>
                         <span>Comptes</span>
                     </a>
                 </div>
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Tarifs</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'product_price:product_price_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'product_price' %}bg-blue-600{% endif %}">
                         <i class="fas fa-gas-pump w-4"></i>
                         <span>Prix carburants</span>
                     </a>
                 </div>
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Équipe</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'account:managers_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'managers_list' %}bg-blue-600{% endif %}">
                         <i class="fas fa-user-tie w-4"></i>
                         <span>Gérants</span>
@@ -171,7 +175,7 @@
 
                 {% if user.role == 'super_admin' %}
                 <div class="space-y-1">
-                    <p class="px-3 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Plateforme</p>
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'account:users_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'users_list' %}bg-blue-600{% endif %}">
                         <i class="fas fa-users-cog w-4"></i>
                         <span>Utilisateurs</span>

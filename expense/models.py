@@ -14,7 +14,7 @@ class Expense(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "expenses"
+        db_table = "depenses"
 
     def __str__(self):
         return f"Expense #{self.id} - {self.amount} {self.currency}"

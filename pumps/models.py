@@ -10,7 +10,7 @@ class Pump(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "pumps"
+        db_table = "pompe_station"
 
     def __str__(self):
         return self.name
@@ -26,7 +26,7 @@ class PumpReading(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "pump_readings"
+        db_table = "pumpe_index"
 
     def __str__(self):
         return f"{self.pump.name} - {self.reading_date}"

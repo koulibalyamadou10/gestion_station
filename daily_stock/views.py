@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -10,6 +10,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock
+from delivery.models import Delivery
+from inventory.models import Inventory
+from sale.models import Sale
 from stations.models import Station, StationManager
 
 
@@ -30,6 +33,227 @@ def _daily_stock_scope_for_user(user):
             Station.objects.filter(id=station_manager.station_id),
         )
     return None, None
+
+
+def _stock_detail_allowed_stations(user):
+    if user.role == "admin":
+        return Station.objects.filter(owner=user).order_by("name")
+    if user.role == "super_admin":
+        return Station.objects.all().order_by("name")
+    if user.role == "manager":
+        sm = StationManager.objects.filter(manager=user).select_related("station").first()
+        if sm:
+            return Station.objects.filter(pk=sm.station.pk)
+    return Station.objects.none()
+
+
+def _opening_cuve_qty(station_id, day_before_start, station_fallback):
+    """
+    Stock cuve (essence ou gazoil via gasoline=True) à la fin de ``day_before_start``
+    (typiquement veille du premier jour de la période).
+    """
+    last = (
+        Inventory.objects.filter(
+            station_id=station_id, created_at__date__lte=day_before_start
+        )
+        .order_by("-created_at", "-id")
+        .first()
+    )
+    if last:
+        return last.qty_gasoline or Decimal("0"), last.qty_diesel or Decimal("0")
+    g = station_fallback.stock_gasoline or Decimal("0")
+    d = station_fallback.stock_diesel or Decimal("0")
+    return g, d
+
+
+def _day_sale_totals(station_id, d):
+    agg = Sale.objects.filter(station_id=station_id, sale_date=d).aggregate(
+        g=Sum("qty_gasoline"),
+        dz=Sum("qty_diesel"),
+    )
+    g = agg["g"] or Decimal("0")
+    dz = agg["dz"] or Decimal("0")
+    return g, dz
+
+
+def _day_reception_net_totals(station_id, d):
+    g = Decimal("0")
+    dz = Decimal("0")
+    for deliv in Delivery.objects.filter(
+        order_supplier__order__station_id=station_id,
+        delivery_date=d,
+    ).only(
+        "delivered_qty_gasoline",
+        "missing_qty_gasoline",
+        "delivered_qty_diesel",
+        "missing_qty_diesel",
+    ):
+        dg = deliv.delivered_qty_gasoline or Decimal("0")
+        mg = deliv.missing_qty_gasoline or Decimal("0")
+        dd = deliv.delivered_qty_diesel or Decimal("0")
+        md = deliv.missing_qty_diesel or Decimal("0")
+        g += max(dg - mg, Decimal("0"))
+        dz += max(dd - md, Decimal("0"))
+    return g, dz
+
+
+def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
+    """Retourne la liste de lignes {date, label, entree, sortie, stock} pour une espèce (gazole=True essence)."""
+    day_before = date_from - timedelta(days=1)
+    open_g, open_d = _opening_cuve_qty(station_id, day_before, station_obj)
+
+    def build_one(opening: Decimal, sale_fn, recv_fn):
+        rows = []
+        rows.append(
+            {
+                "date": date_from,
+                "label": "Stock départ",
+                "entree": opening,
+                "sortie": None,
+                "stock": opening,
+            }
+        )
+        cur = opening
+        d = date_from
+        while d <= date_to:
+            sold = sale_fn(d)
+            recv = recv_fn(d)
+            if sold > 0:
+                cur = cur - sold
+                rows.append(
+                    {
+                        "date": d,
+                        "label": "Vente",
+                        "entree": None,
+                        "sortie": sold,
+                        "stock": cur,
+                    }
+                )
+            if recv > 0:
+                cur = cur + recv
+                rows.append(
+                    {
+                        "date": d,
+                        "label": "Réception",
+                        "entree": recv,
+                        "sortie": None,
+                        "stock": cur,
+                    }
+                )
+            d += timedelta(days=1)
+        return rows
+
+    rows_e = build_one(
+        open_g,
+        lambda day: _day_sale_totals(station_id, day)[0],
+        lambda day: _day_reception_net_totals(station_id, day)[0],
+    )
+    rows_g = build_one(
+        open_d,
+        lambda day: _day_sale_totals(station_id, day)[1],
+        lambda day: _day_reception_net_totals(station_id, day)[1],
+    )
+    return rows_e, rows_g
+
+
+def _ledger_period_stats(rows):
+    total_entree = Decimal("0")
+    total_sortie = Decimal("0")
+    for row in rows[1:]:
+        if row["label"] == "Réception" and row["entree"] is not None:
+            total_entree += row["entree"]
+        if row["label"] == "Vente" and row["sortie"] is not None:
+            total_sortie += row["sortie"]
+    stock_fin = rows[-1]["stock"] if rows else Decimal("0")
+    return {
+        "total_entree": total_entree,
+        "total_sortie": total_sortie,
+        "stock_fin": stock_fin,
+    }
+
+
+@login_required
+def stock_detail_view(request):
+    """
+    Détail mouvements cuves (ventes / réceptions) sur une période, par station.
+    """
+    if request.user.role not in ("admin", "manager", "super_admin"):
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    stations_qs = _stock_detail_allowed_stations(request.user)
+    if not stations_qs.exists():
+        messages.error(request, "Aucune station disponible.")
+        return redirect("account:dashboard")
+
+    today = date.today()
+    first_of_month = date(today.year, today.month, 1)
+    date_from_raw = request.GET.get("date_from", "").strip()
+    date_to_raw = request.GET.get("date_to", "").strip()
+    station_filter = request.GET.get("station", "").strip()
+    product_filter = (request.GET.get("product", "all") or "all").strip().lower()
+    if product_filter not in ("all", "essence", "gazoil"):
+        product_filter = "all"
+
+    if not date_from_raw:
+        date_from = first_of_month
+        date_from_raw = date_from.isoformat()
+    else:
+        date_from = parse_date(date_from_raw) or first_of_month
+        date_from_raw = date_from.isoformat()
+    if not date_to_raw:
+        date_to = today
+        date_to_raw = date_to.isoformat()
+    else:
+        date_to = parse_date(date_to_raw) or today
+        date_to_raw = date_to.isoformat()
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+        date_from_raw, date_to_raw = date_from.isoformat(), date_to.isoformat()
+
+    show_station_filter = request.user.role in ("admin", "super_admin")
+    if stations_qs.count() == 1:
+        station_filter = str(stations_qs.first().pk)
+    elif station_filter and not stations_qs.filter(pk=station_filter).exists():
+        station_filter = ""
+
+    selected_station = None
+    rows_essence = []
+    rows_gazoil = []
+    stats_e = {
+        "total_entree": Decimal("0"),
+        "total_sortie": Decimal("0"),
+        "stock_fin": Decimal("0"),
+    }
+    stats_g = {
+        "total_entree": Decimal("0"),
+        "total_sortie": Decimal("0"),
+        "stock_fin": Decimal("0"),
+    }
+
+    if station_filter:
+        selected_station = stations_qs.filter(pk=station_filter).first()
+        if selected_station:
+            rows_essence, rows_gazoil = _build_cuve_ledger(
+                selected_station.pk, date_from, date_to, selected_station
+            )
+            stats_e = _ledger_period_stats(rows_essence)
+            stats_g = _ledger_period_stats(rows_gazoil)
+
+    context = {
+        "stations": stations_qs,
+        "station_filter": station_filter,
+        "selected_station": selected_station,
+        "show_station_filter": show_station_filter,
+        "date_from": date_from_raw,
+        "date_to": date_to_raw,
+        "product_filter": product_filter,
+        "rows_essence": rows_essence,
+        "rows_gazoil": rows_gazoil,
+        "stats_e": stats_e,
+        "stats_g": stats_g,
+    }
+    return render(request, "stock_detail.html", context)
 
 
 @login_required

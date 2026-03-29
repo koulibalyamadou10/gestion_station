@@ -1,0 +1,162 @@
+{% extends 'base_authenticated.html' %}
+{% load money_extras %}
+
+{% block title %}Détail stock cuves{% endblock %}
+{% block page_title %}Détail stock{% if selected_station %} — {{ selected_station.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="min-w-0 max-w-full">
+<p class="text-sm text-gray-600 mb-6 max-w-3xl">
+    Mouvements <strong>essence</strong> et <strong>gazoil</strong> sur la période : ventes (<span class="font-medium">sales</span>) en sortie,
+    réceptions (<span class="font-medium">deliveries</span>) en entrée — quantités livrées <strong>moins</strong> les manquants.
+    Le <strong>stock départ</strong> reprend le dernier inventaire système à la veille du premier jour (sinon stock cuve actuel sur la station).
+</p>
+
+{% if selected_station %}
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-8 min-w-0">
+    <div class="bg-white rounded-xl shadow border-l-4 border-emerald-500 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Entrées essence</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_e.total_entree|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+    <div class="bg-white rounded-xl shadow border-l-4 border-red-400 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Sorties essence</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_e.total_sortie|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+    <div class="bg-white rounded-xl shadow border-l-4 border-indigo-500 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Stock fin essence</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_e.stock_fin|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+    <div class="bg-white rounded-xl shadow border-l-4 border-amber-500 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Entrées gazoil</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_g.total_entree|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+    <div class="bg-white rounded-xl shadow border-l-4 border-orange-400 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Sorties gazoil</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_g.total_sortie|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+    <div class="bg-white rounded-xl shadow border-l-4 border-slate-600 p-3 sm:p-4 min-w-0">
+        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-semibold leading-tight">Stock fin gazoil</p>
+        <p class="text-lg sm:text-xl font-bold text-gray-900 mt-1 break-words">{{ stats_g.stock_fin|qty_fr }} <span class="text-xs sm:text-sm font-normal text-gray-500">L</span></p>
+    </div>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-8 min-w-0 max-w-full overflow-hidden">
+    <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-end w-full min-w-0">
+        {% if show_station_filter %}
+        <div class="min-w-0 sm:col-span-2 xl:col-span-2">
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Station</label>
+            <select name="station" class="w-full max-w-full min-w-0 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="">— Choisir une station —</option>
+                {% for s in stations %}
+                <option value="{{ s.id }}" {% if station_filter == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% else %}
+        <input type="hidden" name="station" value="{{ station_filter }}">
+        {% endif %}
+        <div class="min-w-0">
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Produit (affichage)</label>
+            <select name="product" class="w-full max-w-full min-w-0 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="all" {% if product_filter == 'all' %}selected{% endif %}>Essence + gazoil</option>
+                <option value="essence" {% if product_filter == 'essence' %}selected{% endif %}>Essence uniquement</option>
+                <option value="gazoil" {% if product_filter == 'gazoil' %}selected{% endif %}>Gazoil uniquement</option>
+            </select>
+        </div>
+        <div class="min-w-0">
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Date début</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="w-full max-w-full min-w-0 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm">
+        </div>
+        <div class="min-w-0">
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Date fin</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="w-full max-w-full min-w-0 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm">
+        </div>
+        <div class="flex flex-wrap gap-2 min-w-0 sm:col-span-2 lg:col-span-3 xl:col-span-4">
+            <button type="submit" class="flex-1 min-w-[8rem] sm:flex-none bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-semibold text-sm whitespace-nowrap">Appliquer</button>
+            <a href="{% url 'daily_stock:stock_detail' %}" class="inline-flex items-center justify-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold text-sm whitespace-nowrap shrink-0">Reset</a>
+        </div>
+    </form>
+</div>
+
+{% if not selected_station %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl p-8 text-center text-amber-900 mb-8">
+    <p class="font-semibold">Sélectionnez une station pour afficher les statistiques et les tableaux.</p>
+</div>
+{% else %}
+
+{% if product_filter == 'all' or product_filter == 'essence' %}
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b bg-emerald-50">
+        <h3 class="text-lg font-bold text-gray-800">Essence</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3 text-left">Date</th>
+                    <th class="px-4 py-3 text-left">Libellé</th>
+                    <th class="px-4 py-3 text-right">Entrée (E)</th>
+                    <th class="px-4 py-3 text-right">Sortie (E)</th>
+                    <th class="px-4 py-3 text-right">Stock (E)</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for row in rows_essence %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap font-medium">{{ row.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3">{{ row.label }}</td>
+                    <td class="px-4 py-3 text-right tabular-nums">{% if row.entree is not none %}{{ row.entree|qty_fr }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right tabular-nums">{% if row.sortie is not none %}{{ row.sortie|qty_fr }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ row.stock|qty_fr }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">Aucune ligne.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if product_filter == 'all' or product_filter == 'gazoil' %}
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b bg-amber-50">
+        <h3 class="text-lg font-bold text-gray-800">Gazoil</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3 text-left">Date</th>
+                    <th class="px-4 py-3 text-left">Libellé</th>
+                    <th class="px-4 py-3 text-right">Entrée (G)</th>
+                    <th class="px-4 py-3 text-right">Sortie (G)</th>
+                    <th class="px-4 py-3 text-right">Stock (G)</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for row in rows_gazoil %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 whitespace-nowrap font-medium">{{ row.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3">{{ row.label }}</td>
+                    <td class="px-4 py-3 text-right tabular-nums">{% if row.entree is not none %}{{ row.entree|qty_fr }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right tabular-nums">{% if row.sortie is not none %}{{ row.sortie|qty_fr }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ row.stock|qty_fr }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">Aucune ligne.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+</div>
+{% endblock %}

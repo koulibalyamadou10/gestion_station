@@ -40,7 +40,7 @@ class Order(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "orders"
+        db_table = "commande"
 
     def __str__(self):
         return f"Order #{self.id} - {self.station.name}"
@@ -85,7 +85,7 @@ class OrderSupplier(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "order_suppliers"
+        db_table = "commande_fournisseur"
 
     def __str__(self):
         supplier_name = self.supplier.name if self.supplier else "Sans fournisseur"

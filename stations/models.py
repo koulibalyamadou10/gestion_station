@@ -1,3 +1,4 @@
+from this import d
 from django.db import models
 import uuid
 
@@ -19,6 +20,9 @@ class Station(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        db_table = "station"
+
 class StationManager(models.Model):
     station_manager_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     station = models.ForeignKey(Station, on_delete=models.CASCADE)
@@ -28,3 +32,6 @@ class StationManager(models.Model):
 
     def __str__(self):
         return self.manager.get_full_name()
+
+    class Meta:
+        db_table = "station_gerant"

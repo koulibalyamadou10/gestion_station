@@ -15,7 +15,7 @@ class Inventory(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "inventory"
+        db_table = "stock_reel"
 
     def __str__(self):
         return f"Inventory #{self.id} - {self.station.name}"

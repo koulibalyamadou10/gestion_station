@@ -13,7 +13,7 @@ class Employee(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "employees"
+        db_table = "personnel"
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -27,7 +27,7 @@ class EmployeeStation(models.Model):
     is_manager = models.BooleanField(default=False)
 
     class Meta:
-        db_table = "employee_stations"
+        db_table = "personnel_station"
 
     def __str__(self):
         return f"{self.employee.first_name} {self.employee.last_name} - {self.station.name}"

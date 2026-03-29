@@ -35,7 +35,7 @@ class Account(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "accounts"
+        db_table = "comptes"
         constraints = [
             models.UniqueConstraint(
                 fields=["station", "name"],
