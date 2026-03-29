@@ -1,7 +1,7 @@
 {% extends 'base_authenticated.html' %}
 {% load money_extras %}
 
-{% block title %}Contrôle stock — Déclaratif vs inventaire système{% endblock %}
+{% block title %}Contrôle stock{% endblock %}
 {% block page_title %}Contrôle stock{% endblock %}
 
 {% block content %}
@@ -11,13 +11,12 @@
         Stock déclaré (gérant) vs stock calculé (système)
     </h2>
     <p class="text-sm text-slate-200 leading-relaxed max-w-4xl">
-        <strong>Relevé gérant</strong> — table <span class="text-amber-200">daily_stock</span> : chaque jour, pour chaque station,
-        le gérant envoie <strong>une ligne</strong> (essence + gazoil déclarés).
-        <strong>Inventaire système</strong> — table <span class="text-cyan-200">inventory</span> : le système enregistre
-        <strong>une ou plusieurs lignes</strong> selon les opérations (livraisons, ventes pompes, etc.) ; chaque ligne donne le
-        <strong>niveau des cuves après</strong> l’opération (pas une somme de plusieurs jours).
-        La comparaison aligne le relevé du <strong>jour J</strong> sur le <strong>dernier inventaire système enregistré le même jour J</strong>
-        ; s’il n’y en a pas ce jour-là, on affiche le <strong>dernier état connu</strong> jusqu’à cette date.
+        <strong>Relevé gérant</strong> (stock journalier) : chaque jour, le gérant saisit <strong>une entrée</strong> par station
+        (quantités essence et gazoil déclarées).
+        <strong>Inventaire système</strong> : le système conserve l’historique des niveaux de cuves après les opérations
+        (livraisons, ventes aux pompes, etc.).
+        Pour chaque date du relevé, on compare au <strong>dernier niveau système enregistré le même jour</strong> ;
+        s’il n’y en a pas ce jour-là, on affiche le <strong>dernier état connu</strong> jusqu’à cette date.
         {% if allowed_station_count > 1 %}
         <span class="block mt-2 text-amber-100/95">Choisissez une <strong>station</strong> dans le filtre pour afficher le tableau de comparaison.</span>
         {% endif %}
@@ -68,7 +67,7 @@
             Comparaison par relevé ({{ daily_stock_count|qty_fr }} ligne{{ daily_stock_count|pluralize }})
         </h3>
         <p class="text-xs text-gray-500 mt-1">
-            Écart = déclaré gérant (<span class="font-medium">daily_stock</span>) − stock système (<span class="font-medium">inventory</span>), pour la même date et la même station.
+            Écart = quantité <strong>déclarée par le gérant</strong> − quantité <strong>retenue par le système</strong>, pour la même date et la même station.
         </p>
     </div>
     <div class="overflow-x-auto">
@@ -91,22 +90,22 @@
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-3 whitespace-nowrap font-medium">{{ ds.stock_date|date:"d/m/Y" }}</td>
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_gasoline|qty_fr }}</td>
-                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums">{{ row.system_gasoline|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_gasoline|qty_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
                         {{ row.delta_gasoline|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_diesel|qty_fr }}</td>
-                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier inventaire enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Aucune ligne inventaire ce jour — dernier état connu à cette date{% else %}Aucun inventaire système jusqu’à cette date{% endif %}">{{ row.system_diesel|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_diesel|qty_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
                         {{ row.delta_diesel|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         {% if row.system_source == 'same_day' %}
-                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium" title="Ligne inventory le jour J">Jour J</span>
+                        <span class="inline-flex items-center rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-medium" title="Niveau système mis à jour le jour du relevé">Jour J</span>
                         {% elif row.system_source == 'cumulative' %}
-                        <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-medium" title="Pas d’inventory ce jour — état cumulé">Cumul</span>
+                        <span class="inline-flex items-center rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs font-medium" title="Pas de mise à jour ce jour — dernier niveau connu">Cumul</span>
                         {% else %}
-                        <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-medium" title="Aucune donnée inventory">—</span>
+                        <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-medium" title="Aucune donnée système disponible">—</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -139,10 +138,10 @@
 <div class="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-700">
     <h4 class="font-bold text-slate-800 mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Lecture des écarts</h4>
     <ul class="list-disc list-inside space-y-1 text-slate-600">
-        <li><strong>Jour J</strong> : le système a au moins une ligne <code class="text-xs bg-slate-200 px-1 rounded">inventory</code> le même jour que le relevé — les colonnes « Syst. » reprennent le dernier snapshot de ce jour.</li>
-        <li><strong>Cumul</strong> : pas d’inventaire ce jour-là ; on affiche le dernier niveau connu jusqu’à cette date (dernière ligne <code class="text-xs bg-slate-200 px-1 rounded">inventory</code> antérieure ou égale).</li>
-        <li>Écart proche de 0 : déclaratif gérant aligné sur l’état système retenu pour cette ligne.</li>
-        <li>Écart important : erreur de saisie, pertes, ou opérations hors application à vérifier.</li>
+        <li><strong>Jour J</strong> : le système a enregistré au moins une mise à jour d’inventaire le <strong>même jour</strong> que le relevé gérant — les colonnes « Syst. » reprennent le dernier niveau de ce jour.</li>
+        <li><strong>Cumul</strong> : aucune mise à jour inventaire ce jour-là ; on affiche le <strong>dernier niveau connu</strong> jusqu’à cette date.</li>
+        <li>Écart proche de 0 : le relevé gérant est aligné sur le niveau système retenu pour cette ligne.</li>
+        <li>Écart important : vérifier la saisie, les pertes éventuelles, ou des opérations non enregistrées dans l’application.</li>
     </ul>
 </div>
 {% endblock %}
