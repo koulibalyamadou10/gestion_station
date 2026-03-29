@@ -163,7 +163,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Montant (GNF) <span class="text-red-500">*</span></label>
-                    <input type="text" id="edit_expense_amount_display" required inputmode="decimal" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0 GNF">
+                    <input type="text" id="edit_expense_amount_display" required inputmode="decimal" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0">
                     <input type="hidden" name="amount" id="edit_expense_amount_raw">
                 </div>
                 <div>
@@ -236,7 +236,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Montant (GNF) <span class="text-red-500">*</span></label>
-                    <input type="text" id="expense_amount_display" required inputmode="decimal" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0 GNF">
+                    <input type="text" id="expense_amount_display" required inputmode="decimal" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="0">
                     <input type="hidden" name="amount" id="expense_amount_raw">
                 </div>
                 <div>
@@ -282,8 +282,8 @@
         var w = parts[0];
         var f = parts[1];
         var wFmt = w.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        if (f === '00') return wFmt + ' GNF';
-        return wFmt + ',' + f + ' GNF';
+        if (f === '00') return wFmt;
+        return wFmt + ',' + f;
     }
     function syncAmountHidden(n, hiddenEl) {
         if (!hiddenEl) return;
@@ -365,13 +365,11 @@
         if (e.target === editModal) closeEditModal();
     });
 
-    editAmountDisplay?.addEventListener('input', function() {
-        editAmountDisplay.value = formatWithSpaces(editAmountDisplay.value);
-        editAmountRaw.value = normalizeAmount(editAmountDisplay.value);
-    });
+    bindGnfAmountInput(editAmountDisplay, editAmountRaw);
 
     editForm?.addEventListener('submit', function() {
-        editAmountRaw.value = normalizeAmount(editAmountDisplay?.value || '');
+        var n = parseGnfMoney(editAmountDisplay?.value || '');
+        syncAmountHidden(n, editAmountRaw);
     });
 
     document.querySelectorAll('.open-edit-expense').forEach(function(btn) {
@@ -387,9 +385,11 @@
             if (editDescription) editDescription.value = btn.getAttribute('data-description') || '';
             const amount = btn.getAttribute('data-amount') || '';
             if (editAmountDisplay && editAmountRaw) {
-                const raw = normalizeAmount(String(amount).replace(',', '.'));
-                editAmountRaw.value = raw;
-                editAmountDisplay.value = raw ? formatWithSpaces(raw) : '';
+                var raw = String(amount).replace(',', '.').trim();
+                var n = parseFloat(raw);
+                if (isNaN(n) || n < 0) n = 0;
+                syncAmountHidden(n, editAmountRaw);
+                editAmountDisplay.value = formatGnfMoney(n);
             }
             openEditModal();
         });

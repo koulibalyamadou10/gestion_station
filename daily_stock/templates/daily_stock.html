@@ -21,11 +21,11 @@
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
         <p class="text-sm text-gray-600">Total qté essence</p>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_gasoline|money_fr }}</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_gasoline|qty_fr }}</p>
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-600">
         <p class="text-sm text-gray-600">Total qté gazoil</p>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_diesel|money_fr }}</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_diesel|qty_fr }}</p>
     </div>
 </div>
 
@@ -80,8 +80,8 @@
                     {% for ds in daily_stocks %}
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 text-sm text-gray-900">{{ ds.station.name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_gasoline|money_fr }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_diesel|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_gasoline|qty_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_diesel|qty_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ ds.stock_date|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ ds.notes|default:'' }}">{{ ds.notes|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">{{ ds.recorded_by.get_full_name|default:ds.recorded_by.email }}</td>
