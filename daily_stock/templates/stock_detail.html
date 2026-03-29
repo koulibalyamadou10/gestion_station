@@ -7,9 +7,9 @@
 {% block content %}
 <div class="min-w-0 max-w-full">
 <p class="text-sm text-gray-600 mb-6 max-w-3xl">
-    Mouvements <strong>essence</strong> et <strong>gazoil</strong> : les <strong>sorties</strong> viennent du <strong>stock journalier</strong> (saisie gérant),
-    les <strong>entrées</strong> des <strong>réceptions</strong> (quantités livrées <strong>moins</strong> les manquants).
-    La ligne <strong>Stock départ</strong> utilise le dernier <strong>inventaire système</strong> à la date de début de période (sinon le stock cuve enregistré sur la station).
+    <strong>Stock départ</strong> : dernier <strong>inventaire système</strong> à la date de début de période (sinon stock cuve sur la station).
+    <strong>Vente</strong> (une ligne par jour si vente &gt; 0) : sorties = somme des <strong>ventes</strong> du jour (<span class="font-medium">qty_gasoline</span> / <span class="font-medium">qty_diesel</span>).
+    <strong>Réception</strong> : entrées = somme des quantités livrées <strong>moins</strong> les manquants (plusieurs livraisons le même jour sont additionnées).
 </p>
 
 {% if selected_station %}
