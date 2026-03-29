@@ -960,13 +960,13 @@
 
         if (totalAmount > 0 && allocations.length === 0) {
             e.preventDefault();
-            alert('Veuillez sélectionner au moins un wallet et répartir le montant.');
+            alert('Veuillez sélectionner au moins un compte et répartir le montant.');
             return false;
         }
 
         if (Math.abs(allocatedSum - totalAmount) > 0.01) {
             e.preventDefault();
-            alert('La somme des montants des wallets doit être égale au montant total.');
+            alert('La somme des montants des comptes doit être égale au montant total.');
             return false;
         }
         

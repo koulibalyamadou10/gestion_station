@@ -16,7 +16,7 @@
     </div>
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
         <p class="text-sm text-gray-600">Qté Essence / Diesel</p>
-        <p class="text-lg font-bold text-gray-800 mt-2">{{ total_gasoline|money_fr }} / {{ total_diesel|money_fr }}</p>
+        <p class="text-lg font-bold text-gray-800 mt-2">{{ total_gasoline|qty_fr }} / {{ total_diesel|qty_fr }}</p>
     </div>
 </div>
 
@@ -68,8 +68,8 @@
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.sale_date|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.station.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.pump_reading.pump.name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_gasoline|money_fr }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_diesel|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_gasoline|qty_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ sale.qty_diesel|qty_fr }}</td>
                         <td class="px-6 py-4 text-sm font-semibold text-blue-700">{{ sale.total_amount|money_gnf }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ sale.recorded_by.get_full_name|default:sale.recorded_by.email }}</td>
                     </tr>

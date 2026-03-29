@@ -707,12 +707,12 @@
         const allocatedSum = allocations.reduce((acc, x) => acc + parseFloat(x.amount || 0), 0);
         if (batchTotal > 0 && !allocations.length) {
             e.preventDefault();
-            alert('Répartissez le montant sur au moins un wallet.');
+            alert('Répartissez le montant sur au moins un compte.');
             return;
         }
         if (Math.abs(allocatedSum - batchTotal) > 0.01) {
             e.preventDefault();
-            alert('La somme des wallets doit être égale au montant total.');
+            alert('La somme des comptes doit être égale au montant total.');
             return;
         }
     });
