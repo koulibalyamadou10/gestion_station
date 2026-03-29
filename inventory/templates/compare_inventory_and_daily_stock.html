@@ -67,7 +67,9 @@
             Comparaison par relevé ({{ daily_stock_count|qty_fr }} ligne{{ daily_stock_count|pluralize }})
         </h3>
         <p class="text-xs text-gray-500 mt-1">
-            Écart = quantité <strong>déclarée par le gérant</strong> − quantité <strong>retenue par le système</strong>, pour la même date et la même station.
+            <strong>Écart (L)</strong> = litres <strong>déclarés</strong> au relevé du jour
+            <strong>−</strong> litres <strong>système</strong> (même jour, même station). Affiché avec signe
+            <strong>+</strong> ou <strong>−</strong> selon le cas.
         </p>
     </div>
     <div class="overflow-x-auto">
@@ -92,12 +94,12 @@
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_gasoline|qty_fr }}</td>
                     <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_gasoline|qty_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
-                        {{ row.delta_gasoline|qty_fr }}
+                        {% if row.delta_gasoline > 0 %}+{% endif %}{{ row.delta_gasoline|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_diesel|qty_fr }}</td>
                     <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_diesel|qty_fr }}</td>
                     <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
-                        {{ row.delta_diesel|qty_fr }}
+                        {% if row.delta_diesel > 0 %}+{% endif %}{{ row.delta_diesel|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         {% if row.system_source == 'same_day' %}
@@ -140,7 +142,7 @@
     <ul class="list-disc list-inside space-y-1 text-slate-600">
         <li><strong>Jour J</strong> : le système a enregistré au moins une mise à jour d’inventaire le <strong>même jour</strong> que le relevé gérant — les colonnes « Syst. » reprennent le dernier niveau de ce jour.</li>
         <li><strong>Cumul</strong> : aucune mise à jour inventaire ce jour-là ; on affiche le <strong>dernier niveau connu</strong> jusqu’à cette date.</li>
-        <li>Écart proche de 0 : le relevé gérant est aligné sur le niveau système retenu pour cette ligne.</li>
+        <li>Écart = litres déclarés (relevé) − litres système ; proche de 0 : alignement entre les deux.</li>
         <li>Écart important : vérifier la saisie, les pertes éventuelles, ou des opérations non enregistrées dans l’application.</li>
     </ul>
 </div>

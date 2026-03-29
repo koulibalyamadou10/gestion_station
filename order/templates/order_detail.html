@@ -64,14 +64,14 @@
             <p class="text-xs font-bold uppercase tracking-wide text-emerald-800 mb-3">Essence</p>
             <div class="space-y-2">
                 <div><span class="text-gray-500">Quantité :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_gasoline|qty_fr }} L</span></div>
-                <div><span class="text-gray-500">Prix unitaire :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_gnf }}</span></div>
+                <div><span class="text-gray-500">Prix à la pompe :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_gnf }}</span></div>
             </div>
         </div>
         <div class="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
             <p class="text-xs font-bold uppercase tracking-wide text-amber-900 mb-3">Gasoil</p>
             <div class="space-y-2">
                 <div><span class="text-gray-500">Quantité :</span> <span class="font-semibold text-gray-800">{{ order_supplier.qty_diesel|qty_fr }} L</span></div>
-                <div><span class="text-gray-500">Prix unitaire :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_gnf }}</span></div>
+                <div><span class="text-gray-500">Prix à la pompe :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_gnf }}</span></div>
             </div>
         </div>
         <div class="md:col-span-2 pt-2 border-t border-gray-100"><span class="text-gray-500">Fournisseur :</span> <span class="font-semibold text-gray-800">{{ order_supplier.supplier.name|default:"Non défini" }}</span></div>
@@ -104,7 +104,7 @@
                 <div class="space-y-2">
                     <div><span class="text-gray-500">Quantité livrée :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_gasoline|qty_fr }} L</span></div>
                     <div><span class="text-gray-500">Quantité manquante :</span> <span class="font-semibold text-amber-800">{{ d.missing_qty_gasoline|qty_fr }} L</span></div>
-                    <div><span class="text-gray-500">Prix unitaire :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_gnf }}</span></div>
+                    <div><span class="text-gray-500">Prix à la pompe :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_gasoline|money_gnf }}</span></div>
                 </div>
             </div>
             <div class="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
@@ -112,7 +112,7 @@
                 <div class="space-y-2">
                     <div><span class="text-gray-500">Quantité livrée :</span> <span class="font-semibold text-gray-800">{{ d.delivered_qty_diesel|qty_fr }} L</span></div>
                     <div><span class="text-gray-500">Quantité manquante :</span> <span class="font-semibold text-amber-800">{{ d.missing_qty_diesel|qty_fr }} L</span></div>
-                    <div><span class="text-gray-500">Prix unitaire :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_gnf }}</span></div>
+                    <div><span class="text-gray-500">Prix à la pompe :</span> <span class="font-semibold text-gray-800">{{ order_supplier.unit_price_diesel|money_gnf }}</span></div>
                 </div>
             </div>
         </div>

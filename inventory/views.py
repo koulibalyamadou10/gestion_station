@@ -188,14 +188,17 @@ def compare_receptions_vs_sales_view(request):
             sys_g, sys_d, system_source = _system_stock_for_daily_compare(
                 ds.station_id, ds.stock_date
             )
+            # Écart (L) = relevé gérant (DailyStock) − niveau système (Inventory), signé (+ ou −)
+            decl_g = ds.qty_gasoline or Decimal("0")
+            decl_d = ds.qty_diesel or Decimal("0")
             comparison_rows.append(
                 {
                     "daily": ds,
                     "system_gasoline": sys_g,
                     "system_diesel": sys_d,
                     "system_source": system_source,
-                    "delta_gasoline": (ds.qty_gasoline or Decimal("0")) - sys_g,
-                    "delta_diesel": (ds.qty_diesel or Decimal("0")) - sys_d,
+                    "delta_gasoline": decl_g - sys_g,
+                    "delta_diesel": decl_d - sys_d,
                 }
             )
 
