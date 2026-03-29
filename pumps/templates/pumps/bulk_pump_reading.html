@@ -1,4 +1,5 @@
 {% extends 'base_authenticated.html' %}
+{% load money_extras %}
 
 {% block title %}Saisie groupée des lectures{% endblock %}
 {% block page_title %}Saisie groupée des lectures{% endblock %}
@@ -74,7 +75,7 @@
                 {% for item in already_sent_today %}
                 <p class="text-sm text-amber-900">
                     <span class="font-semibold">{{ item.name }}</span>
-                    - index envoyé: <span class="font-semibold">{{ item.current_index }}</span>
+                    - index envoyé: <span class="font-semibold">{{ item.current_index|qty_fr }}</span>
                 </p>
                 {% endfor %}
             </div>
@@ -89,7 +90,7 @@
     <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
         <p class="text-sm text-green-800">
             <strong>Montant total des ventes (batch) :</strong>
-            <span id="batchTotalAmount" class="font-bold">0,00</span> GNF
+            <span id="batchTotalAmount" class="font-bold">0</span> GNF
         </p>
     </div>
 
@@ -124,7 +125,7 @@
         <div class="mt-3 border-t border-gray-200 pt-3 flex items-center justify-end">
             <p class="text-sm font-semibold text-gray-800">
                 Montant total :
-                <span id="salesSummaryTotalAmount" class="text-indigo-700 ml-1">0,00</span>
+                <span id="salesSummaryTotalAmount" class="text-indigo-700 ml-1">0</span>
                 <span class="text-gray-500 text-xs">GNF</span>
             </p>
         </div>
@@ -142,7 +143,7 @@
         <div id="walletAllocationsContainer" class="space-y-2"></div>
         <p id="noWalletMessage" class="hidden text-sm text-red-600 mt-2">Aucun compte configuré pour cette station.</p>
         <div class="mt-3 text-xs text-gray-600">
-            Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0,00</span> GNF
+            Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0</span> GNF
         </div>
     </div>
 
@@ -244,9 +245,12 @@
         document.body.style.overflow = 'auto';
     }
 
+    /** Montants / index / litres : pas de ,00 inutiles (aligné sur qty_fr côté serveur). */
     function formatAmount(value) {
-        const n = Number(value || 0);
-        return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        let n = Number(value);
+        if (!Number.isFinite(n)) n = 0;
+        const rounded = Math.round(n * 100) / 100;
+        return rounded.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
 
     function parseAmountInput(value) {
@@ -535,7 +539,7 @@
             </div>
             <div class="md:col-span-2 flex items-center justify-between md:block md:text-right min-w-0">
                 <span class="text-xs text-gray-500 block">Ligne</span>
-                <span class="reading-line-amount text-sm font-bold text-gray-900 block whitespace-nowrap">0,00</span>
+                <span class="reading-line-amount text-sm font-bold text-gray-900 block whitespace-nowrap">0</span>
             </div>
         `;
         readingRowsContainer.appendChild(row);
