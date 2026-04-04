@@ -1,4 +1,5 @@
 {% extends 'base_authenticated.html' %}
+{% load money_extras %}
 
 {% block title %}Détails de la Station - {{ station.name }}{% endblock %}
 
@@ -191,8 +192,8 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                                {% if pump.latest_reading %}{{ pump.latest_reading.current_index }}{% else %}-{% endif %}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold tabular-nums">
+                                {% if pump.latest_reading %}{{ pump.latest_reading.current_index|qty_fr }}{% else %}-{% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex items-center space-x-3">
