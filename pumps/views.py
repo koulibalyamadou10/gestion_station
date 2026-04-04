@@ -418,9 +418,21 @@ def create_pump_view(request):
         pump_type = request.POST.get("pump_type", "").strip().lower()
         pump_number = request.POST.get("pump_number", "").strip()
         current_index = request.POST.get("current_index", "").strip()
+        reading_date_raw = request.POST.get("reading_date", "").strip()
 
-        if not station_id or not pump_type or not pump_number or not current_index:
+        if (
+            not station_id
+            or not pump_type
+            or not pump_number
+            or not current_index
+            or not reading_date_raw
+        ):
             messages.error(request, "Veuillez remplir tous les champs obligatoires.")
+            return _redirect_after_pump_form(request)
+
+        reading_date = parse_date(reading_date_raw)
+        if not reading_date:
+            messages.error(request, "La date de lecture est invalide.")
             return _redirect_after_pump_form(request)
 
         try:
@@ -463,7 +475,7 @@ def create_pump_view(request):
                 pump=pump,
                 employee=None,
                 current_index=current_index_decimal,
-                reading_date=timezone.now().date(),
+                reading_date=reading_date,
             )
 
             messages.success(request, f'La pompe "{pump.name}" a été créée avec sa première lecture.')
