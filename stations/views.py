@@ -320,11 +320,16 @@ def station_detail_view(request, station_uuid):
                 ).order_by('first_name', 'last_name')
 
         from pumps.models import Pump, PumpReading
+        from tank.models import Tank
 
         can_manage_pumps = request.user.role == 'super_admin' or (
             request.user.role == 'admin' and station.owner_id == request.user.id
         )
+        can_manage_tanks = can_manage_pumps
         can_record_pump_readings = is_station_manager or can_manage_pumps
+
+        station_tanks = Tank.objects.filter(station=station).order_by('name')
+        station_tanks_total = station_tanks.count()
 
         search_query = request.GET.get('search', '').strip()
         pumps_qs = (
@@ -365,7 +370,10 @@ def station_detail_view(request, station_uuid):
             'managers': managers,
             'all_cities': City.objects.order_by('name'),
             'can_manage_pumps': can_manage_pumps,
+            'can_manage_tanks': can_manage_tanks,
             'can_record_pump_readings': can_record_pump_readings,
+            'station_tanks': station_tanks,
+            'station_tanks_total': station_tanks_total,
             'is_station_manager': is_station_manager,
             'search_query': search_query,
             'station_pumps_page': page_obj,

@@ -89,7 +89,7 @@
 
     <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg">
         <p class="text-sm text-green-800">
-            <strong>Montant total des ventes (batch) :</strong>
+            <strong>Montant total des ventes :</strong>
             <span id="batchTotalAmount" class="font-bold">0</span> GNF
         </p>
     </div>
@@ -149,8 +149,9 @@
 
     <div class="flex justify-end gap-3">
         <a href="{% url 'pumps:pumps_list' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Annuler</a>
-        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-semibold">
-            <i class="fas fa-save mr-2"></i>Enregistrer tout
+        <button type="submit" id="bulkReadingSubmitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
+            <i class="fas fa-save mr-2" id="bulkReadingSubmitIcon"></i>
+            <span id="bulkReadingSubmitLabel">Enregistrer tout</span>
         </button>
     </div>
 </form>
@@ -216,6 +217,10 @@
     const noRemainingPumpModal = document.getElementById('noRemainingPumpModal');
     const noRemainingPumpModalMessage = document.getElementById('noRemainingPumpModalMessage');
     const noPumpReasonText = document.getElementById('noPumpReasonText');
+    const bulkSubmitBtn = document.getElementById('bulkReadingSubmitBtn');
+    const bulkSubmitIcon = document.getElementById('bulkReadingSubmitIcon');
+    const bulkSubmitLabel = document.getElementById('bulkReadingSubmitLabel');
+    let bulkSubmitLocked = false;
 
     let SERVER_RESTORE = null;
     try {
@@ -258,6 +263,35 @@
         const normalized = String(value).replace(/\s/g, '').replace(',', '.');
         const parsed = parseFloat(normalized);
         return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    /** Formate un champ numérique à la saisie (séparateurs fr-FR : 1 500, 150 000 000). */
+    function attachLiveNumberFormatting(inputEl, onUpdate) {
+        if (!inputEl) return;
+        function applyFormat() {
+            const raw = inputEl.value;
+            if (!raw.trim()) {
+                onUpdate?.();
+                return;
+            }
+            const atEnd = inputEl.selectionStart === raw.length;
+            inputEl.value = formatAmount(parseAmountInput(raw));
+            if (atEnd) {
+                const len = inputEl.value.length;
+                inputEl.setSelectionRange(len, len);
+            }
+            onUpdate?.();
+        }
+        inputEl.addEventListener('input', function () {
+            inputEl.value = inputEl.value.replace(/[^\d\s,\.]/g, '');
+            applyFormat();
+        });
+        inputEl.addEventListener('blur', function () {
+            if (inputEl.value.trim()) {
+                inputEl.value = formatAmount(parseAmountInput(inputEl.value));
+            }
+            onUpdate?.();
+        });
     }
 
     function getSelectedReadingDate() {
@@ -402,7 +436,7 @@
             return { pumpName: '', previous: 0, current: 0, qty: 0, unit: 0, amount: 0 };
         }
         const prev = parseFloat(meta.previous_index) || 0;
-        const cur = parseFloat(String(currentIndexStr).replace(',', '.')) || 0;
+        const cur = parseAmountInput(currentIndexStr);
         const qty = cur - prev;
         if (qty <= 0) {
             return { pumpName: meta.name || '', previous: prev, current: cur, qty: 0, unit: 0, amount: 0 };
@@ -470,8 +504,10 @@
         const payload = [];
         rows.forEach((row) => {
             const uuid = row.querySelector('.reading-pump-select')?.value || '';
-            const cur = row.querySelector('.reading-current-index')?.value?.trim() || '';
-            if (uuid && cur) payload.push({ pump_uuid: uuid, current_index: cur });
+            const curRaw = row.querySelector('.reading-current-index')?.value?.trim() || '';
+            if (uuid && curRaw) {
+                payload.push({ pump_uuid: uuid, current_index: String(parseAmountInput(curRaw)) });
+            }
         });
         readingsJsonInput.value = JSON.stringify(payload);
         emptyRowsHint.classList.toggle('hidden', payload.length > 0);
@@ -551,9 +587,7 @@
             syncReadingsJson();
             refreshAllPumpSelects();
         });
-        currentInput.addEventListener('input', () => {
-            syncReadingsJson();
-        });
+        attachLiveNumberFormatting(currentInput, syncReadingsJson);
         refreshAllPumpSelects();
         if (defaultPumpUuid) {
             sel.value = defaultPumpUuid;
@@ -561,7 +595,7 @@
             row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
         }
         if (defaultCurrentIndex !== null && defaultCurrentIndex !== undefined && String(defaultCurrentIndex) !== '') {
-            currentInput.value = String(defaultCurrentIndex);
+            currentInput.value = formatAmount(parseAmountInput(defaultCurrentIndex));
         }
         syncReadingsJson();
     }
@@ -619,15 +653,7 @@
         row.querySelector('.wallet-select').addEventListener('change', () => {
             syncWalletAllocations();
         });
-        const amtInput = row.querySelector('.wallet-amount');
-        amtInput.addEventListener('input', () => {
-            amtInput.value = amtInput.value.replace(/[^\d\s,\.]/g, '');
-            syncWalletAllocations();
-        });
-        amtInput.addEventListener('blur', () => {
-            amtInput.value = formatAmount(parseAmountInput(amtInput.value));
-            syncWalletAllocations();
-        });
+        attachLiveNumberFormatting(row.querySelector('.wallet-amount'), syncWalletAllocations);
     }
 
     function renderWalletSection() {
@@ -667,7 +693,22 @@
         syncWalletAllocations();
     });
 
+    function lockBulkSubmit() {
+        if (!bulkSubmitBtn || bulkSubmitLocked) return;
+        bulkSubmitLocked = true;
+        bulkSubmitBtn.disabled = true;
+        if (bulkSubmitIcon) {
+            bulkSubmitIcon.classList.remove('fa-save');
+            bulkSubmitIcon.classList.add('fa-spinner', 'fa-spin');
+        }
+        if (bulkSubmitLabel) bulkSubmitLabel.textContent = 'Enregistrement…';
+    }
+
     bulkForm?.addEventListener('submit', function(e) {
+        if (bulkSubmitLocked) {
+            e.preventDefault();
+            return;
+        }
         const readings = JSON.parse(readingsJsonInput.value || '[]');
         const requiredPumpUuids = PUMPS_DATA
             .filter((p) => !pumpBlockedForSelectedDate(p))
@@ -719,6 +760,7 @@
             alert('La somme des comptes doit être égale au montant total.');
             return;
         }
+        lockBulkSubmit();
     });
 
     if (PUMPS_DATA.length && bulkForm) {

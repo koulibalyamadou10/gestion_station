@@ -33,6 +33,7 @@ urlpatterns = [
     path('positions/', include('position.urls')),
     path('cities/', include('city.urls')),
     path('pumps/', include('pumps.urls')),
+    path('tanks/', include('tank.urls')),
     path('sales/', include('sale.urls')),
     path('wallets/', include('wallet.urls')),
     path('suppliers/', include('supplier.urls')),
@@ -45,4 +46,5 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

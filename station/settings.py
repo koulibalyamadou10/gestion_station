@@ -27,7 +27,8 @@ config = Config(RepositoryEnv(env_path))
 SECRET_KEY = 'django-insecure-#6g0k7uotj2!o8x#suuzqm%zy4qnoc(fxh48-n1vxi*q48=6-w'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+# En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = ['*']
 
@@ -58,6 +59,7 @@ INSTALLED_APPS = [
     'daily_stock',
     'sale',
     'product_price',
+    'tank',
 ]
 
 MIDDLEWARE = [
@@ -140,7 +142,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
