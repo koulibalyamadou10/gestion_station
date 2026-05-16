@@ -43,7 +43,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Ventes (30 j.)</p>
-                <p class="text-2xl font-bold text-gray-800 mt-1">{{ total_liters_month|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
+                <p class="text-xl font-bold text-gray-800 mt-1">{{ total_liters_month|money_fr }} <span class="text-sm font-semibold text-gray-500">L</span></p>
                 <p class="text-amber-700 text-xs mt-1 font-medium">CA : {{ revenue_month|money_fr }} GNF</p>
             </div>
             <div class="bg-blue-100 p-4 rounded-full">
@@ -56,7 +56,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Stock essence (cuves)</p>
-                <p class="text-2xl font-bold text-gray-800 mt-1">{{ stock_essence|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
+                <p class="text-xl font-bold text-gray-800 mt-1">{{ stock_essence|money_fr }} <span class="text-sm font-semibold text-gray-500">L</span></p>
                 <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Cuves de la station{% else %}Toutes stations du périmètre{% endif %}</p>
             </div>
             <div class="bg-amber-100 p-4 rounded-full">
@@ -69,7 +69,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Stock gazoil (cuves)</p>
-                <p class="text-2xl font-bold text-gray-800 mt-1">{{ stock_gazoil|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
+                <p class="text-xl font-bold text-gray-800 mt-1">{{ stock_gazoil|money_fr }} <span class="text-sm font-semibold text-gray-500">L</span></p>
                 <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Cuves de la station{% else %}Toutes stations du périmètre{% endif %}</p>
             </div>
             <div class="bg-slate-100 p-4 rounded-full">
@@ -82,7 +82,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Caisse (comptes)</p>
-                <p class="text-2xl font-bold text-gray-800 mt-1">{{ wallet_total|money_fr }} <span class="text-base font-semibold text-gray-500">GNF</span></p>
+                <p class="text-xl font-bold text-gray-800 mt-1">{{ wallet_total|money_fr }} <span class="text-sm font-semibold text-gray-500">GNF</span></p>
                 <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Solde cumulé sur la station{% else %}Somme des soldes{% endif %}</p>
             </div>
             <div class="bg-yellow-100 p-4 rounded-full">
@@ -96,7 +96,7 @@
         <div class="flex items-center justify-between">
             <div>
                 <p class="text-gray-600 text-sm font-medium">Stations</p>
-                <p class="text-3xl font-bold text-gray-800 mt-2">{{ stations_count }}</p>
+                <p class="text-xl font-bold text-gray-800 mt-1">{{ stations_count }}</p>
                 {% if user.role == 'admin' or user.role == 'super_admin' %}
                 <p class="text-xs text-gray-500 mt-1">{{ managers_count }} gérant{{ managers_count|pluralize }}</p>
                 {% else %}
