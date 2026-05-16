@@ -143,7 +143,8 @@ def _build_dashboard_context(user):
         sg=Coalesce(Sum("stock_gasoline"), Decimal("0")),
         sd=Coalesce(Sum("stock_diesel"), Decimal("0")),
     )
-    total_stock = (stock_agg["sg"] or Decimal("0")) + (stock_agg["sd"] or Decimal("0"))
+    stock_essence = stock_agg["sg"] or Decimal("0")
+    stock_gazoil = stock_agg["sd"] or Decimal("0")
 
     wallet_total = Decimal("0")
     if station_ids:
@@ -213,7 +214,8 @@ def _build_dashboard_context(user):
         "stations_count": stations_count,
         "total_liters_month": total_liters_month,
         "revenue_month": revenue_month,
-        "total_stock": total_stock,
+        "stock_essence": stock_essence,
+        "stock_gazoil": stock_gazoil,
         "wallet_total": wallet_total,
         "orders_by_status": orders_by_status,
         "orders_pending": orders_by_status.get(Order.STATUS_PENDING, 0),

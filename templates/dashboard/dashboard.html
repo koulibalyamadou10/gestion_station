@@ -37,8 +37,8 @@
 </p>
 {% endif %}
 
-<!-- KPI : gérant = 3 cartes ; admin = 4 -->
-<div class="grid grid-cols-1 sm:grid-cols-2 {% if dashboard_is_manager %}lg:grid-cols-3{% else %}xl:grid-cols-4{% endif %} gap-6 mb-8">
+<!-- KPI : gérant = 4 cartes ; admin = 5 -->
+<div class="grid grid-cols-1 sm:grid-cols-2 {% if dashboard_is_manager %}lg:grid-cols-2 xl:grid-cols-4{% else %}lg:grid-cols-3 xl:grid-cols-5{% endif %} gap-6 mb-8">
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
         <div class="flex items-center justify-between">
             <div>
@@ -52,15 +52,28 @@
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-500">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-600 text-sm font-medium">Stock en cuves</p>
-                <p class="text-2xl font-bold text-gray-800 mt-1">{{ total_stock|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
-                <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Essence + gazoil{% else %}Essence + gazoil (toutes stations du périmètre){% endif %}</p>
+                <p class="text-gray-600 text-sm font-medium">Stock essence (cuves)</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ stock_essence|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
+                <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Cuves de la station{% else %}Toutes stations du périmètre{% endif %}</p>
             </div>
-            <div class="bg-green-100 p-4 rounded-full">
-                <i class="fas fa-oil-can text-3xl text-green-600"></i>
+            <div class="bg-amber-100 p-4 rounded-full">
+                <i class="fas fa-gas-pump text-3xl text-amber-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-slate-500">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-600 text-sm font-medium">Stock gazoil (cuves)</p>
+                <p class="text-2xl font-bold text-gray-800 mt-1">{{ stock_gazoil|money_fr }} <span class="text-base font-semibold text-gray-500">L</span></p>
+                <p class="text-gray-500 text-xs mt-1">{% if dashboard_is_manager %}Cuves de la station{% else %}Toutes stations du périmètre{% endif %}</p>
+            </div>
+            <div class="bg-slate-100 p-4 rounded-full">
+                <i class="fas fa-oil-can text-3xl text-slate-600"></i>
             </div>
         </div>
     </div>
