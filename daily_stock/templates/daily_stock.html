@@ -154,15 +154,61 @@
                 <input type="date" name="stock_date" id="daily_stock_date" required value="{% now 'Y-m-d' %}" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
                 <p class="text-xs text-gray-500 mt-1">Choisissez la date du relevé. Une seule entrée est possible par date pour cette station.</p>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté essence</label>
-                    <input type="number" name="qty_gasoline" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Relevé des cuves <span class="text-red-500">*</span></label>
+                {% if station_tanks %}
+                <p class="text-xs text-gray-500 mb-3">Saisissez le niveau actuel (L) de chaque cuve. Les totaux essence et gazoil seront calculés automatiquement.</p>
+                <div class="space-y-4 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    {% regroup station_tanks by product as tanks_by_product %}
+                    {% for group in tanks_by_product %}
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-wide mb-2 {% if group.grouper == 'gasoline' %}text-amber-700{% else %}text-slate-700{% endif %}">
+                            {% if group.grouper == 'gasoline' %}<i class="fas fa-gas-pump mr-1"></i>Essence{% else %}<i class="fas fa-oil-can mr-1"></i>Gazoil{% endif %}
+                        </p>
+                        <div class="space-y-2">
+                            {% for tank in group.list %}
+                            <div class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ tank.name }}</p>
+                                    {% if tank.description %}
+                                    <p class="text-xs text-gray-500 truncate">{{ tank.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="w-28 shrink-0">
+                                    <input
+                                        type="number"
+                                        name="tank_{{ tank.id }}"
+                                        min="0"
+                                        step="0.01"
+                                        required
+                                        value=""
+                                        class="tank-qty-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"
+                                        data-product="{{ tank.product }}"
+                                        placeholder="0"
+                                    >
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté gazoil</label>
-                    <input type="number" name="qty_diesel" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                        <span class="text-xs text-amber-800 font-semibold uppercase">Total essence</span>
+                        <p class="font-bold text-amber-900 tabular-nums"><span id="dailyStockTotalEssence">0</span> L</p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                        <span class="text-xs text-slate-800 font-semibold uppercase">Total gazoil</span>
+                        <p class="font-bold text-slate-900 tabular-nums"><span id="dailyStockTotalGazoil">0</span> L</p>
+                    </div>
                 </div>
+                {% else %}
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Aucune cuve sur cette station. Créez des cuves dans la fiche station avant d'enregistrer un stock journalier.
+                </div>
+                {% endif %}
             </div>
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
@@ -181,12 +227,45 @@
     const openBtn = document.getElementById('openDailyStockModal');
     const closeBtn = document.getElementById('closeDailyStockModal');
     const cancelBtn = document.getElementById('cancelDailyStockModal');
-    function openM() { modal?.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+    function openM() {
+        modal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) { inp.value = ''; });
+        updateTankTotals();
+    }
     function closeM() { modal?.classList.add('hidden'); document.body.style.overflow = ''; }
     openBtn?.addEventListener('click', openM);
     closeBtn?.addEventListener('click', closeM);
     cancelBtn?.addEventListener('click', closeM);
     modal?.addEventListener('click', function(e) { if (e.target === modal) closeM(); });
+
+    function formatQty(n) {
+        const v = Math.round(n * 100) / 100;
+        return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+    function updateTankTotals() {
+        const elE = document.getElementById('dailyStockTotalEssence');
+        const elG = document.getElementById('dailyStockTotalGazoil');
+        if (!elE || !elG) return;
+        let sumE = 0, sumG = 0;
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+            const v = parseFloat(String(inp.value).replace(',', '.')) || 0;
+            if (inp.dataset.product === 'gasoline') sumE += v;
+            else sumG += v;
+        });
+        elE.textContent = formatQty(sumE);
+        elG.textContent = formatQty(sumG);
+    }
+    document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+        inp.addEventListener('input', updateTankTotals);
+    });
+    updateTankTotals();
+
+    const submitBtn = document.querySelector('#dailyStockModal button[type="submit"]');
+    if (submitBtn && !document.querySelectorAll('.tank-qty-input').length) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
 })();
 </script>
 {% endif %}

@@ -72,6 +72,26 @@ class Order(models.Model):
             return Decimal("0")
         return qg * pp.price_gasoline + qd * pp.price_diesel
 
+class OrderTank(models.Model):
+    PRODUCT_GASOLINE = "gasoline"
+    PRODUCT_DIESEL = "diesel"
+    PRODUCT_TYPES = [
+        (PRODUCT_GASOLINE, "Essence"),
+        (PRODUCT_DIESEL, "Gazoil"),
+    ]
+    order_tank_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_tanks')
+    tank = models.ForeignKey('tank.Tank', on_delete=models.CASCADE, related_name='order_tanks')
+    product = models.CharField(max_length=100, choices=PRODUCT_TYPES, default=PRODUCT_GASOLINE)
+    product_qty = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "commande_cuve"
+
+    def __str__(self):
+        return f"Order #{self.order_id} - {self.tank.name}"
 
 class OrderSupplier(models.Model):
     order_supplier_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
