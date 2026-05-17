@@ -138,7 +138,7 @@
                     inputmode="decimal"
                     autocomplete="off"
                     placeholder="12 000"
-                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
+                    class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
                 >
             </div>
             <div>
@@ -151,7 +151,7 @@
                     inputmode="decimal"
                     autocomplete="off"
                     placeholder="12 000"
-                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
+                    class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums"
                 >
             </div>
             <div class="flex items-center justify-end gap-3 pt-2">
@@ -199,7 +199,7 @@
                     required
                     inputmode="decimal"
                     autocomplete="off"
-                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-right tabular-nums"
+                    class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-right tabular-nums"
                 >
             </div>
             <div>
@@ -211,7 +211,7 @@
                     required
                     inputmode="decimal"
                     autocomplete="off"
-                    class="gnf-price-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-right tabular-nums"
+                    class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none text-right tabular-nums"
                 >
             </div>
             <div class="flex items-center justify-end gap-3 pt-2">
@@ -274,6 +274,7 @@
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         document.body.style.overflow = 'hidden';
+        NumberFormat?.initNumberInputs(modal);
     }
 
     function closeModal() {
@@ -317,49 +318,9 @@
         if (e.target === deleteModal) closeDeleteModal();
     });
 
-    function parseGNFPlain(str) {
-        return String(str || '').replace(/\s/g, '').replace(/\u00a0/g, '').replace(',', '.').trim();
-    }
-
-    function formatGNFDisplay(str) {
-        var plain = parseGNFPlain(str);
-        if (plain === '' || plain === '-') return '';
-        var n = parseFloat(plain);
-        if (isNaN(n)) return String(str);
-        var parts = n.toFixed(2).split('.');
-        var intStr = parts[0];
-        var neg = intStr.indexOf('-') === 0;
-        intStr = intStr.replace('-', '');
-        var grouped = intStr.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-        if (neg) grouped = '-' + grouped;
-        if (parts[1] === '00') return grouped;
-        return grouped + ',' + parts[1];
-    }
-
-    document.querySelectorAll('.gnf-price-input').forEach(function(el) {
-        el.addEventListener('blur', function() {
-            var f = formatGNFDisplay(el.value);
-            if (f !== '') el.value = f;
-        });
-    });
-
-    var priceForm = document.getElementById('createProductPriceForm');
-    if (priceForm) {
-        priceForm.addEventListener('submit', function() {
-            priceForm.querySelectorAll('.gnf-price-input').forEach(function(el) {
-                el.value = parseGNFPlain(el.value);
-            });
-        });
-    }
-
     var editForm = document.getElementById('editProductPriceForm');
-    if (editForm) {
-        editForm.addEventListener('submit', function() {
-            editForm.querySelectorAll('.gnf-price-input').forEach(function(el) {
-                el.value = parseGNFPlain(el.value);
-            });
-        });
-    }
+    NumberFormat.initNumberInputs(modal);
+    NumberFormat.initNumberInputs(editModal);
 
     document.querySelectorAll('.js-open-edit-price').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -377,8 +338,8 @@
                 effInput.min = minD;
                 effInput.value = eff;
             }
-            if (pgInput) pgInput.value = formatGNFDisplay(pg);
-            if (pdInput) pdInput.value = formatGNFDisplay(pd);
+            if (pgInput) pgInput.value = NumberFormat.formatAmount(pg);
+            if (pdInput) pdInput.value = NumberFormat.formatAmount(pd);
             editModal?.classList.remove('hidden');
             editModal?.classList.add('flex');
             document.body.style.overflow = 'hidden';

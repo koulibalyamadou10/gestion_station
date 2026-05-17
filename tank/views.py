@@ -53,7 +53,9 @@ def create_tank_view(request):
         return _redirect_after_tank_form(request)
 
     try:
-        actual_quantity = Decimal(actual_quantity_raw.replace(",", "."))
+        actual_quantity = Decimal(
+            actual_quantity_raw.replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+        )
         if actual_quantity < 0:
             raise InvalidOperation
     except (InvalidOperation, ValueError):

@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -111,6 +112,7 @@
             });
         }, 5000);
     </script>
+    <script src="{% static 'js/number-format.js' %}"></script>
     
     {% block extra_js %}{% endblock %}
 </body>

@@ -197,10 +197,18 @@ def create_station_view(request):
 
             try:
                 stock_gasoline = Decimal(
-                    (request.POST.get('stock_gasoline') or '0').replace(',', '.').strip() or '0'
+                    (request.POST.get('stock_gasoline') or '0')
+                    .replace('\u00a0', ' ')
+                    .replace(' ', '')
+                    .replace(',', '.')
+                    .strip() or '0'
                 )
                 stock_diesel = Decimal(
-                    (request.POST.get('stock_diesel') or '0').replace(',', '.').strip() or '0'
+                    (request.POST.get('stock_diesel') or '0')
+                    .replace('\u00a0', ' ')
+                    .replace(' ', '')
+                    .replace(',', '.')
+                    .strip() or '0'
                 )
             except InvalidOperation:
                 messages.error(request, 'Les stocks essence et gazoil doivent être des nombres valides.')

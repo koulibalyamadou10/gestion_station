@@ -416,8 +416,19 @@ def create_pump_view(request):
 
         station_id = request.POST.get("station_id", "").strip()
         pump_type = request.POST.get("pump_type", "").strip().lower()
-        pump_number = request.POST.get("pump_number", "").strip()
-        current_index = request.POST.get("current_index", "").strip()
+        pump_number = (
+            request.POST.get("pump_number", "")
+            .replace("\u00a0", " ")
+            .replace(" ", "")
+            .strip()
+        )
+        current_index = (
+            request.POST.get("current_index", "")
+            .replace("\u00a0", " ")
+            .replace(" ", "")
+            .replace(",", ".")
+            .strip()
+        )
         reading_date_raw = request.POST.get("reading_date", "").strip()
 
         if (
