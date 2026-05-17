@@ -271,7 +271,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
-                            <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                            <input type="text" name="requested_qty_gasoline" value="0" required inputmode="decimal" autocomplete="off" placeholder="0" class="js-number-input w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white text-right">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Essence)</label>
@@ -286,7 +286,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
-                            <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                            <input type="text" name="requested_qty_diesel" value="0" required inputmode="decimal" autocomplete="off" placeholder="0" class="js-number-input w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white text-right">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Gasoil)</label>
@@ -577,7 +577,8 @@
 {% if can_create_order or can_edit_order_quantities %}
 <script>
     function decimalValue(input) {
-        const parsed = parseFloat((input?.value || '0').toString().replace(',', '.'));
+        const raw = (input?.value || '0').toString().replace(/\s/g, '').replace(/\u00a0/g, '').replace(',', '.');
+        const parsed = parseFloat(raw);
         return Number.isNaN(parsed) ? 0 : parsed;
     }
 
@@ -599,6 +600,14 @@
     function openOrderModal() {
         createOrderModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        if (createQtyGasoline) createQtyGasoline.value = '0';
+        if (createQtyDiesel) createQtyDiesel.value = '0';
+        if (window.NumberFormat) {
+            NumberFormat.initNumberInputs(createOrderModal);
+            if (createQtyGasoline) createQtyGasoline.value = NumberFormat.formatAmount(0);
+            if (createQtyDiesel) createQtyDiesel.value = NumberFormat.formatAmount(0);
+        }
+        refreshCreateTotal();
     }
 
     function closeOrderModal() {
