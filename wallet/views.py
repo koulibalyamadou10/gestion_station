@@ -4,12 +4,16 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from stations.models import Station
 from wallet.models import Account, normalize_account_name
+
+
+def _parse_wallet_amount(raw):
+    return (raw or "0").replace(" ", "").replace("\u00a0", "").replace(",", ".").strip() or "0"
 
 
 @login_required
@@ -100,6 +104,12 @@ def wallet_list_view(request):
         total_balance=Sum("balance"),
     )
 
+    transfer_accounts = list(
+        Account.objects.filter(station__in=station_scope)
+        .select_related("station")
+        .order_by("station__name", "name")
+    )
+
     context = {
         "wallets": page_obj.object_list,
         "page_obj": page_obj,
@@ -108,6 +118,7 @@ def wallet_list_view(request):
         "stations": station_scope,
         "total_wallets": wallets_queryset.count(),
         "total_balance": stats["total_balance"] or Decimal("0"),
+        "transfer_accounts": transfer_accounts,
     }
     return render(request, "wallet_content.html", context)
 
@@ -183,4 +194,99 @@ def update_wallet_view(request, uuid):
         return redirect("wallet:wallet_list")
 
     messages.success(request, "Nom du wallet mis a jour avec succes.")
+    return redirect("wallet:wallet_list")
+
+
+@login_required
+def transfer_wallet_view(request):
+    if request.method != "POST":
+        return redirect("wallet:wallet_list")
+
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'effectuer un transfert.")
+        return redirect("account:not_access")
+
+    station_scope = Station.objects.filter(owner=request.user)
+    from_account_id = request.POST.get("from_account_id", "").strip()
+    to_account_id = request.POST.get("to_account_id", "").strip()
+    amount_raw = _parse_wallet_amount(request.POST.get("amount", ""))
+
+    if not from_account_id or not to_account_id:
+        messages.error(request, "Les comptes source et destination sont obligatoires.")
+        return redirect("wallet:wallet_list")
+
+    if from_account_id == to_account_id:
+        messages.error(request, "Le compte source et le compte destination doivent etre differents.")
+        return redirect("wallet:wallet_list")
+
+    try:
+        amount = Decimal(amount_raw)
+    except InvalidOperation:
+        messages.error(request, "Le montant doit etre numerique.")
+        return redirect("wallet:wallet_list")
+
+    if amount <= 0:
+        messages.error(request, "Le montant doit etre superieur a 0.")
+        return redirect("wallet:wallet_list")
+
+    from_account = (
+        Account.objects.select_related("station")
+        .filter(pk=from_account_id, station__in=station_scope)
+        .first()
+    )
+    to_account = (
+        Account.objects.select_related("station")
+        .filter(pk=to_account_id, station__in=station_scope)
+        .first()
+    )
+
+    if not from_account or not to_account:
+        messages.error(request, "Compte source ou destination invalide.")
+        return redirect("wallet:wallet_list")
+
+    if from_account.station_id != to_account.station_id:
+        messages.error(
+            request,
+            "Les deux comptes doivent appartenir a la meme station.",
+        )
+        return redirect("wallet:wallet_list")
+
+    if from_account.currency != to_account.currency:
+        messages.error(
+            request,
+            "Les deux comptes doivent avoir la meme devise.",
+        )
+        return redirect("wallet:wallet_list")
+
+    lock_ids = sorted([from_account.pk, to_account.pk])
+    try:
+        with transaction.atomic():
+            locked = {
+                acc.pk: acc
+                for acc in Account.objects.select_for_update().filter(pk__in=lock_ids)
+            }
+            src = locked[from_account.pk]
+            dst = locked[to_account.pk]
+
+            src_balance = src.balance or Decimal("0")
+            if src_balance < amount:
+                messages.error(
+                    request,
+                    f"Solde insuffisant sur « {src.name} » ({src_balance} {src.currency}).",
+                )
+                return redirect("wallet:wallet_list")
+
+            src.balance = src_balance - amount
+            dst.balance = (dst.balance or Decimal("0")) + amount
+            src.save(update_fields=["balance", "updated_at"])
+            dst.save(update_fields=["balance", "updated_at"])
+    except Exception as exc:
+        messages.error(request, f"Erreur lors du transfert : {exc}")
+        return redirect("wallet:wallet_list")
+
+    messages.success(
+        request,
+        f"Transfert de {amount} {from_account.currency} effectue : "
+        f"{from_account.name} → {to_account.name} ({from_account.station.name}).",
+    )
     return redirect("wallet:wallet_list")
