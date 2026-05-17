@@ -172,14 +172,23 @@ def _decrease_station_stock_for_sale(sale):
     return True
 
 
-def _record_inventory_snapshot_for_station(station_id):
-    """Une ligne Inventory = niveaux cuves actuels (essence + gazoil) après l'opération."""
+def _record_inventory_snapshot_for_station(station_id, snapshot_date=None):
+    """
+    Une ligne Inventory = niveaux cuves actuels (essence + gazoil) après l'opération.
+    ``snapshot_date`` : date de la lecture (created_at aligné sur ce jour pour le contrôle stock).
+    """
     station = Station.objects.select_for_update().get(pk=station_id)
-    Inventory.objects.create(
-        station_id=station_id,
-        qty_gasoline=station.stock_gasoline,
-        qty_diesel=station.stock_diesel,
-    )
+    create_kwargs = {
+        "station_id": station_id,
+        "qty_gasoline": station.stock_gasoline,
+        "qty_diesel": station.stock_diesel,
+    }
+    if snapshot_date is not None:
+        create_kwargs["created_at"] = timezone.make_aware(
+            timezone.datetime.combine(snapshot_date, timezone.datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+    Inventory.objects.create(**create_kwargs)
 
 
 def _record_inventory_out_and_decrease_station_stock(sale):
@@ -188,7 +197,7 @@ def _record_inventory_out_and_decrease_station_stock(sale):
     Utilisé pour une vente unitaire (une ligne Inventory par vente).
     """
     if _decrease_station_stock_for_sale(sale):
-        _record_inventory_snapshot_for_station(sale.station_id)
+        _record_inventory_snapshot_for_station(sale.station_id, sale.sale_date)
 
 
 def _compute_sale_total_for_pump_reading(
@@ -1168,7 +1177,7 @@ def bulk_pump_reading_view(request):
                     if _decrease_station_stock_for_sale(sale):
                         batch_stock_changed = True
                 if batch_stock_changed:
-                    _record_inventory_snapshot_for_station(station.pk)
+                    _record_inventory_snapshot_for_station(station.pk, today)
 
                 for wallet_uuid, amount in allocations_by_uuid.items():
                     if amount <= 0:
