@@ -56,3 +56,52 @@ class Account(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.station.name}) - {self.balance} {self.currency}"
+
+
+class AccountHistory(models.Model):
+    """Historique des transferts entre comptes d'une même station."""
+
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    from_account = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name="outgoing_transfers",
+    )
+    to_account = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name="incoming_transfers",
+    )
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency = models.CharField(max_length=10, default="GNF")
+    recorded_by = models.ForeignKey(
+        "account.CustomUser",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="wallet_transfers_recorded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "compte_historique"
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Historique compte"
+        verbose_name_plural = "Historiques compte"
+
+    def __str__(self):
+        return (
+            f"Transfert {self.amount} {self.currency} : "
+            f"{self.from_account.name} → {self.to_account.name}"
+        )
+
+    def involves_account(self, account):
+        return self.from_account_id == account.pk or self.to_account_id == account.pk
+
+    def is_outgoing_for(self, account):
+        return self.from_account_id == account.pk
+
+    def counterpart_for(self, account):
+        if self.from_account_id == account.pk:
+            return self.to_account
+        return self.from_account

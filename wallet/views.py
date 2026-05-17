@@ -9,7 +9,15 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from stations.models import Station
-from wallet.models import Account, normalize_account_name
+from wallet.models import Account, AccountHistory, normalize_account_name
+
+
+def _wallet_account_for_user(user, uuid):
+    return get_object_or_404(
+        Account.objects.select_related("station"),
+        uuid=uuid,
+        station__owner=user,
+    )
 
 
 def _parse_wallet_amount(raw):
@@ -121,6 +129,41 @@ def wallet_list_view(request):
         "transfer_accounts": transfer_accounts,
     }
     return render(request, "wallet_content.html", context)
+
+
+@login_required
+def wallet_detail_view(request, uuid):
+    if request.user.role != "admin":
+        messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
+        return redirect("account:not_access")
+
+    wallet = _wallet_account_for_user(request.user, uuid)
+
+    history_qs = (
+        AccountHistory.objects.filter(
+            Q(from_account=wallet) | Q(to_account=wallet)
+        )
+        .select_related("from_account", "to_account", "recorded_by")
+        .order_by("-created_at", "-id")
+    )
+
+    paginator = Paginator(history_qs, 15)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    transfer_accounts = list(
+        Account.objects.filter(station=wallet.station)
+        .select_related("station")
+        .order_by("name")
+    )
+
+    context = {
+        "wallet": wallet,
+        "history_entries": page_obj.object_list,
+        "page_obj": page_obj,
+        "history_total": history_qs.count(),
+        "transfer_accounts": transfer_accounts,
+    }
+    return render(request, "wallet_detail.html", context)
 
 
 @login_required
@@ -280,6 +323,14 @@ def transfer_wallet_view(request):
             dst.balance = (dst.balance or Decimal("0")) + amount
             src.save(update_fields=["balance", "updated_at"])
             dst.save(update_fields=["balance", "updated_at"])
+
+            AccountHistory.objects.create(
+                from_account=src,
+                to_account=dst,
+                amount=amount,
+                currency=src.currency,
+                recorded_by=request.user,
+            )
     except Exception as exc:
         messages.error(request, f"Erreur lors du transfert : {exc}")
         return redirect("wallet:wallet_list")
@@ -289,4 +340,7 @@ def transfer_wallet_view(request):
         f"Transfert de {amount} {from_account.currency} effectue : "
         f"{from_account.name} → {to_account.name} ({from_account.station.name}).",
     )
+    next_url = request.POST.get("next", "").strip()
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
     return redirect("wallet:wallet_list")
