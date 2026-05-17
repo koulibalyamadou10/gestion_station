@@ -549,7 +549,10 @@
         <p class="text-sm text-gray-700 mt-3">Êtes-vous sûr de vouloir enregistrer cette livraison ? Le statut passera à <strong>Livrée</strong> et le stock sera mis à jour.</p>
         <div class="flex justify-end gap-2 mt-6">
             <button type="button" id="deliverConfirmModalCancel" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Non, revenir</button>
-            <button type="button" id="deliverConfirmModalOk" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Oui, confirmer</button>
+            <button type="button" id="deliverConfirmModalOk" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                <i id="deliverConfirmModalOkSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deliverConfirmModalOkLabel">Oui, confirmer</span>
+            </button>
         </div>
     </div>
 </div>
@@ -935,14 +938,45 @@
         document.body.style.overflow = 'hidden';
     }
 
+    function resetDeliverConfirmButton() {
+        const okBtn = document.getElementById('deliverConfirmModalOk');
+        const cancelBtn = document.getElementById('deliverConfirmModalCancel');
+        const spinner = document.getElementById('deliverConfirmModalOkSpinner');
+        const label = document.getElementById('deliverConfirmModalOkLabel');
+        if (okBtn) {
+            okBtn.disabled = false;
+            okBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+        }
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (label) label.textContent = 'Oui, confirmer';
+    }
+
+    function setDeliverConfirmLoading(loading) {
+        const okBtn = document.getElementById('deliverConfirmModalOk');
+        const cancelBtn = document.getElementById('deliverConfirmModalCancel');
+        const spinner = document.getElementById('deliverConfirmModalOkSpinner');
+        const label = document.getElementById('deliverConfirmModalOkLabel');
+        if (okBtn) {
+            okBtn.disabled = loading;
+            okBtn.classList.toggle('opacity-70', loading);
+            okBtn.classList.toggle('cursor-not-allowed', loading);
+        }
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (spinner) spinner.classList.toggle('hidden', !loading);
+        if (label) label.textContent = loading ? 'Enregistrement…' : 'Oui, confirmer';
+    }
+
     function closeDeliverConfirmModalFn() {
         deliverOrderConfirmModal?.classList.add('hidden');
+        resetDeliverConfirmButton();
     }
 
     function closeDeliverOrderModalFn() {
         deliverOrderConfirmModal?.classList.add('hidden');
         deliverOrderModal?.classList.add('hidden');
         document.body.style.overflow = 'auto';
+        resetDeliverConfirmButton();
     }
 
     deliverOrderForm?.addEventListener('submit', function(e) {
@@ -991,6 +1025,7 @@
     });
 
     document.getElementById('deliverConfirmModalOk')?.addEventListener('click', function() {
+        setDeliverConfirmLoading(true);
         if (deliverOrderForm) deliverOrderForm.submit();
     });
 
