@@ -12,9 +12,10 @@ from django.utils.dateparse import parse_date
 from permissions_web import admin_required
 from product_price.utils import get_product_price_for_date
 from delivery.models import Delivery
-from order.models import Order, OrderSupplier
+from order.models import Order, OrderSupplier, OrderTank
 from stations.models import Station, StationManager
 from supplier.models import Supplier
+from tank.models import Tank
 
 
 def _clean_decimal(raw_value: str, default: str = "0") -> Decimal:
@@ -210,6 +211,20 @@ def order_list_view(request):
         "can_deliver_order": request.user.role == "manager",
         "can_cancel_confirmed_order": request.user.role in ("admin", "manager"),
     }
+
+    tanks_by_station = {}
+    if request.user.role == "manager" and manager_station:
+        tanks_by_station[str(manager_station.id)] = [
+            {
+                "id": t.id,
+                "name": t.name,
+                "product": t.product,
+                "description": t.description or "",
+            }
+            for t in Tank.objects.filter(station=manager_station).order_by("product", "name")
+        ]
+    context["tanks_by_station"] = tanks_by_station
+
     return render(request, "order_content.html", context)
 
 
@@ -481,25 +496,64 @@ def order_mark_delivered_view(request, order_uuid):
         )
         return redirect("order:order_list")
 
-    try:
-        missing_qty_gasoline = _clean_decimal(
-            request.POST.get("missing_qty_gasoline", "0")
-        )
-        missing_qty_diesel = _clean_decimal(request.POST.get("missing_qty_diesel", "0"))
-    except (InvalidOperation, ValueError):
-        messages.error(request, "Les quantités manquantes doivent être numériques.")
-        return redirect("order:order_list")
-
-    if missing_qty_gasoline < 0 or missing_qty_diesel < 0:
-        messages.error(request, "Les quantités manquantes ne peuvent pas être négatives.")
-        return redirect("order:order_list")
-
-    if missing_qty_gasoline > delivered_qty_gasoline or missing_qty_diesel > delivered_qty_diesel:
+    station_tanks = list(
+        Tank.objects.filter(station=order.station).order_by("product", "name")
+    )
+    if not station_tanks:
         messages.error(
             request,
-            "Les quantités manquantes ne peuvent pas dépasser les quantités livrées prévues.",
+            "Aucune cuve configurée pour cette station. Créez des cuves avant d'enregistrer la livraison.",
         )
         return redirect("order:order_list")
+
+    received_qty_gasoline = Decimal("0")
+    received_qty_diesel = Decimal("0")
+    order_tank_rows = []
+
+    for tank in station_tanks:
+        raw = (request.POST.get(f"tank_{tank.id}") or "").strip()
+        if raw == "":
+            messages.error(
+                request,
+                f"Veuillez saisir la quantité reçue pour la cuve « {tank.name} ».",
+            )
+            return redirect("order:order_list")
+        try:
+            qty = _clean_decimal(raw)
+        except (InvalidOperation, ValueError):
+            messages.error(
+                request,
+                f"Quantité invalide pour la cuve « {tank.name} ».",
+            )
+            return redirect("order:order_list")
+        if qty < 0:
+            messages.error(
+                request,
+                f"La quantité de la cuve « {tank.name} » ne peut pas être négative.",
+            )
+            return redirect("order:order_list")
+
+        order_tank_rows.append((tank, qty))
+        if tank.product == Tank.PRODUCT_GASOLINE:
+            received_qty_gasoline += qty
+        else:
+            received_qty_diesel += qty
+
+    if received_qty_gasoline > delivered_qty_gasoline:
+        messages.error(
+            request,
+            "La somme reçue en cuves essence dépasse la quantité livrée prévue.",
+        )
+        return redirect("order:order_list")
+    if received_qty_diesel > delivered_qty_diesel:
+        messages.error(
+            request,
+            "La somme reçue en cuves gazoil dépasse la quantité livrée prévue.",
+        )
+        return redirect("order:order_list")
+
+    missing_qty_gasoline = delivered_qty_gasoline - received_qty_gasoline
+    missing_qty_diesel = delivered_qty_diesel - received_qty_diesel
 
     delivery_date = parse_date((request.POST.get("delivery_date") or "").strip())
     if not delivery_date:
@@ -550,17 +604,25 @@ def order_mark_delivered_view(request, order_uuid):
                 driver_phone=driver_phone,
                 delivery_notes=delivery_notes,
             )
+        OrderTank.objects.filter(order=order).delete()
+        for tank, qty in order_tank_rows:
+            OrderTank.objects.create(
+                order=order,
+                tank=tank,
+                product=tank.product,
+                product_qty=qty,
+            )
+            tank.actual_quantity = (tank.actual_quantity or Decimal("0")) + qty
+            tank.save(update_fields=["actual_quantity", "updated_at"])
+
         order.status = Order.STATUS_DELIVERED
         order.save(update_fields=["status", "updated_at"])
-
-        received_g = delivered_qty_gasoline - missing_qty_gasoline
-        received_d = delivered_qty_diesel - missing_qty_diesel
 
         station = Station.objects.select_for_update().get(pk=order.station_id)
         prev_g = station.stock_gasoline or Decimal("0")
         prev_d = station.stock_diesel or Decimal("0")
-        station.stock_gasoline = prev_g + received_g
-        station.stock_diesel = prev_d + received_d
+        station.stock_gasoline = prev_g + received_qty_gasoline
+        station.stock_diesel = prev_d + received_qty_diesel
         station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
 
     messages.success(request, f"Commande #{order.id} enregistrée comme livrée.")

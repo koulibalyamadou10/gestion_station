@@ -188,6 +188,7 @@
                                         class="js-open-deliver-order p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
                                         title="Enregistrer la livraison"
                                         data-order-uuid="{{ order.order_uuid }}"
+                                        data-station-id="{{ order.station_id }}"
                                         data-qty-gasoline="{{ line.qty_gasoline }}"
                                         data-qty-diesel="{{ line.qty_diesel }}"
                                         data-truck-number="{{ order.truck_number|default:'' }}"
@@ -478,7 +479,7 @@
         </div>
         <form id="deliverOrderForm" method="POST" action="{% url 'order:order_mark_delivered' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">
             {% csrf_token %}
-            <p class="text-xs text-gray-500">La commande passera en statut <strong>Livrée</strong>. Les quantités livrées prévues sont celles <strong>confirmées sur la commande</strong> (non modifiables). Saisissez les <strong>quantités manquantes</strong> le cas échéant : le stock sera augmenté du volume réellement reçu (prévu − manquant).</p>
+            <p class="text-xs text-gray-500">La commande passera en statut <strong>Livrée</strong>. Saisissez la quantité <strong>reçue dans chaque cuve</strong> : les quantités manquantes seront calculées automatiquement (prévu − reçu par produit). Le stock station et les cuves seront mis à jour.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                     <p class="text-xs font-semibold text-gray-500 uppercase">Quantité livrée (essence)</p>
@@ -491,14 +492,22 @@
                     <p class="text-[11px] text-gray-500 mt-1">L</p>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité manquante essence (L)</label>
-                    <input type="number" name="missing_qty_gasoline" id="deliver_missing_qty_gasoline" min="0" step="0.01" value="0" inputmode="decimal" class="w-full px-4 py-2 border border-gray-300 rounded-lg tabular-nums">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Quantités reçues par cuve <span class="text-red-500">*</span></label>
+                <div id="deliverTanksContainer" class="space-y-3 max-h-56 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50 text-sm text-gray-500">
+                    Sélectionnez une commande pour afficher les cuves.
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité manquante gasoil (L)</label>
-                    <input type="number" name="missing_qty_diesel" id="deliver_missing_qty_diesel" min="0" step="0.01" value="0" inputmode="decimal" class="w-full px-4 py-2 border border-gray-300 rounded-lg tabular-nums">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                    <p class="text-xs font-semibold text-amber-800 uppercase">Reçu essence (cuves)</p>
+                    <p class="text-lg font-bold text-amber-900 tabular-nums"><span id="deliver_received_gasoline_display">0</span> L</p>
+                    <p class="text-[11px] text-amber-700 mt-1">Manquant : <span id="deliver_missing_gasoline_display" class="font-semibold">0</span> L</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                    <p class="text-xs font-semibold text-slate-800 uppercase">Reçu gazoil (cuves)</p>
+                    <p class="text-lg font-bold text-slate-900 tabular-nums"><span id="deliver_received_diesel_display">0</span> L</p>
+                    <p class="text-[11px] text-slate-700 mt-1">Manquant : <span id="deliver_missing_diesel_display" class="font-semibold">0</span> L</p>
                 </div>
             </div>
             <div>
@@ -811,6 +820,7 @@
 </script>
 {% endif %}
 
+{{ tanks_by_station|json_script:"order-station-tanks" }}
 {% if can_deliver_order or can_cancel_confirmed_order %}
 <script>
 (function() {
@@ -821,8 +831,13 @@
     const deliverOrderForm = document.getElementById('deliverOrderForm');
     const deliverQtyGasolineDisplay = document.getElementById('deliver_qty_gasoline_display');
     const deliverQtyDieselDisplay = document.getElementById('deliver_qty_diesel_display');
-    const deliverMissingGasoline = document.getElementById('deliver_missing_qty_gasoline');
-    const deliverMissingDiesel = document.getElementById('deliver_missing_qty_diesel');
+    const deliverTanksContainer = document.getElementById('deliverTanksContainer');
+    const deliverReceivedGasolineDisplay = document.getElementById('deliver_received_gasoline_display');
+    const deliverReceivedDieselDisplay = document.getElementById('deliver_received_diesel_display');
+    const deliverMissingGasolineDisplay = document.getElementById('deliver_missing_gasoline_display');
+    const deliverMissingDieselDisplay = document.getElementById('deliver_missing_diesel_display');
+    const tanksByStationEl = document.getElementById('order-station-tanks');
+    const tanksByStation = tanksByStationEl ? JSON.parse(tanksByStationEl.textContent) : {};
     const deliverDeliveryDate = document.getElementById('deliver_delivery_date');
     const deliverTruckNumber = document.getElementById('deliver_truck_number');
     const deliverDriverName = document.getElementById('deliver_driver_name');
@@ -841,18 +856,64 @@
         return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n);
     }
 
-    function openDeliverOrderModal(orderUuid, qtyGasoline, qtyDiesel, truckNumber, driverName, driverPhone) {
+    function renderDeliverTanks(stationId) {
+        if (!deliverTanksContainer) return;
+        const tanks = tanksByStation[String(stationId)] || [];
+        if (!tanks.length) {
+            deliverTanksContainer.innerHTML = '<p class="text-amber-800"><i class="fas fa-exclamation-triangle mr-1"></i>Aucune cuve sur cette station. Créez des cuves dans la fiche station.</p>';
+            return;
+        }
+        const groups = { gasoline: [], diesel: [] };
+        tanks.forEach(function(t) {
+            (t.product === 'gasoline' ? groups.gasoline : groups.diesel).push(t);
+        });
+        let html = '';
+        [['gasoline', 'Essence', 'amber'], ['diesel', 'Gazoil', 'slate']].forEach(function(g) {
+            const list = groups[g[0]];
+            if (!list.length) return;
+            html += '<p class="text-xs font-bold uppercase text-' + g[2] + '-700 mb-2">' + g[1] + '</p>';
+            list.forEach(function(tank) {
+                html += '<div class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2 mb-2">';
+                html += '<div class="flex-1 min-w-0"><p class="font-semibold text-gray-900">' + tank.name + '</p>';
+                if (tank.description) html += '<p class="text-xs text-gray-500">' + tank.description + '</p>';
+                html += '</div><div class="w-28 shrink-0"><input type="number" name="tank_' + tank.id + '" min="0" step="0.01" required value="" class="deliver-tank-qty w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums" data-product="' + tank.product + '"></div></div>';
+            });
+        });
+        deliverTanksContainer.innerHTML = html;
+        deliverTanksContainer.querySelectorAll('.deliver-tank-qty').forEach(function(inp) {
+            inp.addEventListener('input', updateDeliverCalculations);
+        });
+        updateDeliverCalculations();
+    }
+
+    function updateDeliverCalculations() {
+        const plannedG = parseQty(deliverOrderForm?.dataset.plannedGasoline);
+        const plannedD = parseQty(deliverOrderForm?.dataset.plannedDiesel);
+        let recvG = 0, recvD = 0;
+        document.querySelectorAll('.deliver-tank-qty').forEach(function(inp) {
+            const v = parseQty(inp.value);
+            if (inp.dataset.product === 'gasoline') recvG += v;
+            else recvD += v;
+        });
+        const missG = Math.max(0, plannedG - recvG);
+        const missD = Math.max(0, plannedD - recvD);
+        if (deliverReceivedGasolineDisplay) deliverReceivedGasolineDisplay.textContent = formatQtyFr(recvG);
+        if (deliverReceivedDieselDisplay) deliverReceivedDieselDisplay.textContent = formatQtyFr(recvD);
+        if (deliverMissingGasolineDisplay) deliverMissingGasolineDisplay.textContent = formatQtyFr(missG);
+        if (deliverMissingDieselDisplay) deliverMissingDieselDisplay.textContent = formatQtyFr(missD);
+        return { plannedG, plannedD, recvG, recvD, missG, missD };
+    }
+
+    function openDeliverOrderModal(orderUuid, stationId, qtyGasoline, qtyDiesel, truckNumber, driverName, driverPhone) {
         if (!deliverOrderModal || !deliverOrderForm) return;
         deliverOrderForm.action = orderMarkDeliveredUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
         const g = parseQty(qtyGasoline);
         const d = parseQty(qtyDiesel);
-        /* Aligné sur OrderSupplier : valeurs brutes pour la validation (évite parseFloat("1 000") === 1) */
         deliverOrderForm.dataset.plannedGasoline = String(g);
         deliverOrderForm.dataset.plannedDiesel = String(d);
         if (deliverQtyGasolineDisplay) deliverQtyGasolineDisplay.textContent = formatQtyFr(g);
         if (deliverQtyDieselDisplay) deliverQtyDieselDisplay.textContent = formatQtyFr(d);
-        if (deliverMissingGasoline) deliverMissingGasoline.value = '0';
-        if (deliverMissingDiesel) deliverMissingDiesel.value = '0';
+        renderDeliverTanks(stationId);
         if (deliverDeliveryDate) {
             deliverDeliveryDate.value = new Date().toISOString().slice(0, 10);
         }
@@ -880,29 +941,37 @@
     });
 
     document.getElementById('deliverOrderOpenConfirmBtn')?.addEventListener('click', function() {
-        const plannedG = parseQty(deliverOrderForm?.dataset.plannedGasoline);
-        const plannedD = parseQty(deliverOrderForm?.dataset.plannedDiesel);
-        const missG = parseQty(deliverMissingGasoline?.value);
-        const missD = parseQty(deliverMissingDiesel?.value);
-        if (missG < 0 || missD < 0) {
-            alert('Les quantités manquantes ne peuvent pas être négatives.');
+        const tankInputs = document.querySelectorAll('.deliver-tank-qty');
+        if (!tankInputs.length) {
+            alert('Aucune cuve disponible pour cette station.');
             return;
         }
-        if (missG > plannedG || missD > plannedD) {
-            alert('Les quantités manquantes ne peuvent pas dépasser les quantités livrées prévues.');
+        let emptyTank = false;
+        tankInputs.forEach(function(inp) {
+            if (String(inp.value).trim() === '') emptyTank = true;
+        });
+        if (emptyTank) {
+            alert('Veuillez saisir la quantité reçue pour chaque cuve.');
             return;
         }
-        if (plannedG <= 0 && plannedD <= 0) {
+        const calc = updateDeliverCalculations();
+        if (calc.recvG > calc.plannedG) {
+            alert('La somme reçue en cuves essence dépasse la quantité livrée prévue.');
+            return;
+        }
+        if (calc.recvD > calc.plannedD) {
+            alert('La somme reçue en cuves gazoil dépasse la quantité livrée prévue.');
+            return;
+        }
+        if (calc.plannedG <= 0 && calc.plannedD <= 0) {
             alert('Aucune quantité livrée prévue sur cette commande.');
             return;
         }
-        const recvG = plannedG - missG;
-        const recvD = plannedD - missD;
         if (deliverConfirmModalSummary) {
             deliverConfirmModalSummary.innerHTML =
-                'Prévu : essence <strong>' + formatQtyFr(plannedG) + ' L</strong>, gasoil <strong>' + formatQtyFr(plannedD) + ' L</strong>.<br>' +
-                'Manquant : essence <strong>' + formatQtyFr(missG) + ' L</strong>, gasoil <strong>' + formatQtyFr(missD) + ' L</strong>.<br>' +
-                'Réception nette (stock) : essence <strong>' + formatQtyFr(recvG) + ' L</strong>, gasoil <strong>' + formatQtyFr(recvD) + ' L</strong>.';
+                'Prévu : essence <strong>' + formatQtyFr(calc.plannedG) + ' L</strong>, gasoil <strong>' + formatQtyFr(calc.plannedD) + ' L</strong>.<br>' +
+                'Reçu (cuves) : essence <strong>' + formatQtyFr(calc.recvG) + ' L</strong>, gasoil <strong>' + formatQtyFr(calc.recvD) + ' L</strong>.<br>' +
+                'Manquant : essence <strong>' + formatQtyFr(calc.missG) + ' L</strong>, gasoil <strong>' + formatQtyFr(calc.missD) + ' L</strong>.';
         }
         deliverOrderConfirmModal?.classList.remove('hidden');
     });
@@ -926,6 +995,7 @@
         btn.addEventListener('click', function() {
             openDeliverOrderModal(
                 btn.dataset.orderUuid,
+                btn.dataset.stationId,
                 btn.dataset.qtyGasoline,
                 btn.dataset.qtyDiesel,
                 btn.dataset.truckNumber,
