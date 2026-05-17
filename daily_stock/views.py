@@ -397,9 +397,9 @@ def daily_stock_create_view(request):
         except (InvalidOperation, ValueError):
             messages.error(request, f"Quantité invalide pour la cuve « {tank.name} ».")
             return redirect("daily_stock:daily_sales")
-        if qty < 0:
-            messages.error(request, f"La quantité de la cuve « {tank.name} » ne peut pas être négative.")
-            return redirect("daily_stock:daily_sales")
+        # if qty < 0:
+        #     messages.error(request, f"La quantité de la cuve « {tank.name} » ne peut pas être négative.")
+        #     return redirect("daily_stock:daily_sales")
 
         tank.actual_quantity = qty
         tank_updates.append(tank)

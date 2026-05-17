@@ -141,7 +141,7 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="POST" action="{% url 'daily_stock:daily_stock_create' %}" class="p-6 space-y-4">
+        <form id="dailyStockCreateForm" method="POST" action="{% url 'daily_stock:daily_stock_create' %}" class="p-6 space-y-4">
             {% csrf_token %}
             {% if manager_station %}
             <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
@@ -216,7 +216,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelDailyStockModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Enregistrer</button>
+                <button type="submit" id="dailyStockSubmitBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                    <i id="dailyStockSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="dailyStockSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -227,13 +230,50 @@
     const openBtn = document.getElementById('openDailyStockModal');
     const closeBtn = document.getElementById('closeDailyStockModal');
     const cancelBtn = document.getElementById('cancelDailyStockModal');
+    const dailyStockForm = document.getElementById('dailyStockCreateForm');
+    const submitBtn = document.getElementById('dailyStockSubmitBtn');
+    const submitSpinner = document.getElementById('dailyStockSubmitSpinner');
+    const submitLabel = document.getElementById('dailyStockSubmitLabel');
+
+    function hasTankInputs() {
+        return document.querySelectorAll('.tank-qty-input').length > 0;
+    }
+
+    function resetDailyStockSubmit() {
+        if (!submitBtn) return;
+        const enabled = hasTankInputs();
+        submitBtn.disabled = !enabled;
+        submitBtn.classList.remove('opacity-70');
+        submitBtn.classList.toggle('opacity-50', !enabled);
+        submitBtn.classList.toggle('cursor-not-allowed', !enabled);
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitSpinner) submitSpinner.classList.add('hidden');
+        if (submitLabel) submitLabel.textContent = 'Enregistrer';
+    }
+
+    function setDailyStockSubmitLoading(loading) {
+        if (!submitBtn) return;
+        submitBtn.disabled = loading || !hasTankInputs();
+        submitBtn.classList.toggle('opacity-70', loading);
+        submitBtn.classList.toggle('opacity-50', !loading && !hasTankInputs());
+        submitBtn.classList.toggle('cursor-not-allowed', loading || !hasTankInputs());
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+        if (submitLabel) submitLabel.textContent = loading ? 'Enregistrement…' : 'Enregistrer';
+    }
+
     function openM() {
         modal?.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         document.querySelectorAll('.tank-qty-input').forEach(function(inp) { inp.value = ''; });
         updateTankTotals();
+        resetDailyStockSubmit();
     }
-    function closeM() { modal?.classList.add('hidden'); document.body.style.overflow = ''; }
+    function closeM() {
+        modal?.classList.add('hidden');
+        document.body.style.overflow = '';
+        resetDailyStockSubmit();
+    }
     openBtn?.addEventListener('click', openM);
     closeBtn?.addEventListener('click', closeM);
     cancelBtn?.addEventListener('click', closeM);
@@ -261,11 +301,12 @@
     });
     updateTankTotals();
 
-    const submitBtn = document.querySelector('#dailyStockModal button[type="submit"]');
-    if (submitBtn && !document.querySelectorAll('.tank-qty-input').length) {
-        submitBtn.disabled = true;
-        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
+    resetDailyStockSubmit();
+
+    dailyStockForm?.addEventListener('submit', function() {
+        if (submitBtn?.disabled) return;
+        setDailyStockSubmitLoading(true);
+    });
 })();
 </script>
 {% endif %}
