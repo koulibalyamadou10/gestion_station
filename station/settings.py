@@ -11,7 +11,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+
 from decouple import Config, RepositoryEnv
+from django.urls import reverse_lazy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -151,6 +153,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # models user
 AUTH_USER_MODEL = 'account.CustomUser'
+
+# Auth redirects (évite le défaut Django /accounts/login/)
+LOGIN_URL = reverse_lazy('account:login')
+LOGIN_REDIRECT_URL = reverse_lazy('account:dashboard')
+LOGOUT_REDIRECT_URL = reverse_lazy('account:login')
 
 # Email settings
 EMAIL_BACKEND = config('EMAIL_BACKEND')

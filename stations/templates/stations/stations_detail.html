@@ -29,15 +29,6 @@
                 </h3>
                 {% if not is_station_manager %}
                 <div class="flex items-center space-x-2">
-                    <a 
-                        href="#" 
-                        onclick="openEditStationModal('{{ station.station_uuid }}', '{{ station.name|escapejs }}', '{{ station.city.id|default:"" }}', '{{ station.address|escapejs }}', '{{ station.latitude|default:"" }}', '{{ station.longitude|default:"" }}', '{{ station.owner.id|default:"" }}'{% if current_manager %}, '{{ current_manager.id }}'{% endif %}); return false;"
-                        class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors font-semibold flex items-center"
-                        title="Modifier"
-                    >
-                        <i class="fas fa-edit mr-2"></i>
-                        Modifier
-                    </a>
                     <form 
                         method="POST" 
                         action="{% url 'stations:delete_station' station.station_uuid %}" 
@@ -76,6 +67,21 @@
                 <div>
                     <label class="block text-sm font-semibold text-gray-500 mb-1">Adresse complète</label>
                     <p class="text-lg text-gray-800">{{ station.address }}</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1">
+                            <i class="fas fa-gas-pump mr-1"></i>Stock essence
+                        </p>
+                        <p class="text-2xl font-bold text-amber-900 tabular-nums">{{ station.stock_gasoline|qty_fr }} <span class="text-sm font-semibold">L</span></p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-slate-800 uppercase tracking-wide mb-1">
+                            <i class="fas fa-oil-can mr-1"></i>Stock gazoil
+                        </p>
+                        <p class="text-2xl font-bold text-slate-900 tabular-nums">{{ station.stock_diesel|qty_fr }} <span class="text-sm font-semibold">L</span></p>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
@@ -752,7 +758,7 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité actuelle (L)</label>
-                <input type="text" name="actual_quantity" inputmode="decimal" autocomplete="off" value="0" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="0">
+                <input type="text" name="actual_quantity" inputmode="decimal" autocomplete="off" class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="0,00">
             </div>
 
             <div>
@@ -762,8 +768,9 @@
 
             <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button type="button" id="stationDetailCancelCreateTank" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">Annuler</button>
-                <button type="submit" class="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center">
-                    <i class="fas fa-save mr-2"></i>Créer la cuve
+                <button type="submit" id="stationDetailCreateTankSubmitBtn" class="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 min-w-[9.5rem] disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="stationDetailCreateTankSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="stationDetailCreateTankSubmitLabel">Créer la cuve</span>
                 </button>
             </div>
         </form>
@@ -836,7 +843,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Numéro pompe <span class="text-red-500">*</span></label>
-                    <input type="text" name="pump_number" id="station_detail_create_pump_number" inputmode="numeric" autocomplete="off" required class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Ex: 1">
+                    <input type="text" name="pump_number" id="station_detail_create_pump_number" inputmode="numeric" autocomplete="off" required class="js-integer-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Ex: 1">
                 </div>
             </div>
 
@@ -847,7 +854,7 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Index compteur <span class="text-red-500">*</span></label>
-                <input type="text" name="current_index" required inputmode="decimal" autocomplete="off" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Valeur actuelle du compteur">
+                <input type="text" name="current_index" required inputmode="decimal" autocomplete="off" class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="0,00">
                 <p class="text-xs text-gray-500 mt-1">Première lecture : repère initial. Ensuite : supérieur au dernier index.</p>
             </div>
 
@@ -859,13 +866,201 @@
 
             <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
                 <button type="button" id="stationDetailCancelCreatePump" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold">Annuler</button>
-                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center">
-                    <i class="fas fa-save mr-2"></i>Créer la pompe
+                <button type="submit" id="stationDetailCreatePumpSubmitBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2 min-w-[9.5rem] disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="stationDetailCreatePumpSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="stationDetailCreatePumpSubmitLabel">Créer la pompe</span>
                 </button>
             </div>
         </form>
     </div>
 </div>
+{% endif %}
+
+{% if can_manage_tanks or can_manage_pumps %}
+<script>
+(function () {
+    {% if can_manage_tanks %}
+    (function () {
+        const createTankBtn = document.getElementById('stationDetailCreateTankBtn');
+        const createTankModal = document.getElementById('stationDetailCreateTankModal');
+        const closeCreateTank = document.getElementById('stationDetailCloseCreateTankModal');
+        const cancelCreateTank = document.getElementById('stationDetailCancelCreateTank');
+        const createTankForm = document.getElementById('stationDetailCreateTankForm');
+        const createTankSubmitBtn = document.getElementById('stationDetailCreateTankSubmitBtn');
+        const createTankSubmitSpinner = document.getElementById('stationDetailCreateTankSubmitSpinner');
+        const createTankSubmitLabel = document.getElementById('stationDetailCreateTankSubmitLabel');
+
+        function resetCreateTankSubmit() {
+            if (createTankSubmitBtn) createTankSubmitBtn.disabled = false;
+            if (cancelCreateTank) cancelCreateTank.disabled = false;
+            if (createTankSubmitSpinner) createTankSubmitSpinner.classList.add('hidden');
+            if (createTankSubmitLabel) createTankSubmitLabel.textContent = 'Créer la cuve';
+        }
+
+        function setCreateTankSubmitLoading(loading) {
+            if (createTankSubmitBtn) createTankSubmitBtn.disabled = loading;
+            if (cancelCreateTank) cancelCreateTank.disabled = loading;
+            if (createTankSubmitSpinner) createTankSubmitSpinner.classList.toggle('hidden', !loading);
+            if (createTankSubmitLabel) createTankSubmitLabel.textContent = loading ? 'Création…' : 'Créer la cuve';
+        }
+
+        function openCreateTankModal() {
+            if (!createTankModal) return;
+            createTankModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (window.NumberFormat) {
+                window.NumberFormat.initAllNumberInputs(createTankModal);
+            }
+        }
+
+        function closeCreateTankModalFunc() {
+            if (!createTankModal || !createTankForm) return;
+            createTankModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            createTankForm.reset();
+            resetCreateTankSubmit();
+        }
+
+        createTankBtn?.addEventListener('click', openCreateTankModal);
+        closeCreateTank?.addEventListener('click', closeCreateTankModalFunc);
+        cancelCreateTank?.addEventListener('click', closeCreateTankModalFunc);
+        createTankModal?.addEventListener('click', function (e) {
+            if (e.target === createTankModal) closeCreateTankModalFunc();
+        });
+        createTankForm?.addEventListener('submit', function () {
+            if (createTankSubmitBtn?.disabled) return;
+            if (window.NumberFormat) {
+                window.NumberFormat.stripNumberInputsForSubmit(createTankForm);
+            }
+            setCreateTankSubmitLoading(true);
+        });
+    })();
+    {% endif %}
+
+    {% if can_manage_pumps %}
+    (function () {
+        const createBtn = document.getElementById('stationDetailCreatePumpBtn');
+        const createModal = document.getElementById('stationDetailCreatePumpModal');
+        const closeCreate = document.getElementById('stationDetailCloseCreatePumpModal');
+        const cancelCreate = document.getElementById('stationDetailCancelCreatePump');
+        const createForm = document.getElementById('stationDetailCreatePumpForm');
+        const createType = document.getElementById('station_detail_create_pump_type');
+        const createNumber = document.getElementById('station_detail_create_pump_number');
+        const namePreview = document.getElementById('station_detail_generated_pump_name_preview');
+        const createPumpSubmitBtn = document.getElementById('stationDetailCreatePumpSubmitBtn');
+        const createPumpSubmitSpinner = document.getElementById('stationDetailCreatePumpSubmitSpinner');
+        const createPumpSubmitLabel = document.getElementById('stationDetailCreatePumpSubmitLabel');
+
+        function resetCreatePumpSubmit() {
+            if (createPumpSubmitBtn) createPumpSubmitBtn.disabled = false;
+            if (cancelCreate) cancelCreate.disabled = false;
+            if (createPumpSubmitSpinner) createPumpSubmitSpinner.classList.add('hidden');
+            if (createPumpSubmitLabel) createPumpSubmitLabel.textContent = 'Créer la pompe';
+        }
+
+        function setCreatePumpSubmitLoading(loading) {
+            if (createPumpSubmitBtn) createPumpSubmitBtn.disabled = loading;
+            if (cancelCreate) cancelCreate.disabled = loading;
+            if (createPumpSubmitSpinner) createPumpSubmitSpinner.classList.toggle('hidden', !loading);
+            if (createPumpSubmitLabel) createPumpSubmitLabel.textContent = loading ? 'Création…' : 'Créer la pompe';
+        }
+
+        function updatePumpNamePreview() {
+            const typeValue = createType?.value || '';
+            const numberPlain = createNumber?.value
+                ? (window.NumberFormat?.parseAmountPlain(createNumber.value) || createNumber.value.replace(/\s/g, ''))
+                : '';
+            const typeLabel = typeValue === 'essence' ? 'Essence' : (typeValue === 'gazoil' ? 'Gazoil' : '');
+            if (typeLabel && numberPlain) {
+                namePreview.textContent = 'Pompe ' + numberPlain + ' / ' + typeLabel;
+            } else {
+                namePreview.textContent = 'Pompe -';
+            }
+        }
+
+        function openCreatePumpModal() {
+            if (!createModal) return;
+            createModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (window.NumberFormat) {
+                window.NumberFormat.initAllNumberInputs(createModal);
+            }
+            updatePumpNamePreview();
+        }
+
+        function closeCreatePumpModalFunc() {
+            if (!createModal || !createForm) return;
+            createModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            createForm.reset();
+            updatePumpNamePreview();
+            resetCreatePumpSubmit();
+        }
+
+        createBtn?.addEventListener('click', openCreatePumpModal);
+        closeCreate?.addEventListener('click', closeCreatePumpModalFunc);
+        cancelCreate?.addEventListener('click', closeCreatePumpModalFunc);
+        createType?.addEventListener('change', updatePumpNamePreview);
+        createNumber?.addEventListener('input', updatePumpNamePreview);
+        updatePumpNamePreview();
+
+        createModal?.addEventListener('click', function (e) {
+            if (e.target === createModal) closeCreatePumpModalFunc();
+        });
+
+        createForm?.addEventListener('submit', function () {
+            if (createPumpSubmitBtn?.disabled) return;
+            if (window.NumberFormat) {
+                window.NumberFormat.stripNumberInputsForSubmit(createForm);
+            }
+            setCreatePumpSubmitLoading(true);
+        });
+
+        const deleteModal = document.getElementById('stationDetailDeletePumpModal');
+        const deleteForm = document.getElementById('stationDetailDeletePumpForm');
+        const deleteNameEl = document.getElementById('stationDetailDeletePumpName');
+        const deleteBlocked = document.getElementById('stationDetailDeletePumpBlockedMessage');
+        const deleteConfirmBtn = document.getElementById('stationDetailConfirmDeletePumpBtn');
+
+        window.openStationDetailDeletePumpModal = function (pumpUuid, pumpName, readingsCount) {
+            if (!deleteModal || !deleteForm || !deleteNameEl) return;
+            deleteNameEl.textContent = '"' + pumpName + '"';
+            deleteForm.action = '/pumps/delete/' + pumpUuid + '/';
+
+            const count = parseInt(readingsCount || '0', 10);
+            if (count > 1) {
+                deleteBlocked?.classList.remove('hidden');
+                if (deleteConfirmBtn) {
+                    deleteConfirmBtn.disabled = true;
+                    deleteConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            } else {
+                deleteBlocked?.classList.add('hidden');
+                if (deleteConfirmBtn) {
+                    deleteConfirmBtn.disabled = false;
+                    deleteConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+
+            deleteModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        function closeDeletePumpModalFunc() {
+            if (!deleteModal) return;
+            deleteModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        document.getElementById('stationDetailCloseDeletePumpModal')?.addEventListener('click', closeDeletePumpModalFunc);
+        document.getElementById('stationDetailCancelDeletePump')?.addEventListener('click', closeDeletePumpModalFunc);
+        deleteModal?.addEventListener('click', function (e) {
+            if (e.target === deleteModal) closeDeletePumpModalFunc();
+        });
+    })();
+    {% endif %}
+})();
+</script>
 {% endif %}
 
 {% if can_record_pump_readings %}
@@ -958,33 +1153,40 @@
     // Clé API Mapbox
     mapboxgl.accessToken = 'pk.eyJ1Ijoia291bGliYWx5YW1hZG91MTAiLCJhIjoiY21qdWl1MmJoMDkxdTNkczlwNHExcGh1aiJ9.60YhE1b2esO5PoEn7BMIMg';
     
-    // Initialiser la carte
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: [{{ station.longitude }}, {{ station.latitude }}],
-        zoom: 15
-    });
-    
-    // Ajouter les contrôles de navigation
-    map.addControl(new mapboxgl.NavigationControl());
-    
-    // Ajouter un marqueur à l'emplacement de la station
-    new mapboxgl.Marker({
-        color: '#ef4444',
-        scale: 1.2
-    })
-    .setLngLat([{{ station.longitude }}, {{ station.latitude }}])
-    .setPopup(
-        new mapboxgl.Popup({ offset: 25 })
-            .setHTML(`
-                <div class="p-2">
-                    <h3 class="font-bold text-gray-800">${escapeHtml('{{ station.name }}')}</h3>
-                    <p class="text-sm text-gray-600">${escapeHtml('{{ station.address }}')}</p>
-                </div>
-            `)
-    )
-    .addTo(map);
+    const stationLng = Number('{{ station.longitude|default:"0" }}') || 0;
+    const stationLat = Number('{{ station.latitude|default:"0" }}') || 0;
+    const mapContainer = document.getElementById('map');
+
+    if (mapContainer && typeof mapboxgl !== 'undefined') {
+        try {
+            const map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [stationLng, stationLat],
+                zoom: 15
+            });
+
+            map.addControl(new mapboxgl.NavigationControl());
+
+            new mapboxgl.Marker({
+                color: '#ef4444',
+                scale: 1.2
+            })
+            .setLngLat([stationLng, stationLat])
+            .setPopup(
+                new mapboxgl.Popup({ offset: 25 })
+                    .setHTML(
+                        '<div class="p-2">' +
+                        '<h3 class="font-bold text-gray-800">' + escapeHtml('{{ station.name|escapejs }}') + '</h3>' +
+                        '<p class="text-sm text-gray-600">' + escapeHtml('{{ station.address|escapejs }}') + '</p>' +
+                        '</div>'
+                    )
+            )
+            .addTo(map);
+        } catch (mapErr) {
+            console.error('Initialisation carte impossible :', mapErr);
+        }
+    }
     
     // Fonction pour copier les coordonnées
     function copyCoordinates() {
@@ -1197,7 +1399,7 @@
             return false;
         }
         
-        if (!editStationManager.value) {
+        if (editStationManager && !editStationManager.value) {
             e.preventDefault();
             alert('Veuillez sélectionner un gérant pour la station.');
             return false;
@@ -1211,12 +1413,16 @@
 
     deleteStationForm?.addEventListener('submit', function(e) {
         e.preventDefault();
-        deleteStationModal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
+        if (deleteStationModal) {
+            deleteStationModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
     });
 
     function closeDeleteStationModal() {
-        deleteStationModal.classList.add('hidden');
+        if (deleteStationModal) {
+            deleteStationModal.classList.add('hidden');
+        }
         document.body.style.overflow = 'auto';
     }
 
@@ -1320,9 +1526,11 @@
     }
     
     function closeAssignManagerModalFunc() {
-        assignManagerModal.classList.add('hidden');
+        if (assignManagerModal) {
+            assignManagerModal.classList.add('hidden');
+        }
         document.body.style.overflow = 'auto';
-        assignManagerForm.reset();
+        assignManagerForm?.reset();
     }
     
     closeAssignManagerModal?.addEventListener('click', closeAssignManagerModalFunc);
@@ -1376,125 +1584,6 @@
             }
         });
     }
-
-    {% if can_manage_tanks %}
-    (function () {
-        const createTankBtn = document.getElementById('stationDetailCreateTankBtn');
-        const createTankModal = document.getElementById('stationDetailCreateTankModal');
-        const closeCreateTank = document.getElementById('stationDetailCloseCreateTankModal');
-        const cancelCreateTank = document.getElementById('stationDetailCancelCreateTank');
-        const createTankForm = document.getElementById('stationDetailCreateTankForm');
-
-        function openCreateTankModal() {
-            if (!createTankModal) return;
-            createTankModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            NumberFormat?.initNumberInputs(createTankModal);
-        }
-
-        function closeCreateTankModalFunc() {
-            if (!createTankModal || !createTankForm) return;
-            createTankModal.classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            createTankForm.reset();
-        }
-
-        createTankBtn?.addEventListener('click', openCreateTankModal);
-        closeCreateTank?.addEventListener('click', closeCreateTankModalFunc);
-        cancelCreateTank?.addEventListener('click', closeCreateTankModalFunc);
-        createTankModal?.addEventListener('click', function (e) {
-            if (e.target === createTankModal) closeCreateTankModalFunc();
-        });
-    })();
-    {% endif %}
-
-    {% if can_manage_pumps %}
-    (function () {
-        const createBtn = document.getElementById('stationDetailCreatePumpBtn');
-        const createModal = document.getElementById('stationDetailCreatePumpModal');
-        const closeCreate = document.getElementById('stationDetailCloseCreatePumpModal');
-        const cancelCreate = document.getElementById('stationDetailCancelCreatePump');
-        const createForm = document.getElementById('stationDetailCreatePumpForm');
-        const createType = document.getElementById('station_detail_create_pump_type');
-        const createNumber = document.getElementById('station_detail_create_pump_number');
-        const namePreview = document.getElementById('station_detail_generated_pump_name_preview');
-
-        function updatePumpNamePreview() {
-            const typeValue = createType?.value || '';
-            const numberValue = createNumber?.value || '';
-            const typeLabel = typeValue === 'essence' ? 'Essence' : (typeValue === 'gazoil' ? 'Gazoil' : '');
-            if (typeLabel && numberValue) {
-                namePreview.textContent = 'Pompe ' + numberValue + ' / ' + typeLabel;
-            } else {
-                namePreview.textContent = 'Pompe -';
-            }
-        }
-
-        function openCreatePumpModal() {
-            if (!createModal) return;
-            createModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            NumberFormat?.initNumberInputs(createModal);
-        }
-
-        function closeCreatePumpModalFunc() {
-            if (!createModal || !createForm) return;
-            createModal.classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            createForm.reset();
-            updatePumpNamePreview();
-        }
-
-        createBtn?.addEventListener('click', openCreatePumpModal);
-        closeCreate?.addEventListener('click', closeCreatePumpModalFunc);
-        cancelCreate?.addEventListener('click', closeCreatePumpModalFunc);
-        createType?.addEventListener('change', updatePumpNamePreview);
-        createNumber?.addEventListener('input', updatePumpNamePreview);
-        updatePumpNamePreview();
-
-        createModal?.addEventListener('click', function (e) {
-            if (e.target === createModal) closeCreatePumpModalFunc();
-        });
-
-        const deleteModal = document.getElementById('stationDetailDeletePumpModal');
-        const deleteForm = document.getElementById('stationDetailDeletePumpForm');
-        const deleteNameEl = document.getElementById('stationDetailDeletePumpName');
-        const deleteBlocked = document.getElementById('stationDetailDeletePumpBlockedMessage');
-        const deleteConfirmBtn = document.getElementById('stationDetailConfirmDeletePumpBtn');
-
-        window.openStationDetailDeletePumpModal = function (pumpUuid, pumpName, readingsCount) {
-            if (!deleteModal || !deleteForm || !deleteNameEl) return;
-            deleteNameEl.textContent = '"' + pumpName + '"';
-            deleteForm.action = '/pumps/delete/' + pumpUuid + '/';
-
-            const count = parseInt(readingsCount || '0', 10);
-            if (count > 1) {
-                deleteBlocked.classList.remove('hidden');
-                deleteConfirmBtn.disabled = true;
-                deleteConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            } else {
-                deleteBlocked.classList.add('hidden');
-                deleteConfirmBtn.disabled = false;
-                deleteConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-
-            deleteModal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-        };
-
-        function closeDeletePumpModalFunc() {
-            if (!deleteModal) return;
-            deleteModal.classList.add('hidden');
-            document.body.style.overflow = 'auto';
-        }
-
-        document.getElementById('stationDetailCloseDeletePumpModal')?.addEventListener('click', closeDeletePumpModalFunc);
-        document.getElementById('stationDetailCancelDeletePump')?.addEventListener('click', closeDeletePumpModalFunc);
-        deleteModal?.addEventListener('click', function (e) {
-            if (e.target === deleteModal) closeDeletePumpModalFunc();
-        });
-    })();
-    {% endif %}
 
     {% if can_record_pump_readings %}
     (function () {

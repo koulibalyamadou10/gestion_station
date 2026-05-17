@@ -11,10 +11,10 @@ from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from decimal import Decimal, InvalidOperation
 import json
-from pumps.models import Pump, PumpReading, PumpReset
+from pumps.models import Pump, PumpReading, PumpReadingBatch, PumpReset
 from sale.models import Sale
 from employee.models import Employee
-from inventory.models import Inventory
+from inventory.models import Inventory, InventoryWalletAllocation
 from stations.models import Station, StationManager
 from wallet.models import Account
 from product_price.utils import get_product_price_for_date
@@ -172,7 +172,15 @@ def _decrease_station_stock_for_sale(sale):
     return True
 
 
-def _record_inventory_snapshot_for_station(station_id, snapshot_date=None):
+def _record_inventory_snapshot_for_station(
+    station_id,
+    snapshot_date=None,
+    *,
+    source="",
+    reading_date=None,
+    previous_stock_gasoline=None,
+    previous_stock_diesel=None,
+):
     """
     Une ligne Inventory = niveaux cuves actuels (essence + gazoil) après l'opération.
     ``snapshot_date`` : date de la lecture (created_at aligné sur ce jour pour le contrôle stock).
@@ -182,13 +190,19 @@ def _record_inventory_snapshot_for_station(station_id, snapshot_date=None):
         "station_id": station_id,
         "qty_gasoline": station.stock_gasoline,
         "qty_diesel": station.stock_diesel,
+        "source": source or "",
+        "reading_date": reading_date,
     }
+    if previous_stock_gasoline is not None:
+        create_kwargs["previous_stock_gasoline"] = previous_stock_gasoline
+    if previous_stock_diesel is not None:
+        create_kwargs["previous_stock_diesel"] = previous_stock_diesel
     if snapshot_date is not None:
         create_kwargs["created_at"] = timezone.make_aware(
             timezone.datetime.combine(snapshot_date, timezone.datetime.min.time()),
             timezone.get_current_timezone(),
         )
-    Inventory.objects.create(**create_kwargs)
+    return Inventory.objects.create(**create_kwargs)
 
 
 def _record_inventory_out_and_decrease_station_stock(sale):
@@ -196,8 +210,72 @@ def _record_inventory_out_and_decrease_station_stock(sale):
     Diminue le stock cuves, puis une ligne Inventory avec les niveaux finaux essence + gazoil.
     Utilisé pour une vente unitaire (une ligne Inventory par vente).
     """
-    if _decrease_station_stock_for_sale(sale):
-        _record_inventory_snapshot_for_station(sale.station_id, sale.sale_date)
+    inc_gas = sale.qty_gasoline or Decimal("0")
+    inc_die = sale.qty_diesel or Decimal("0")
+    if inc_gas == 0 and inc_die == 0:
+        return None
+
+    station = Station.objects.select_for_update().get(pk=sale.station_id)
+    prev_g = station.stock_gasoline or Decimal("0")
+    prev_d = station.stock_diesel or Decimal("0")
+    station.stock_gasoline = prev_g - inc_gas
+    station.stock_diesel = prev_d - inc_die
+    station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+    return _record_inventory_snapshot_for_station(
+        sale.station_id,
+        sale.sale_date,
+        source=Inventory.SOURCE_SALE,
+        reading_date=sale.sale_date,
+        previous_stock_gasoline=prev_g,
+        previous_stock_diesel=prev_d,
+    )
+
+
+def reverse_bulk_pump_reading_inventory(inventory):
+    """
+    Opération inverse de ``bulk_pump_reading_view`` : supprime lectures, ventes,
+    répartitions wallets et restaure le stock station.
+    """
+    if inventory.source != Inventory.SOURCE_BULK_READING:
+        raise ValueError("Cette ligne d'inventaire n'est pas issue d'une saisie groupée.")
+
+    batch = PumpReadingBatch.objects.filter(inventory_id=inventory.pk).first()
+    if not batch:
+        raise ValueError(
+            "Lot de lectures introuvable : annulation impossible pour cette entrée."
+        )
+
+    if (
+        inventory.previous_stock_gasoline is None
+        or inventory.previous_stock_diesel is None
+    ):
+        raise ValueError(
+            "État de stock précédent non enregistré : annulation impossible."
+        )
+
+    with transaction.atomic():
+        station = Station.objects.select_for_update().get(pk=inventory.station_id)
+        readings = list(
+            PumpReading.objects.filter(batch=batch).select_related("pump")
+        )
+        if not readings:
+            raise ValueError("Aucune lecture de pompe liée à ce lot.")
+
+        for alloc in inventory.wallet_allocations.select_related("account"):
+            wallet = Account.objects.select_for_update().get(pk=alloc.account_id)
+            wallet.balance = (wallet.balance or Decimal("0")) - alloc.amount
+            wallet.save(update_fields=["balance", "updated_at"])
+
+        reading_ids = [r.pk for r in readings]
+        Sale.objects.filter(pump_reading_id__in=reading_ids).delete()
+        PumpReading.objects.filter(pk__in=reading_ids).delete()
+
+        station.stock_gasoline = inventory.previous_stock_gasoline
+        station.stock_diesel = inventory.previous_stock_diesel
+        station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+
+        batch.delete()
+        inventory.delete()
 
 
 def _compute_sale_total_for_pump_reading(
@@ -469,7 +547,11 @@ def create_pump_view(request):
                 messages.error(request, "Type de pompe invalide. Choisissez Essence ou Gazoil.")
                 return _redirect_after_pump_form(request)
 
-            pump_number_int = int(pump_number)
+            try:
+                pump_number_int = int(Decimal(pump_number.replace(",", ".")))
+            except (InvalidOperation, ValueError):
+                messages.error(request, "Le numéro de pompe doit être un entier positif.")
+                return _redirect_after_pump_form(request)
             if pump_number_int <= 0:
                 messages.error(request, "L'index de la pompe doit être supérieur à 0.")
                 return _redirect_after_pump_form(request)
@@ -481,7 +563,7 @@ def create_pump_view(request):
                 messages.error(request, f'La pompe "{name}" existe déjà pour cette station.')
                 return _redirect_after_pump_form(request)
 
-            current_index_decimal = Decimal(current_index)
+            current_index_decimal = Decimal(current_index).quantize(Decimal("0.01"))
             if current_index_decimal < 0:
                 messages.error(request, "L'index compteur doit être positif ou nul.")
                 return _redirect_after_pump_form(request)
@@ -964,8 +1046,24 @@ def bulk_pump_reading_view(request):
         )
         is_sent_today = bool(today_reading)
         lr = p.readings.order_by("-reading_date", "-created_at").first()
-        prev = lr.current_index if lr else Decimal("0")
+        prev_reading_before_date = (
+            p.readings.filter(reading_date__lt=today)
+            .order_by("-reading_date", "-created_at")
+            .first()
+        )
+        prev = (
+            prev_reading_before_date.current_index
+            if prev_reading_before_date
+            else Decimal("0")
+        )
+        readings_timeline = [
+            {"d": d.isoformat(), "i": str(idx)}
+            for d, idx in p.readings.order_by("reading_date", "created_at").values_list(
+                "reading_date", "current_index"
+            )
+        ]
         latest_reading_date = lr.reading_date.isoformat() if lr and lr.reading_date else ""
+        pump_name_lower = (p.name or "").lower()
         recorded_dates = [
             d.isoformat()
             for d in p.readings.values_list("reading_date", flat=True).distinct().order_by("reading_date")
@@ -984,6 +1082,8 @@ def bulk_pump_reading_view(request):
                 "pump_uuid": str(p.pump_uuid),
                 "name": p.name,
                 "previous_index": str(prev),
+                "is_essence": "essence" in pump_name_lower,
+                "readings_timeline": readings_timeline,
                 "sent_today": is_sent_today,
                 "sent_current_index": str(today_reading.current_index) if today_reading else "",
                 "latest_reading_date": latest_reading_date,
@@ -1078,7 +1178,13 @@ def bulk_pump_reading_view(request):
 
         for idx, item in enumerate(readings_data):
             pu = str(item.get("pump_uuid", "")).strip()
-            ci_raw = str(item.get("current_index", "")).strip()
+            ci_raw = (
+                str(item.get("current_index", ""))
+                .replace("\u00a0", " ")
+                .replace(" ", "")
+                .replace(",", ".")
+                .strip()
+            )
             if not pu or not ci_raw:
                 messages.error(
                     request,
@@ -1099,7 +1205,7 @@ def bulk_pump_reading_view(request):
                 return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
             try:
-                current_index_decimal = Decimal(ci_raw)
+                current_index_decimal = Decimal(ci_raw).quantize(Decimal("0.01"))
             except (InvalidOperation, ValueError):
                 messages.error(
                     request,
@@ -1112,7 +1218,14 @@ def bulk_pump_reading_view(request):
                 .order_by("-reading_date", "-created_at")
                 .first()
             )
-            initial_index_decimal = latest.current_index if latest else Decimal("0")
+            prev_for_date = (
+                PumpReading.objects.filter(pump=pump, reading_date__lt=today)
+                .order_by("-reading_date", "-created_at")
+                .first()
+            )
+            initial_index_decimal = (
+                prev_for_date.current_index if prev_for_date else Decimal("0")
+            )
 
             if current_index_decimal <= initial_index_decimal:
                 messages.error(
@@ -1165,6 +1278,14 @@ def bulk_pump_reading_view(request):
 
         try:
             with transaction.atomic():
+                station_locked = Station.objects.select_for_update().get(pk=station.pk)
+                prev_station_g = station_locked.stock_gasoline or Decimal("0")
+                prev_station_d = station_locked.stock_diesel or Decimal("0")
+
+                reading_batch = PumpReadingBatch.objects.create(
+                    station=station_locked,
+                    reading_date=today,
+                )
                 batch_stock_changed = False
                 for row in prepared:
                     reading = PumpReading.objects.create(
@@ -1172,21 +1293,47 @@ def bulk_pump_reading_view(request):
                         employee=employee,
                         current_index=row["current_index"],
                         reading_date=today,
+                        batch=reading_batch,
                     )
                     sale = _create_sale_from_reading(reading, request.user)
                     if _decrease_station_stock_for_sale(sale):
                         batch_stock_changed = True
+
+                inventory_row = None
                 if batch_stock_changed:
-                    _record_inventory_snapshot_for_station(station.pk, today)
+                    station_locked.refresh_from_db()
+                    inventory_row = Inventory.objects.create(
+                        station_id=station_locked.pk,
+                        qty_gasoline=station_locked.stock_gasoline,
+                        qty_diesel=station_locked.stock_diesel,
+                        source=Inventory.SOURCE_BULK_READING,
+                        reading_date=today,
+                        previous_stock_gasoline=prev_station_g,
+                        previous_stock_diesel=prev_station_d,
+                        created_at=timezone.make_aware(
+                            timezone.datetime.combine(
+                                today, timezone.datetime.min.time()
+                            ),
+                            timezone.get_current_timezone(),
+                        ),
+                    )
+                    reading_batch.inventory = inventory_row
+                    reading_batch.save(update_fields=["inventory"])
 
                 for wallet_uuid, amount in allocations_by_uuid.items():
                     if amount <= 0:
                         continue
                     w = Account.objects.select_for_update().get(
-                        uuid=wallet_uuid, station=station
+                        uuid=wallet_uuid, station=station_locked
                     )
                     w.balance = (w.balance or Decimal("0")) + amount
                     w.save(update_fields=["balance", "updated_at"])
+                    if inventory_row is not None:
+                        InventoryWalletAllocation.objects.create(
+                            inventory=inventory_row,
+                            account=w,
+                            amount=amount,
+                        )
         except ValueError as exc:
             messages.error(request, str(exc))
             return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)

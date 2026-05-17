@@ -194,9 +194,14 @@
     const PUMPS_DATA = JSON.parse(document.getElementById('pumps-data')?.textContent || '[]');
     const STATION_WALLETS = JSON.parse(document.getElementById('station-wallets-data')?.textContent || '[]');
     const STATION_READING_DATES = JSON.parse(document.getElementById('station-reading-dates')?.textContent || '[]');
-    const PRODUCT_PRICE_ESSENCE = parseFloat('{{ product_price_essence }}') || 0;
-    const PRODUCT_PRICE_DIESEL = parseFloat('{{ product_price_diesel }}') || 0;
     const DEFAULT_SELECTED_DATE = '{{ selected_reading_date }}';
+    const NF = window.NumberFormat;
+    const PRODUCT_PRICE_ESSENCE = NF
+        ? NF.parseAmountInput('{{ product_price_essence }}')
+        : (parseFloat('{{ product_price_essence }}') || 0);
+    const PRODUCT_PRICE_DIESEL = NF
+        ? NF.parseAmountInput('{{ product_price_diesel }}')
+        : (parseFloat('{{ product_price_diesel }}') || 0);
 
     const readingRowsContainer = document.getElementById('readingRowsContainer');
     const addReadingRowBtn = document.getElementById('addReadingRowBtn');
@@ -250,48 +255,45 @@
         document.body.style.overflow = 'auto';
     }
 
-    /** Montants / index / litres : pas de ,00 inutiles (aligné sur qty_fr côté serveur). */
+    /** Montants GNF : 0 à 2 décimales. Index / litres : idem pour l'affichage. */
     function formatAmount(value) {
+        if (NF) return NF.formatAmount(value);
         let n = Number(value);
         if (!Number.isFinite(n)) n = 0;
-        const rounded = Math.round(n * 100) / 100;
-        return rounded.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        return (Math.round(n * 100) / 100).toLocaleString('fr-FR', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        });
     }
 
     function parseAmountInput(value) {
+        if (NF) return NF.parseAmountInput(value);
         if (value === null || value === undefined) return 0;
         const normalized = String(value).replace(/\s/g, '').replace(',', '.');
         const parsed = parseFloat(normalized);
         return Number.isFinite(parsed) ? parsed : 0;
     }
 
-    /** Formate un champ numérique à la saisie (séparateurs fr-FR : 1 500, 150 000 000). */
-    function attachLiveNumberFormatting(inputEl, onUpdate) {
+    function formatIndexDisplay(value) {
+        if (NF) return NF.formatAmount(value);
+        return formatAmount(value);
+    }
+
+    function roundQty(n) {
+        return Math.round(n * 100) / 100;
+    }
+
+    function attachIndexInputFormatting(inputEl, onUpdate) {
+        if (!inputEl || !NF) return;
+        delete inputEl.dataset.numberFormatAttached;
+        NF.attachLiveNumberFormatting(inputEl, onUpdate, 'decimal');
+    }
+
+    function attachWalletAmountFormatting(inputEl, onUpdate) {
         if (!inputEl) return;
-        function applyFormat() {
-            const raw = inputEl.value;
-            if (!raw.trim()) {
-                onUpdate?.();
-                return;
-            }
-            const atEnd = inputEl.selectionStart === raw.length;
-            inputEl.value = formatAmount(parseAmountInput(raw));
-            if (atEnd) {
-                const len = inputEl.value.length;
-                inputEl.setSelectionRange(len, len);
-            }
-            onUpdate?.();
+        if (NF) {
+            NF.attachLiveNumberFormatting(inputEl, onUpdate, 'amount');
         }
-        inputEl.addEventListener('input', function () {
-            inputEl.value = inputEl.value.replace(/[^\d\s,\.]/g, '');
-            applyFormat();
-        });
-        inputEl.addEventListener('blur', function () {
-            if (inputEl.value.trim()) {
-                inputEl.value = formatAmount(parseAmountInput(inputEl.value));
-            }
-            onUpdate?.();
-        });
     }
 
     function getSelectedReadingDate() {
@@ -378,7 +380,6 @@
         }
 
         refreshAllPumpSelects();
-        syncReadingsJson();
         syncWalletAllocations();
         return true;
     }
@@ -423,7 +424,50 @@
     }
 
     function getPumpMeta(pumpUuid) {
-        return PUMPS_DATA.find((p) => p.pump_uuid === pumpUuid);
+        const id = String(pumpUuid || '').trim().toLowerCase();
+        if (!id) return null;
+        return (
+            PUMPS_DATA.find((p) => String(p.pump_uuid || '').trim().toLowerCase() === id) || null
+        );
+    }
+
+    function previousIndexOnDate(meta, selectedIso) {
+        if (!meta) return 0;
+        const history = Array.isArray(meta.readings_timeline) ? meta.readings_timeline : [];
+        if (history.length && selectedIso) {
+            let prev = 0;
+            for (const entry of history) {
+                const d = entry.d;
+                if (d && d < selectedIso) {
+                    prev = parseAmountInput(entry.i);
+                }
+            }
+            return prev;
+        }
+        return parseAmountInput(meta.previous_index);
+    }
+
+    function unitPriceForPump(meta) {
+        if (!meta) return 0;
+        if (typeof meta.is_essence === 'boolean') {
+            return meta.is_essence ? PRODUCT_PRICE_ESSENCE : PRODUCT_PRICE_DIESEL;
+        }
+        const name = (meta.name || '').toLowerCase();
+        return name.includes('essence') ? PRODUCT_PRICE_ESSENCE : PRODUCT_PRICE_DIESEL;
+    }
+
+    function updateRowPreviousDisplay(row) {
+        const sel = row.querySelector('.reading-pump-select');
+        const meta = getPumpMeta(sel?.value || '');
+        const span = row.querySelector('.reading-prev-display');
+        if (!span) return;
+        span.textContent = meta
+            ? formatIndexDisplay(previousIndexOnDate(meta, getSelectedReadingDate()))
+            : '—';
+    }
+
+    function refreshAllPumpPreviousDisplays() {
+        readingRowsContainer.querySelectorAll('.reading-row').forEach(updateRowPreviousDisplay);
     }
 
     function lineSaleAmount(pumpUuid, currentIndexStr) {
@@ -432,17 +476,17 @@
 
     function lineSaleData(pumpUuid, currentIndexStr) {
         const meta = getPumpMeta(pumpUuid);
-        if (!meta || !currentIndexStr) {
+        const curRaw = String(currentIndexStr ?? '').trim();
+        if (!meta || !curRaw) {
             return { pumpName: '', previous: 0, current: 0, qty: 0, unit: 0, amount: 0 };
         }
-        const prev = parseFloat(meta.previous_index) || 0;
-        const cur = parseAmountInput(currentIndexStr);
-        const qty = cur - prev;
+        const prev = previousIndexOnDate(meta, getSelectedReadingDate());
+        const cur = parseAmountInput(curRaw);
+        const qty = roundQty(cur - prev);
         if (qty <= 0) {
             return { pumpName: meta.name || '', previous: prev, current: cur, qty: 0, unit: 0, amount: 0 };
         }
-        const name = (meta.name || '').toLowerCase();
-        const unit = name.includes('essence') ? PRODUCT_PRICE_ESSENCE : PRODUCT_PRICE_DIESEL;
+        const unit = unitPriceForPump(meta);
         return {
             pumpName: meta.name || '',
             previous: prev,
@@ -497,6 +541,8 @@
                 }
             }
         });
+        refreshAllPumpPreviousDisplays();
+        syncReadingsJson();
     }
 
     function syncReadingsJson() {
@@ -571,7 +617,7 @@
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Index actuel</label>
-                <input type="text" inputmode="decimal" class="reading-current-index w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="0">
+                <input type="text" inputmode="decimal" autocomplete="off" class="reading-current-index js-decimal-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums" placeholder="0,00">
             </div>
             <div class="md:col-span-2 flex items-center justify-between md:block md:text-right min-w-0">
                 <span class="text-xs text-gray-500 block">Ligne</span>
@@ -581,21 +627,15 @@
         readingRowsContainer.appendChild(row);
         const sel = row.querySelector('.reading-pump-select');
         const currentInput = row.querySelector('.reading-current-index');
-        sel.addEventListener('change', () => {
-            const meta = getPumpMeta(sel.value);
-            row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
-            syncReadingsJson();
-            refreshAllPumpSelects();
-        });
-        attachLiveNumberFormatting(currentInput, syncReadingsJson);
+        attachIndexInputFormatting(currentInput, null);
         refreshAllPumpSelects();
         if (defaultPumpUuid) {
             sel.value = defaultPumpUuid;
-            const meta = getPumpMeta(defaultPumpUuid);
-            row.querySelector('.reading-prev-display').textContent = meta ? formatAmount(meta.previous_index) : '—';
+            updateRowPreviousDisplay(row);
         }
         if (defaultCurrentIndex !== null && defaultCurrentIndex !== undefined && String(defaultCurrentIndex) !== '') {
-            currentInput.value = formatAmount(parseAmountInput(defaultCurrentIndex));
+            const n = parseAmountInput(defaultCurrentIndex);
+            currentInput.value = NF ? NF.formatDecimal(n) : formatAmount(n);
         }
         syncReadingsJson();
     }
@@ -639,7 +679,7 @@
                 </select>
             </div>
             <div class="col-span-5">
-                <input type="text" inputmode="decimal" class="wallet-amount w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" value="${defaultAmount ? formatAmount(defaultAmount) : ''}" placeholder="Montant">
+                <input type="text" inputmode="decimal" autocomplete="off" class="wallet-amount js-number-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums" value="${defaultAmount ? formatAmount(defaultAmount) : ''}" placeholder="Montant">
             </div>
             <div class="col-span-1 flex justify-center">
                 <button type="button" class="remove-wallet-row text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
@@ -653,7 +693,7 @@
         row.querySelector('.wallet-select').addEventListener('change', () => {
             syncWalletAllocations();
         });
-        attachLiveNumberFormatting(row.querySelector('.wallet-amount'), syncWalletAllocations);
+        attachWalletAmountFormatting(row.querySelector('.wallet-amount'), syncWalletAllocations);
     }
 
     function renderWalletSection() {
@@ -704,11 +744,26 @@
         if (bulkSubmitLabel) bulkSubmitLabel.textContent = 'Enregistrement…';
     }
 
+    readingRowsContainer?.addEventListener('input', function(e) {
+        if (e.target.matches('.reading-current-index')) {
+            syncReadingsJson();
+        }
+    });
+
+    readingRowsContainer?.addEventListener('change', function(e) {
+        if (e.target.matches('.reading-pump-select')) {
+            const row = e.target.closest('.reading-row');
+            if (row) updateRowPreviousDisplay(row);
+            refreshAllPumpSelects();
+        }
+    });
+
     bulkForm?.addEventListener('submit', function(e) {
         if (bulkSubmitLocked) {
             e.preventDefault();
             return;
         }
+        syncReadingsJson();
         const readings = JSON.parse(readingsJsonInput.value || '[]');
         const requiredPumpUuids = PUMPS_DATA
             .filter((p) => !pumpBlockedForSelectedDate(p))
@@ -760,6 +815,9 @@
             alert('La somme des comptes doit être égale au montant total.');
             return;
         }
+        if (NF) {
+            NF.stripNumberInputsForSubmit(bulkForm);
+        }
         lockBulkSubmit();
     });
 
@@ -782,8 +840,8 @@
 
     readingDateInput?.addEventListener('change', function() {
         refreshMissingDaysInfo();
+        refreshAllPumpPreviousDisplays();
         refreshAllPumpSelects();
-        syncReadingsJson();
         refreshNoPumpReason();
     });
 

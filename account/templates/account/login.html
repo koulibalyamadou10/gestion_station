@@ -47,8 +47,9 @@
             </div>
 
             <!-- Formulaire de connexion -->
-            <form method="POST" action="{% url 'account:login' %}" class="space-y-6" id="loginForm">
+            <form method="POST" action="{% url 'account:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="space-y-6" id="loginForm">
                 {% csrf_token %}
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                 <input type="hidden" name="login_mode" id="login_mode" value="email">
 
                 <!-- Onglets Email / Nom d'utilisateur -->

@@ -55,6 +55,10 @@
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté essence</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté gazoil</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Origine</th>
+                    {% if can_delete_inventory %}
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -65,11 +69,30 @@
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.station.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.qty_gasoline|money_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.qty_diesel|money_fr }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            {% if row.source == 'bulk_reading' %}Saisie groupée{% elif row.source == 'sale' %}Vente{% elif row.source == 'station_init' %}Création station{% else %}—{% endif %}
+                        </td>
+                        {% if can_delete_inventory %}
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            {% if row.source == 'bulk_reading' %}
+                            <button type="button"
+                                    class="open-delete-inventory inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                    title="Annuler la saisie groupée"
+                                    aria-label="Supprimer"
+                                    data-url="{% url 'inventory:inventory_delete' row.pk %}"
+                                    data-label="{{ row.station.name|escape }} — {% if row.reading_date %}{{ row.reading_date|date:'d/m/Y' }}{% else %}{{ row.created_at|date:'d/m/Y' }}{% endif %}">
+                                <i class="fas fa-trash-alt text-sm"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-xs text-gray-400" title="Annulation réservée aux saisies groupées">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-500">Aucune ligne d'inventaire.</td>
+                        <td colspan="{% if can_delete_inventory %}6{% else %}5{% endif %}" class="px-6 py-10 text-center text-gray-500">Aucune ligne d'inventaire.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -95,5 +118,73 @@
         {% endif %}
     </div>
 </div>
+{% endif %}
+
+{% if can_delete_inventory %}
+<div id="deleteInventoryModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+        <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-trash-alt mr-2 text-red-600"></i>Annuler cette saisie groupée ?</h3>
+        <p id="deleteInventorySummary" class="text-sm text-gray-700 mt-3 leading-relaxed"></p>
+        <p class="text-xs text-gray-500 mt-2">Les lectures de pompes, ventes, montants wallets et le stock station seront remis à l'état d'avant cette saisie.</p>
+        <form id="deleteInventoryForm" method="POST" action="" class="mt-6 flex justify-end gap-2">
+            {% csrf_token %}
+            <button type="button" id="cancelDeleteInventoryModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="submit" id="deleteInventorySubmitBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                <i id="deleteInventorySubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deleteInventorySubmitLabel">Confirmer</span>
+            </button>
+        </form>
+    </div>
+</div>
+<script>
+(function() {
+    const modal = document.getElementById('deleteInventoryModal');
+    const form = document.getElementById('deleteInventoryForm');
+    const summary = document.getElementById('deleteInventorySummary');
+    const cancelBtn = document.getElementById('cancelDeleteInventoryModal');
+    const submitBtn = document.getElementById('deleteInventorySubmitBtn');
+    const submitSpinner = document.getElementById('deleteInventorySubmitSpinner');
+    const submitLabel = document.getElementById('deleteInventorySubmitLabel');
+
+    function resetDeleteSubmit() {
+        if (submitBtn) submitBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitSpinner) submitSpinner.classList.add('hidden');
+        if (submitLabel) submitLabel.textContent = 'Confirmer';
+    }
+
+    function setDeleteSubmitLoading(loading) {
+        if (submitBtn) submitBtn.disabled = loading;
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+        if (submitLabel) submitLabel.textContent = loading ? 'Suppression…' : 'Confirmer';
+    }
+
+    function closeM() {
+        modal?.classList.add('hidden');
+        document.body.style.overflow = '';
+        resetDeleteSubmit();
+    }
+
+    document.querySelectorAll('.open-delete-inventory').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const url = btn.getAttribute('data-url');
+            if (form && url) form.setAttribute('action', url);
+            if (summary) summary.textContent = btn.getAttribute('data-label') || '—';
+            modal?.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    cancelBtn?.addEventListener('click', closeM);
+    modal?.addEventListener('click', function(e) {
+        if (e.target === modal) closeM();
+    });
+
+    form?.addEventListener('submit', function() {
+        setDeleteSubmitLoading(true);
+    });
+})();
+</script>
 {% endif %}
 {% endblock %}

@@ -4,11 +4,12 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock
 from inventory.models import Inventory
+from pumps.views import reverse_bulk_pump_reading_inventory
 from stations.models import Station
 
 
@@ -80,8 +81,58 @@ def inventory_by_delivery_view(request):
         "total_entries": total_entries,
         "total_gasoline": total_gasoline,
         "total_diesel": total_diesel,
+        "can_delete_inventory": True,
     }
     return render(request, "inventory_content.html", context)
+
+
+@login_required
+def inventory_delete_view(request, pk):
+    """Annule une saisie groupée : inverse bulk_pump_reading_view (admin propriétaire)."""
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut supprimer une ligne d'inventaire.")
+        return redirect("inventory:stock_livre")
+
+    if request.method != "POST":
+        messages.error(request, "Méthode non autorisée.")
+        return redirect("inventory:stock_livre")
+
+    inventory_row = get_object_or_404(
+        Inventory.objects.select_related("station", "reading_batch").prefetch_related(
+            "wallet_allocations"
+        ),
+        pk=pk,
+        station__owner=request.user,
+    )
+
+    if inventory_row.source != Inventory.SOURCE_BULK_READING:
+        messages.error(
+            request,
+            "Seules les lignes issues d'une saisie groupée de pompes peuvent être annulées ici.",
+        )
+        return redirect("inventory:stock_livre")
+
+    station_name = inventory_row.station.name
+    d_str = (
+        inventory_row.reading_date.strftime("%d/%m/%Y")
+        if inventory_row.reading_date
+        else inventory_row.created_at.strftime("%d/%m/%Y")
+    )
+
+    try:
+        reverse_bulk_pump_reading_inventory(inventory_row)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("inventory:stock_livre")
+    except Exception as exc:
+        messages.error(request, f"Erreur lors de la suppression : {exc}")
+        return redirect("inventory:stock_livre")
+
+    messages.success(
+        request,
+        f"Inventaire du {d_str} ({station_name}) annulé : lectures, ventes, wallets et stock station restaurés.",
+    )
+    return redirect("inventory:stock_livre")
 
 
 def _allowed_stations_for_compare(user):

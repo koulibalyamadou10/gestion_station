@@ -16,9 +16,47 @@ class Pump(models.Model):
         return self.name
 
 # historiques
+class PumpReadingBatch(models.Model):
+    """Lot de lectures créées par une saisie groupée (bulk_pump_reading)."""
+
+    station = models.ForeignKey(
+        "stations.Station",
+        on_delete=models.CASCADE,
+        related_name="pump_reading_batches",
+    )
+    reading_date = models.DateField()
+    inventory = models.OneToOneField(
+        "inventory.Inventory",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reading_batch",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pompe_lecture_lot"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["station", "reading_date"],
+                name="unique_pump_reading_batch_station_date",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Lot {self.station_id} — {self.reading_date}"
+
+
 class PumpReading(models.Model):
     pump_reading_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     pump = models.ForeignKey(Pump, on_delete=models.CASCADE, related_name='readings')
+    batch = models.ForeignKey(
+        PumpReadingBatch,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="readings",
+    )
     employee = models.ForeignKey('employee.Employee', on_delete=models.SET_NULL, null=True, blank=True)
     current_index = models.DecimalField(max_digits=12, decimal_places=2)
     reading_date = models.DateField()

@@ -202,14 +202,14 @@ def create_station_view(request):
                     .replace(' ', '')
                     .replace(',', '.')
                     .strip() or '0'
-                )
+                ).quantize(Decimal('0.01'))
                 stock_diesel = Decimal(
                     (request.POST.get('stock_diesel') or '0')
                     .replace('\u00a0', ' ')
                     .replace(' ', '')
                     .replace(',', '.')
                     .strip() or '0'
-                )
+                ).quantize(Decimal('0.01'))
             except InvalidOperation:
                 messages.error(request, 'Les stocks essence et gazoil doivent être des nombres valides.')
                 return redirect('stations:stations_list')
@@ -253,6 +253,7 @@ def create_station_view(request):
                 station=station,
                 qty_gasoline=stock_gasoline,
                 qty_diesel=stock_diesel,
+                source=Inventory.SOURCE_STATION_INIT,
             )
             entry_dt = timezone.make_aware(
                 timezone.datetime.combine(stock_entry_date, timezone.datetime.min.time()),

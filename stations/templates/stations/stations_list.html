@@ -296,9 +296,8 @@
                         name="stock_gasoline"
                         inputmode="decimal"
                         autocomplete="off"
-                        value="0"
-                        class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
-                        placeholder="0"
+                        class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
+                        placeholder="0,00"
                     >
                 </div>
                 <div>
@@ -310,9 +309,8 @@
                         name="stock_diesel"
                         inputmode="decimal"
                         autocomplete="off"
-                        value="0"
-                        class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
-                        placeholder="0"
+                        class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
+                        placeholder="0,00"
                     >
                 </div>
             </div>
@@ -636,7 +634,7 @@
     function openCreateStationModal() {
         createStationModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
-        NumberFormat?.initNumberInputs(createStationModal);
+        NumberFormat?.initAllNumberInputs(createStationModal);
 
         // Initialiser la carte quand le modal s'ouvre
         setTimeout(() => {

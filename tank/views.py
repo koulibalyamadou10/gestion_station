@@ -55,7 +55,7 @@ def create_tank_view(request):
     try:
         actual_quantity = Decimal(
             actual_quantity_raw.replace("\u00a0", " ").replace(" ", "").replace(",", ".")
-        )
+        ).quantize(Decimal("0.01"))
         if actual_quantity < 0:
             raise InvalidOperation
     except (InvalidOperation, ValueError):
