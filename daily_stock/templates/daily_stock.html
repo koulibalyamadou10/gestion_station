@@ -316,11 +316,14 @@
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
         <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-trash-alt mr-2 text-red-600"></i>Supprimer cette entrée ?</h3>
         <p id="deleteDailyStockSummary" class="text-sm text-gray-700 mt-3 leading-relaxed"></p>
-        <p class="text-xs text-gray-500 mt-2">Le gérant pourra enregistrer à nouveau une entrée pour cette date et cette station.</p>
+        <p class="text-xs text-gray-500 mt-2">Les quantités des cuves et le stock station seront remis à leur état d’avant ce relevé. Le gérant pourra enregistrer à nouveau une entrée pour cette date.</p>
         <form id="deleteDailyStockForm" method="POST" action="" class="mt-6 flex justify-end gap-2">
             {% csrf_token %}
             <button type="button" id="cancelDeleteDailyStockModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Supprimer</button>
+            <button type="submit" id="deleteDailyStockSubmitBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                <i id="deleteDailyStockSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deleteDailyStockSubmitLabel">Supprimer</span>
+            </button>
         </form>
     </div>
 </div>
@@ -330,10 +333,28 @@
     const form = document.getElementById('deleteDailyStockForm');
     const summary = document.getElementById('deleteDailyStockSummary');
     const cancelBtn = document.getElementById('cancelDeleteDailyStockModal');
+    const submitBtn = document.getElementById('deleteDailyStockSubmitBtn');
+    const submitSpinner = document.getElementById('deleteDailyStockSubmitSpinner');
+    const submitLabel = document.getElementById('deleteDailyStockSubmitLabel');
+
+    function resetDeleteSubmit() {
+        if (submitBtn) submitBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitSpinner) submitSpinner.classList.add('hidden');
+        if (submitLabel) submitLabel.textContent = 'Supprimer';
+    }
+
+    function setDeleteSubmitLoading(loading) {
+        if (submitBtn) submitBtn.disabled = loading;
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+        if (submitLabel) submitLabel.textContent = loading ? 'Suppression…' : 'Supprimer';
+    }
 
     function closeM() {
         modal?.classList.add('hidden');
         document.body.style.overflow = '';
+        resetDeleteSubmit();
     }
 
     document.querySelectorAll('.open-delete-daily-stock').forEach(function(btn) {
@@ -349,6 +370,10 @@
     cancelBtn?.addEventListener('click', closeM);
     modal?.addEventListener('click', function(e) {
         if (e.target === modal) closeM();
+    });
+
+    form?.addEventListener('submit', function() {
+        setDeleteSubmitLoading(true);
     });
 })();
 </script>

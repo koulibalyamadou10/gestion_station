@@ -9,7 +9,7 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
-from daily_stock.models import DailyStock
+from daily_stock.models import DailyStock, DailyStockTankLine
 from delivery.models import Delivery
 from inventory.models import Inventory
 from sale.models import Sale
@@ -344,6 +344,7 @@ def daily_sales_view(request):
         "total_gasoline": total_gasoline,
         "total_diesel": total_diesel,
         "can_create_daily_stock": request.user.role == "manager" and manager_station is not None,
+        "can_delete_daily_stock": request.user.role == "admin",
         "manager_station": manager_station,
         "station_tanks": station_tanks,
     }
@@ -383,7 +384,7 @@ def daily_stock_create_view(request):
         )
         return redirect("daily_stock:daily_sales")
 
-    tank_updates = []
+    tank_snapshots = []
     qty_gasoline = Decimal("0")
     qty_diesel = Decimal("0")
 
@@ -397,12 +398,10 @@ def daily_stock_create_view(request):
         except (InvalidOperation, ValueError):
             messages.error(request, f"Quantité invalide pour la cuve « {tank.name} ».")
             return redirect("daily_stock:daily_sales")
-        # if qty < 0:
-        #     messages.error(request, f"La quantité de la cuve « {tank.name} » ne peut pas être négative.")
-        #     return redirect("daily_stock:daily_sales")
 
-        tank.actual_quantity = qty
-        tank_updates.append(tank)
+        tank_snapshots.append(
+            (tank, tank.actual_quantity or Decimal("0"), qty),
+        )
         if tank.product == Tank.PRODUCT_GASOLINE:
             qty_gasoline += qty
         else:
@@ -420,17 +419,36 @@ def daily_stock_create_view(request):
                 )
                 return redirect("daily_stock:daily_sales")
 
-            for tank in tank_updates:
-                tank.save(update_fields=["actual_quantity", "updated_at"])
+            station = Station.objects.select_for_update().get(
+                pk=station_manager.station_id
+            )
+            prev_station_g = station.stock_gasoline or Decimal("0")
+            prev_station_d = station.stock_diesel or Decimal("0")
 
-            DailyStock.objects.create(
-                station=station_manager.station,
+            daily_stock = DailyStock.objects.create(
+                station=station,
                 stock_date=stock_date,
                 recorded_by=request.user,
                 qty_gasoline=qty_gasoline,
                 qty_diesel=qty_diesel,
+                previous_stock_gasoline=prev_station_g,
+                previous_stock_diesel=prev_station_d,
                 notes=notes,
             )
+
+            for tank, prev_qty, recorded_qty in tank_snapshots:
+                tank.actual_quantity = recorded_qty
+                tank.save(update_fields=["actual_quantity", "updated_at"])
+                DailyStockTankLine.objects.create(
+                    daily_stock=daily_stock,
+                    tank=tank,
+                    previous_quantity=prev_qty,
+                    recorded_quantity=recorded_qty,
+                )
+
+            station.stock_gasoline = qty_gasoline
+            station.stock_diesel = qty_diesel
+            station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
     except IntegrityError:
         messages.error(
             request,
@@ -460,15 +478,54 @@ def daily_stock_delete_view(request, pk):
         return redirect("daily_stock:daily_sales")
 
     ds = get_object_or_404(
-        DailyStock.objects.select_related("station"),
+        DailyStock.objects.select_related("station").prefetch_related("tank_lines__tank"),
         pk=pk,
         station__owner=request.user,
     )
+    tank_lines = list(ds.tank_lines.all())
+    if not tank_lines:
+        messages.error(
+            request,
+            "Impossible de restaurer les cuves : cette entrée a été créée sans relevé détaillé. "
+            "Contactez un développeur si besoin.",
+        )
+        return redirect("daily_stock:daily_sales")
+
     station_name = ds.station.name
     d_str = ds.stock_date.strftime("%d/%m/%Y")
-    ds.delete()
+
+    try:
+        with transaction.atomic():
+            station = Station.objects.select_for_update().get(pk=ds.station_id)
+            for line in tank_lines:
+                tank = line.tank
+                tank.actual_quantity = line.previous_quantity
+                tank.save(update_fields=["actual_quantity", "updated_at"])
+
+            if (
+                ds.previous_stock_gasoline is not None
+                and ds.previous_stock_diesel is not None
+            ):
+                station.stock_gasoline = ds.previous_stock_gasoline
+                station.stock_diesel = ds.previous_stock_diesel
+            else:
+                restored_g = Decimal("0")
+                restored_d = Decimal("0")
+                for line in tank_lines:
+                    if line.tank.product == Tank.PRODUCT_GASOLINE:
+                        restored_g += line.previous_quantity
+                    else:
+                        restored_d += line.previous_quantity
+                station.stock_gasoline = restored_g
+                station.stock_diesel = restored_d
+            station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+            ds.delete()
+    except Exception as exc:
+        messages.error(request, f"Erreur lors de la suppression : {exc}")
+        return redirect("daily_stock:daily_sales")
+
     messages.success(
         request,
-        f"Entrée du {d_str} ({station_name}) supprimée. Le gérant peut en enregistrer une nouvelle.",
+        f"Entrée du {d_str} ({station_name}) supprimée. Stocks cuves et station restaurés.",
     )
     return redirect("daily_stock:daily_sales")
