@@ -61,7 +61,6 @@
                         <span>Envoi Index</span>
                     </a>
                     {% endif %}
-                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     {% if user.role == 'admin' or user.role == 'super_admin' %}
                     <a href="{% url 'inventory:stock_livre' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if urln == 'stock_livre' %}bg-blue-600{% endif %}">
                         <i class="fas fa-truck-loading w-4"></i>
@@ -77,14 +76,14 @@
                         <i class="fas fa-clipboard-check w-4"></i>
                         <span>Etat Stock</span>
                     </a>
-                    {% endif %}
-                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
-                    {% if user.role == 'admin' or user.role == 'super_admin' %}
                     <a href="{% url 'daily_stock:stock_detail' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'daily_stock' and urln == 'stock_detail' %}bg-blue-600{% endif %}">
                         <i class="fas fa-list-alt w-4"></i>
                         <span>Mouvement Stock</span>
                     </a>
                     {% endif %}
+                </div>
+                <div class="space-y-1">
+                    <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'deposit:deposit_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'deposit' %}bg-blue-600{% endif %}">
                         <i class="fas fa-arrow-up w-4"></i>
                         <span>Versements</span>
