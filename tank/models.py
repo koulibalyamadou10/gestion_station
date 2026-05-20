@@ -19,6 +19,7 @@ class Tank(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     actual_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    max_capacity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     product = models.CharField(
         max_length=100,
         choices=PRODUCT_TYPES,

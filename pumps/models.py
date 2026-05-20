@@ -6,6 +6,7 @@ class Pump(models.Model):
     pump_uuid = models.UUIDField(default=uuid.uuid4, blank=True, null=True)
     name = models.CharField(max_length=100)
     station = models.ForeignKey('stations.Station', on_delete=models.CASCADE)
+    tank = models.ForeignKey('tank.Tank', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
