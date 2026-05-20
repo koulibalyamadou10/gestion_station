@@ -209,7 +209,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelCreateWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+                <button type="submit" id="createWalletSubmitBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="createWalletSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createWalletSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -353,11 +356,13 @@
     const cancelCreateWalletModalBtn = document.getElementById('cancelCreateWalletModal');
 
     function openCreateWalletModal() {
+        setCreateWalletSubmitting(false);
         createWalletModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
     function closeCreateWalletModal() {
+        setCreateWalletSubmitting(false);
         createWalletModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
@@ -373,6 +378,16 @@
     const walletBalanceDisplay = document.getElementById('walletBalanceDisplay');
     const walletBalanceRaw = document.getElementById('walletBalanceRaw');
     const createWalletForm = createWalletModal?.querySelector('form');
+    const createWalletSubmitBtn = document.getElementById('createWalletSubmitBtn');
+    const createWalletSubmitSpinner = document.getElementById('createWalletSubmitSpinner');
+    const createWalletSubmitLabel = document.getElementById('createWalletSubmitLabel');
+
+    function setCreateWalletSubmitting(isSubmitting) {
+        if (createWalletSubmitBtn) createWalletSubmitBtn.disabled = isSubmitting;
+        if (cancelCreateWalletModalBtn) cancelCreateWalletModalBtn.disabled = isSubmitting;
+        if (createWalletSubmitSpinner) createWalletSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (createWalletSubmitLabel) createWalletSubmitLabel.textContent = isSubmitting ? 'Enregistrement...' : 'Enregistrer';
+    }
 
     function normalizeAmount(value) {
         return (value || '').replace(/\s/g, '').replace(',', '.');
@@ -399,8 +414,13 @@
         walletBalanceDisplay.value = formatWithSpaces(walletBalanceDisplay.value);
         walletBalanceRaw.value = normalizeAmount(walletBalanceDisplay.value);
     });
-    createWalletForm?.addEventListener('submit', function() {
+    createWalletForm?.addEventListener('submit', function(e) {
+        if (createWalletSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
         walletBalanceRaw.value = normalizeAmount(walletBalanceDisplay?.value || '0') || '0';
+        setCreateWalletSubmitting(true);
     });
 
     const editWalletModal = document.getElementById('editWalletModal');

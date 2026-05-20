@@ -139,6 +139,14 @@
                             <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
                                 <i class="fas fa-tint mr-2"></i>Quantité (L)
                             </th>
+                            <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-ruler-combined mr-2"></i>Quantité max (L)
+                            </th>
+                            {% if can_manage_tanks %}
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <i class="fas fa-cog mr-2"></i>Actions
+                            </th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -167,10 +175,25 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold tabular-nums text-right">
                                 {{ tank.actual_quantity|qty_fr }}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold tabular-nums text-right">
+                                {% if tank.max_capacity is not None %}{{ tank.max_capacity|qty_fr }}{% else %}-{% endif %}
+                            </td>
+                            {% if can_manage_tanks %}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button
+                                    type="button"
+                                    class="text-blue-600 hover:text-blue-800 transition-colors"
+                                    title="Modifier la quantité maximale"
+                                    onclick="openStationDetailEditTankMaxCapacityModal('{% url 'tank:update_tank_max_capacity' tank.tank_uuid %}', '{{ tank.name|escapejs }}', '{% if tank.max_capacity is not None %}{{ tank.max_capacity }}{% endif %}')"
+                                >
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="3" class="px-6 py-12 text-center">
+                            <td colspan="{% if can_manage_tanks %}5{% else %}4{% endif %}" class="px-6 py-12 text-center">
                                 <div class="flex flex-col items-center justify-center">
                                     <i class="fas fa-oil-can text-6xl text-gray-300 mb-4"></i>
                                     <p class="text-gray-500 text-lg font-semibold">Aucune cuve enregistrée</p>
@@ -782,6 +805,51 @@
         </form>
     </div>
 </div>
+
+<!-- Modal modification quantité maximale cuve -->
+<div id="stationDetailEditTankMaxCapacityModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                <i class="fas fa-ruler-combined mr-2 text-blue-600"></i>
+                Modifier quantité maximale
+            </h3>
+            <button type="button" id="stationDetailCloseEditTankMaxCapacityModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <form id="stationDetailEditTankMaxCapacityForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <i class="fas fa-oil-can mr-2"></i>Cuve : <strong id="stationDetailEditTankMaxCapacityName">-</strong>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité maximale (L)</label>
+                <input
+                    type="text"
+                    name="max_capacity"
+                    id="stationDetailEditTankMaxCapacityInput"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
+                    placeholder="Optionnel"
+                >
+                <p class="text-xs text-gray-500 mt-1">Laissez vide pour retirer la valeur maximale.</p>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+                <button type="button" id="stationDetailCancelEditTankMaxCapacity" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Annuler</button>
+                <button type="submit" id="stationDetailEditTankMaxCapacitySubmitBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="stationDetailEditTankMaxCapacitySubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="stationDetailEditTankMaxCapacitySubmitLabel">Enregistrer</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endif %}
 
 {% if can_manage_pumps %}
@@ -905,6 +973,14 @@
         const createTankSubmitBtn = document.getElementById('stationDetailCreateTankSubmitBtn');
         const createTankSubmitSpinner = document.getElementById('stationDetailCreateTankSubmitSpinner');
         const createTankSubmitLabel = document.getElementById('stationDetailCreateTankSubmitLabel');
+        const editTankMaxCapacityModal = document.getElementById('stationDetailEditTankMaxCapacityModal');
+        const editTankMaxCapacityForm = document.getElementById('stationDetailEditTankMaxCapacityForm');
+        const editTankMaxCapacityName = document.getElementById('stationDetailEditTankMaxCapacityName');
+        const editTankMaxCapacityInput = document.getElementById('stationDetailEditTankMaxCapacityInput');
+        const editTankMaxCapacitySubmitBtn = document.getElementById('stationDetailEditTankMaxCapacitySubmitBtn');
+        const editTankMaxCapacitySubmitSpinner = document.getElementById('stationDetailEditTankMaxCapacitySubmitSpinner');
+        const editTankMaxCapacitySubmitLabel = document.getElementById('stationDetailEditTankMaxCapacitySubmitLabel');
+        const cancelEditTankMaxCapacity = document.getElementById('stationDetailCancelEditTankMaxCapacity');
 
         function resetCreateTankSubmit() {
             if (createTankSubmitBtn) createTankSubmitBtn.disabled = false;
@@ -918,6 +994,13 @@
             if (cancelCreateTank) cancelCreateTank.disabled = loading;
             if (createTankSubmitSpinner) createTankSubmitSpinner.classList.toggle('hidden', !loading);
             if (createTankSubmitLabel) createTankSubmitLabel.textContent = loading ? 'Création…' : 'Créer la cuve';
+        }
+
+        function setEditTankMaxCapacitySubmitLoading(loading) {
+            if (editTankMaxCapacitySubmitBtn) editTankMaxCapacitySubmitBtn.disabled = loading;
+            if (cancelEditTankMaxCapacity) cancelEditTankMaxCapacity.disabled = loading;
+            if (editTankMaxCapacitySubmitSpinner) editTankMaxCapacitySubmitSpinner.classList.toggle('hidden', !loading);
+            if (editTankMaxCapacitySubmitLabel) editTankMaxCapacitySubmitLabel.textContent = loading ? 'Enregistrement…' : 'Enregistrer';
         }
 
         function openCreateTankModal() {
@@ -937,6 +1020,30 @@
             resetCreateTankSubmit();
         }
 
+        function closeEditTankMaxCapacityModalFunc() {
+            if (!editTankMaxCapacityModal || !editTankMaxCapacityForm) return;
+            editTankMaxCapacityModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            editTankMaxCapacityForm.reset();
+            if (editTankMaxCapacityName) editTankMaxCapacityName.textContent = '-';
+            setEditTankMaxCapacitySubmitLoading(false);
+        }
+
+        window.openStationDetailEditTankMaxCapacityModal = function (updateUrl, tankName, maxCapacityValue) {
+            if (!editTankMaxCapacityModal || !editTankMaxCapacityForm) return;
+            editTankMaxCapacityForm.action = updateUrl || '';
+            if (editTankMaxCapacityName) editTankMaxCapacityName.textContent = tankName || '-';
+            if (editTankMaxCapacityInput) {
+                editTankMaxCapacityInput.value = maxCapacityValue || '';
+            }
+            editTankMaxCapacityModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (window.NumberFormat) {
+                window.NumberFormat.initAllNumberInputs(editTankMaxCapacityModal);
+            }
+            setEditTankMaxCapacitySubmitLoading(false);
+        };
+
         createTankBtn?.addEventListener('click', openCreateTankModal);
         closeCreateTank?.addEventListener('click', closeCreateTankModalFunc);
         cancelCreateTank?.addEventListener('click', closeCreateTankModalFunc);
@@ -949,6 +1056,18 @@
                 window.NumberFormat.stripNumberInputsForSubmit(createTankForm);
             }
             setCreateTankSubmitLoading(true);
+        });
+        document.getElementById('stationDetailCloseEditTankMaxCapacityModal')?.addEventListener('click', closeEditTankMaxCapacityModalFunc);
+        cancelEditTankMaxCapacity?.addEventListener('click', closeEditTankMaxCapacityModalFunc);
+        editTankMaxCapacityModal?.addEventListener('click', function (e) {
+            if (e.target === editTankMaxCapacityModal) closeEditTankMaxCapacityModalFunc();
+        });
+        editTankMaxCapacityForm?.addEventListener('submit', function () {
+            if (editTankMaxCapacitySubmitBtn?.disabled) return;
+            if (window.NumberFormat) {
+                window.NumberFormat.stripNumberInputsForSubmit(editTankMaxCapacityForm);
+            }
+            setEditTankMaxCapacitySubmitLoading(true);
         });
     })();
     {% endif %}
