@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -7,12 +7,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.http import JsonResponse
-from django.utils import timezone
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 from city.models import City
-from inventory.models import Inventory
-from daily_stock.models import DailyStock
 
 @login_required
 def stations_list_view(request):
@@ -146,7 +143,6 @@ def create_station_view(request):
         address = request.POST.get('address', '').strip()
         latitude = request.POST.get('latitude', '').strip()
         longitude = request.POST.get('longitude', '').strip()
-        stock_entry_date_raw = request.POST.get('stock_entry_date', '').strip()
         
         # Déterminer le propriétaire selon le rôle
         if request.user.role == 'super_admin':
@@ -170,9 +166,6 @@ def create_station_view(request):
         if not name or not city_id or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations:stations_list')
-        if not stock_entry_date_raw:
-            messages.error(request, 'Veuillez renseigner la date d’entrée du stock.')
-            return redirect('stations:stations_list')
         
         if not latitude or not longitude:
             messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
@@ -189,33 +182,6 @@ def create_station_view(request):
             except City.DoesNotExist:
                 messages.error(request, 'La ville sélectionnée est invalide.')
                 return redirect('stations:stations_list')
-            try:
-                stock_entry_date = timezone.datetime.strptime(stock_entry_date_raw, '%Y-%m-%d').date()
-            except ValueError:
-                messages.error(request, 'Date d’entrée du stock invalide.')
-                return redirect('stations:stations_list')
-
-            try:
-                stock_gasoline = Decimal(
-                    (request.POST.get('stock_gasoline') or '0')
-                    .replace('\u00a0', ' ')
-                    .replace(' ', '')
-                    .replace(',', '.')
-                    .strip() or '0'
-                ).quantize(Decimal('0.01'))
-                stock_diesel = Decimal(
-                    (request.POST.get('stock_diesel') or '0')
-                    .replace('\u00a0', ' ')
-                    .replace(' ', '')
-                    .replace(',', '.')
-                    .strip() or '0'
-                ).quantize(Decimal('0.01'))
-            except InvalidOperation:
-                messages.error(request, 'Les stocks essence et gazoil doivent être des nombres valides.')
-                return redirect('stations:stations_list')
-            if stock_gasoline < 0 or stock_diesel < 0:
-                messages.error(request, 'Les stocks ne peuvent pas être négatifs.')
-                return redirect('stations:stations_list')
 
             # Créer la station
             station = Station.objects.create(
@@ -225,8 +191,6 @@ def create_station_view(request):
                 latitude=latitude_decimal,
                 longitude=longitude_decimal,
                 owner=owner,
-                stock_gasoline=stock_gasoline,
-                stock_diesel=stock_diesel,
             )
 
             # Gérant optionnel
@@ -248,30 +212,6 @@ def create_station_view(request):
                     messages.error(request, 'Le gérant sélectionné est invalide.')
                     return redirect('stations:stations_list')
                 StationManager.objects.create(station=station, manager=manager)
-
-            inv = Inventory.objects.create(
-                station=station,
-                qty_gasoline=stock_gasoline,
-                qty_diesel=stock_diesel,
-                source=Inventory.SOURCE_STATION_INIT,
-            )
-            entry_dt = timezone.make_aware(
-                timezone.datetime.combine(stock_entry_date, timezone.datetime.min.time()),
-                timezone.get_current_timezone(),
-            )
-            inv.created_at = entry_dt
-            inv.save(update_fields=['created_at'])
-
-            DailyStock.objects.update_or_create(
-                station=station,
-                stock_date=stock_entry_date,
-                defaults={
-                    'recorded_by': request.user,
-                    'qty_gasoline': stock_gasoline,
-                    'qty_diesel': stock_diesel,
-                    'notes': 'Stock initial à la création de la station',
-                },
-            )
 
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
             return redirect('stations:stations_list')

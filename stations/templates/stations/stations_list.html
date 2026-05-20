@@ -286,47 +286,6 @@
                 ></textarea>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Stock essence (L)
-                    </label>
-                    <input
-                        type="text"
-                        name="stock_gasoline"
-                        inputmode="decimal"
-                        autocomplete="off"
-                        class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
-                        placeholder="0,00"
-                    >
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Stock gazoil (L)
-                    </label>
-                    <input
-                        type="text"
-                        name="stock_diesel"
-                        inputmode="decimal"
-                        autocomplete="off"
-                        class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
-                        placeholder="0,00"
-                    >
-                </div>
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Date d'entrée du stock <span class="text-red-500">*</span>
-                </label>
-                <input
-                    type="date"
-                    name="stock_entry_date"
-                    required
-                    value="{% now 'Y-m-d' %}"
-                    class="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-            </div>
-
             <!-- Carte Mapbox pour sélectionner l'emplacement -->
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -405,10 +364,12 @@
                 </button>
                 <button 
                     type="submit"
-                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                    id="createStationSubmitBtn"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                    <i class="fas fa-save mr-2"></i>
-                    Créer la station
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <i id="createStationSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createStationSubmitLabel">Créer la station</span>
                 </button>
             </div>
         </form>
@@ -555,8 +516,9 @@
                 <button id="cancelDeleteStationBtn" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
                     Annuler
                 </button>
-                <button id="confirmDeleteStationBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
-                    Supprimer
+                <button id="confirmDeleteStationBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="confirmDeleteStationSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="confirmDeleteStationLabel">Supprimer</span>
                 </button>
             </div>
         </div>
@@ -580,9 +542,19 @@
     const closeCreateStationModal = document.getElementById('closeCreateStationModal');
     const cancelCreateStation = document.getElementById('cancelCreateStation');
     const createStationForm = document.getElementById('createStationForm');
+    const createStationSubmitBtn = document.getElementById('createStationSubmitBtn');
+    const createStationSubmitSpinner = document.getElementById('createStationSubmitSpinner');
+    const createStationSubmitLabel = document.getElementById('createStationSubmitLabel');
     const latitudeInput = document.getElementById('latitude');
     const longitudeInput = document.getElementById('longitude');
     const coordinatesDisplay = document.getElementById('coordinatesDisplay');
+
+    function setCreateStationSubmitting(isSubmitting) {
+        if (createStationSubmitBtn) createStationSubmitBtn.disabled = isSubmitting;
+        if (cancelCreateStation) cancelCreateStation.disabled = isSubmitting;
+        if (createStationSubmitSpinner) createStationSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (createStationSubmitLabel) createStationSubmitLabel.textContent = isSubmitting ? 'Création...' : 'Créer la station';
+    }
 
     function initMap() {
         // Coordonnées par défaut (Conakry, Guinée)
@@ -632,6 +604,7 @@
     }
 
     function openCreateStationModal() {
+        setCreateStationSubmitting(false);
         createStationModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         NumberFormat?.initAllNumberInputs(createStationModal);
@@ -680,6 +653,7 @@
         if (createStationOwnerSelect) {
             createStationOwnerSelect.value = '';
         }
+        setCreateStationSubmitting(false);
     }
 
     createStationBtn?.addEventListener('click', openCreateStationModal);
@@ -740,11 +714,19 @@
     
     // Validation du formulaire
     createStationForm?.addEventListener('submit', function(e) {
+        if (createStationSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
         if (!latitudeInput.value || !longitudeInput.value) {
             e.preventDefault();
             alert('Veuillez sélectionner un emplacement sur la carte en cliquant dessus.');
             return false;
         }
+        if (window.NumberFormat) {
+            window.NumberFormat.stripNumberInputsForSubmit(createStationForm);
+        }
+        setCreateStationSubmitting(true);
     });
 
     // Gestion du modal de modification
@@ -880,7 +862,16 @@
     const deleteStationNameEl = document.getElementById('deleteStationName');
     const cancelDeleteStationBtn = document.getElementById('cancelDeleteStationBtn');
     const confirmDeleteStationBtn = document.getElementById('confirmDeleteStationBtn');
+    const confirmDeleteStationSpinner = document.getElementById('confirmDeleteStationSpinner');
+    const confirmDeleteStationLabel = document.getElementById('confirmDeleteStationLabel');
     let currentDeleteForm = null;
+
+    function setDeleteStationSubmitting(isSubmitting) {
+        if (confirmDeleteStationBtn) confirmDeleteStationBtn.disabled = isSubmitting;
+        if (cancelDeleteStationBtn) cancelDeleteStationBtn.disabled = isSubmitting;
+        if (confirmDeleteStationSpinner) confirmDeleteStationSpinner.classList.toggle('hidden', !isSubmitting);
+        if (confirmDeleteStationLabel) confirmDeleteStationLabel.textContent = isSubmitting ? 'Suppression...' : 'Supprimer';
+    }
 
     document.querySelectorAll('.delete-station-form').forEach((form) => {
         form.addEventListener('submit', function (event) {
@@ -888,6 +879,7 @@
             currentDeleteForm = form;
             const btn = form.querySelector('button[data-station-name]');
             deleteStationNameEl.textContent = btn?.dataset.stationName || '';
+            setDeleteStationSubmitting(false);
             deleteStationModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
         });
@@ -897,11 +889,14 @@
         deleteStationModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
         currentDeleteForm = null;
+        setDeleteStationSubmitting(false);
     }
 
     cancelDeleteStationBtn?.addEventListener('click', closeDeleteStationModal);
     confirmDeleteStationBtn?.addEventListener('click', function () {
-        if (currentDeleteForm) currentDeleteForm.submit();
+        if (!currentDeleteForm || confirmDeleteStationBtn?.disabled) return;
+        setDeleteStationSubmitting(true);
+        currentDeleteForm.submit();
     });
     deleteStationModal?.addEventListener('click', function (e) {
         if (e.target === deleteStationModal) closeDeleteStationModal();

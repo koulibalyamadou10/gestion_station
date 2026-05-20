@@ -2,6 +2,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Sum
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -100,5 +101,24 @@ def create_tank_view(request):
         actual_quantity=actual_quantity,
         max_capacity=max_capacity,
     )
+
+    # Synchroniser le stock station à partir de la somme des cuves du même produit
+    if product == Tank.PRODUCT_GASOLINE:
+        station.stock_gasoline = (
+            Tank.objects.filter(station=station, product=Tank.PRODUCT_GASOLINE).aggregate(
+                total=Sum("actual_quantity")
+            )["total"]
+            or Decimal("0.00")
+        )
+        station.save(update_fields=["stock_gasoline", "updated_at"])
+    elif product == Tank.PRODUCT_DIESEL:
+        station.stock_diesel = (
+            Tank.objects.filter(station=station, product=Tank.PRODUCT_DIESEL).aggregate(
+                total=Sum("actual_quantity")
+            )["total"]
+            or Decimal("0.00")
+        )
+        station.save(update_fields=["stock_diesel", "updated_at"])
+
     messages.success(request, f'Cuve "{name}" créée avec succès.')
     return _redirect_after_tank_form(request)
