@@ -762,6 +762,12 @@
             </div>
 
             <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité maximale (L)</label>
+                <input type="text" name="max_capacity" inputmode="decimal" autocomplete="off" class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Optionnel">
+                <p class="text-xs text-gray-500 mt-1">Champ facultatif.</p>
+            </div>
+
+            <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                 <textarea name="description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none" placeholder="Optionnel"></textarea>
             </div>
@@ -845,6 +851,16 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Numéro pompe <span class="text-red-500">*</span></label>
                     <input type="text" name="pump_number" id="station_detail_create_pump_number" inputmode="numeric" autocomplete="off" required class="js-integer-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Ex: 1">
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Cuve <span class="text-red-500">*</span></label>
+                <select name="tank_id" id="station_detail_create_pump_tank" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                    <option value="">Sélectionner une cuve</option>
+                    {% for tank in station_tanks %}
+                    <option value="{{ tank.id }}" data-product="{{ tank.product }}">{{ tank.name }} ({{ tank.get_product_display_fr }})</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -946,6 +962,7 @@
         const createForm = document.getElementById('stationDetailCreatePumpForm');
         const createType = document.getElementById('station_detail_create_pump_type');
         const createNumber = document.getElementById('station_detail_create_pump_number');
+        const createTank = document.getElementById('station_detail_create_pump_tank');
         const namePreview = document.getElementById('station_detail_generated_pump_name_preview');
         const createPumpSubmitBtn = document.getElementById('stationDetailCreatePumpSubmitBtn');
         const createPumpSubmitSpinner = document.getElementById('stationDetailCreatePumpSubmitSpinner');
@@ -978,6 +995,27 @@
             }
         }
 
+        function filterTankOptionsByPumpType() {
+            if (!createTank) return;
+            const selectedType = createType?.value || '';
+            const requiredTankProduct = selectedType === 'essence' ? 'gasoline' : (selectedType === 'gazoil' ? 'diesel' : '');
+            const options = Array.from(createTank.options);
+            options.forEach(function (option, idx) {
+                if (idx === 0) {
+                    option.hidden = false;
+                    return;
+                }
+                const optionProduct = option.dataset.product || '';
+                option.hidden = !!requiredTankProduct && optionProduct !== requiredTankProduct;
+            });
+            if (createTank.selectedOptions.length) {
+                const current = createTank.selectedOptions[0];
+                if (current.hidden) {
+                    createTank.value = '';
+                }
+            }
+        }
+
         function openCreatePumpModal() {
             if (!createModal) return;
             createModal.classList.remove('hidden');
@@ -985,6 +1023,7 @@
             if (window.NumberFormat) {
                 window.NumberFormat.initAllNumberInputs(createModal);
             }
+            filterTankOptionsByPumpType();
             updatePumpNamePreview();
         }
 
@@ -1000,8 +1039,12 @@
         createBtn?.addEventListener('click', openCreatePumpModal);
         closeCreate?.addEventListener('click', closeCreatePumpModalFunc);
         cancelCreate?.addEventListener('click', closeCreatePumpModalFunc);
-        createType?.addEventListener('change', updatePumpNamePreview);
+        createType?.addEventListener('change', function () {
+            filterTankOptionsByPumpType();
+            updatePumpNamePreview();
+        });
         createNumber?.addEventListener('input', updatePumpNamePreview);
+        filterTankOptionsByPumpType();
         updatePumpNamePreview();
 
         createModal?.addEventListener('click', function (e) {

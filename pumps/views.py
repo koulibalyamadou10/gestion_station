@@ -502,6 +502,7 @@ def create_pump_view(request):
             return redirect("pumps:pumps_list")
 
         station_id = request.POST.get("station_id", "").strip()
+        tank_id = request.POST.get("tank_id", "").strip()
         pump_type = request.POST.get("pump_type", "").strip().lower()
         pump_number = (
             request.POST.get("pump_number", "")
@@ -520,6 +521,7 @@ def create_pump_view(request):
 
         if (
             not station_id
+            or not tank_id
             or not pump_type
             or not pump_number
             or not current_index
@@ -547,6 +549,19 @@ def create_pump_view(request):
                 messages.error(request, "Type de pompe invalide. Choisissez Essence ou Gazoil.")
                 return _redirect_after_pump_form(request)
 
+            from tank.models import Tank
+            tank = Tank.objects.filter(id=tank_id, station=station).first()
+            if not tank:
+                messages.error(request, "La cuve sélectionnée est invalide pour cette station.")
+                return _redirect_after_pump_form(request)
+
+            if pump_type == "essence" and tank.product != Tank.PRODUCT_GASOLINE:
+                messages.error(request, "La cuve choisie doit être de type Essence.")
+                return _redirect_after_pump_form(request)
+            if pump_type == "gazoil" and tank.product != Tank.PRODUCT_DIESEL:
+                messages.error(request, "La cuve choisie doit être de type Gazoil.")
+                return _redirect_after_pump_form(request)
+
             try:
                 pump_number_int = int(Decimal(pump_number.replace(",", ".")))
             except (InvalidOperation, ValueError):
@@ -570,6 +585,7 @@ def create_pump_view(request):
 
             pump = Pump.objects.create(
                 station=station,
+                tank=tank,
                 name=name,
             )
 

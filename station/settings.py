@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'position',
     'account',
     'stations',
+    'tank',
     'pumps',
     'employee',
     'supplier',
@@ -61,7 +62,6 @@ INSTALLED_APPS = [
     'daily_stock',
     'sale',
     'product_price',
-    'tank',
 ]
 
 MIDDLEWARE = [

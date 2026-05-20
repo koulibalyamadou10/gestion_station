@@ -43,6 +43,7 @@ def create_tank_view(request):
     product = (request.POST.get("product") or "").strip()
     description = (request.POST.get("description") or "").strip()
     actual_quantity_raw = (request.POST.get("actual_quantity") or "0").strip()
+    max_capacity_raw = (request.POST.get("max_capacity") or "").strip()
 
     if not station_id or not name or not product:
         messages.error(request, "Veuillez remplir tous les champs obligatoires.")
@@ -61,6 +62,18 @@ def create_tank_view(request):
     except (InvalidOperation, ValueError):
         messages.error(request, "La quantité actuelle doit être un nombre positif ou nul.")
         return _redirect_after_tank_form(request)
+
+    max_capacity = None
+    if max_capacity_raw:
+        try:
+            max_capacity = Decimal(
+                max_capacity_raw.replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+            ).quantize(Decimal("0.01"))
+            if max_capacity < 0:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            messages.error(request, "La quantité maximale doit être un nombre positif ou nul.")
+            return _redirect_after_tank_form(request)
 
     if request.user.role == "admin":
         station = Station.objects.filter(id=station_id, owner=request.user).first()
@@ -85,6 +98,7 @@ def create_tank_view(request):
         product=product,
         description=description or None,
         actual_quantity=actual_quantity,
+        max_capacity=max_capacity,
     )
     messages.success(request, f'Cuve "{name}" créée avec succès.')
     return _redirect_after_tank_form(request)
