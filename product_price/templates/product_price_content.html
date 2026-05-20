@@ -158,8 +158,9 @@
                 <button type="button" id="cancelCreateProductPriceModalBtn" class="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">
                     Annuler
                 </button>
-                <button type="submit" class="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold">
-                    Créer
+                <button type="submit" id="createProductPriceSubmitBtn" class="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="createProductPriceSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createProductPriceSubmitLabel">Créer</span>
                 </button>
             </div>
         </form>
@@ -218,8 +219,9 @@
                 <button type="button" id="cancelEditProductPriceModalBtn" class="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">
                     Annuler
                 </button>
-                <button type="submit" class="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold">
-                    Enregistrer
+                <button type="submit" id="editProductPriceSubmitBtn" class="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="editProductPriceSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="editProductPriceSubmitLabel">Enregistrer</span>
                 </button>
             </div>
         </form>
@@ -245,8 +247,9 @@
                 <button type="button" id="cancelDeleteProductPriceModalBtn" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-gray-700">
                     Annuler
                 </button>
-                <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
-                    Supprimer
+                <button type="submit" id="deleteProductPriceSubmitBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="deleteProductPriceSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="deleteProductPriceSubmitLabel">Supprimer</span>
                 </button>
             </form>
         </div>
@@ -260,7 +263,22 @@
     const modal = document.getElementById('createProductPriceModal');
     const editModal = document.getElementById('editProductPriceModal');
     const deleteModal = document.getElementById('deleteProductPriceModal');
+    const createForm = document.getElementById('createProductPriceForm');
+    const editForm = document.getElementById('editProductPriceForm');
+    const deleteForm = document.getElementById('deleteProductPriceForm');
     if (!modal) return;
+    const createSubmitBtn = document.getElementById('createProductPriceSubmitBtn');
+    const createSubmitSpinner = document.getElementById('createProductPriceSubmitSpinner');
+    const createSubmitLabel = document.getElementById('createProductPriceSubmitLabel');
+    const cancelCreateBtn = document.getElementById('cancelCreateProductPriceModalBtn');
+    const editSubmitBtn = document.getElementById('editProductPriceSubmitBtn');
+    const editSubmitSpinner = document.getElementById('editProductPriceSubmitSpinner');
+    const editSubmitLabel = document.getElementById('editProductPriceSubmitLabel');
+    const cancelEditBtn = document.getElementById('cancelEditProductPriceModalBtn');
+    const deleteSubmitBtn = document.getElementById('deleteProductPriceSubmitBtn');
+    const deleteSubmitSpinner = document.getElementById('deleteProductPriceSubmitSpinner');
+    const deleteSubmitLabel = document.getElementById('deleteProductPriceSubmitLabel');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteProductPriceModalBtn');
 
     function todayLocalISO() {
         const d = new Date();
@@ -271,6 +289,7 @@
     }
 
     function openModal() {
+        setCreateSubmitting(false);
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         document.body.style.overflow = 'hidden';
@@ -281,6 +300,7 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         document.body.style.overflow = 'auto';
+        setCreateSubmitting(false);
     }
 
     document.getElementById('openCreateProductPriceModal')?.addEventListener('click', openModal);
@@ -293,17 +313,20 @@
         editModal?.classList.add('hidden');
         editModal?.classList.remove('flex');
         document.body.style.overflow = 'auto';
+        setEditSubmitting(false);
     });
     document.getElementById('cancelEditProductPriceModalBtn')?.addEventListener('click', function() {
         editModal?.classList.add('hidden');
         editModal?.classList.remove('flex');
         document.body.style.overflow = 'auto';
+        setEditSubmitting(false);
     });
     editModal?.addEventListener('click', function(e) {
         if (e.target === editModal) {
             editModal.classList.add('hidden');
             editModal.classList.remove('flex');
             document.body.style.overflow = 'auto';
+            setEditSubmitting(false);
         }
     });
 
@@ -311,6 +334,7 @@
         deleteModal?.classList.add('hidden');
         deleteModal?.classList.remove('flex');
         document.body.style.overflow = 'auto';
+        setDeleteSubmitting(false);
     }
     document.getElementById('closeDeleteProductPriceModalBtn')?.addEventListener('click', closeDeleteModal);
     document.getElementById('cancelDeleteProductPriceModalBtn')?.addEventListener('click', closeDeleteModal);
@@ -318,9 +342,45 @@
         if (e.target === deleteModal) closeDeleteModal();
     });
 
-    var editForm = document.getElementById('editProductPriceForm');
     NumberFormat.initNumberInputs(modal);
     NumberFormat.initNumberInputs(editModal);
+
+    function setCreateSubmitting(isSubmitting) {
+        if (createSubmitBtn) createSubmitBtn.disabled = isSubmitting;
+        if (cancelCreateBtn) cancelCreateBtn.disabled = isSubmitting;
+        if (createSubmitSpinner) createSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (createSubmitLabel) createSubmitLabel.textContent = isSubmitting ? 'Création...' : 'Créer';
+    }
+
+    function setEditSubmitting(isSubmitting) {
+        if (editSubmitBtn) editSubmitBtn.disabled = isSubmitting;
+        if (cancelEditBtn) cancelEditBtn.disabled = isSubmitting;
+        if (editSubmitSpinner) editSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (editSubmitLabel) editSubmitLabel.textContent = isSubmitting ? 'Enregistrement...' : 'Enregistrer';
+    }
+
+    function setDeleteSubmitting(isSubmitting) {
+        if (deleteSubmitBtn) deleteSubmitBtn.disabled = isSubmitting;
+        if (cancelDeleteBtn) cancelDeleteBtn.disabled = isSubmitting;
+        if (deleteSubmitSpinner) deleteSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (deleteSubmitLabel) deleteSubmitLabel.textContent = isSubmitting ? 'Suppression...' : 'Supprimer';
+    }
+
+    createForm?.addEventListener('submit', function(e) {
+        if (createSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        setCreateSubmitting(true);
+    });
+
+    editForm?.addEventListener('submit', function(e) {
+        if (editSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        setEditSubmitting(true);
+    });
 
     document.querySelectorAll('.js-open-edit-price').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -346,17 +406,25 @@
         });
     });
 
-    const deleteForm = document.getElementById('deleteProductPriceForm');
     const deleteDate = document.getElementById('deleteProductPriceDate');
     document.querySelectorAll('.js-open-delete-price').forEach(function(btn) {
         btn.addEventListener('click', function() {
             if (!deleteForm) return;
             deleteForm.action = btn.dataset.deleteUrl || '';
             if (deleteDate) deleteDate.textContent = btn.dataset.effectiveFrom || '';
+            setDeleteSubmitting(false);
             deleteModal?.classList.remove('hidden');
             deleteModal?.classList.add('flex');
             document.body.style.overflow = 'hidden';
         });
+    });
+
+    deleteForm?.addEventListener('submit', function(e) {
+        if (deleteSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        setDeleteSubmitting(true);
     });
 })();
 </script>
