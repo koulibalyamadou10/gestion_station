@@ -10,6 +10,78 @@
     .chart-wrap { position: relative; min-height: 260px; }
     @media (min-width: 1024px) { .chart-wrap { min-height: 280px; } }
     .chart-wrap-sm { position: relative; min-height: 220px; max-width: 42rem; margin-left: auto; margin-right: auto; }
+    .tank-gauge-shell {
+        position: relative;
+        width: 140px;
+        height: 180px;
+        border: 4px solid #334155;
+        border-radius: 14px 14px 10px 10px;
+        background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
+        overflow: hidden;
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+    }
+    .tank-gauge-base {
+        width: 160px;
+        height: 10px;
+        background: #334155;
+        border-radius: 999px;
+        margin: 6px auto 0;
+    }
+    .tank-gauge-liquid {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 0%;
+        transition: height 1200ms ease-out;
+    }
+    .tank-gauge-liquid.gasoline {
+        background: linear-gradient(to top, #f59e0b 0%, #fbbf24 65%, #fde68a 100%);
+    }
+    .tank-gauge-liquid.diesel {
+        background: linear-gradient(to top, #475569 0%, #64748b 65%, #94a3b8 100%);
+    }
+    .tank-gauge-wave {
+        position: absolute;
+        top: -10px;
+        left: -50%;
+        width: 200%;
+        height: 20px;
+        opacity: 0.55;
+        animation: tank-wave-drift 3.2s linear infinite;
+        border-radius: 42%;
+        filter: blur(0.2px);
+    }
+    .tank-gauge-wave.gasoline {
+        background: rgba(255, 255, 255, 0.45);
+    }
+    .tank-gauge-wave.diesel {
+        background: rgba(255, 255, 255, 0.28);
+    }
+    .tank-gauge-percent {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #0f172a;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+    .tank-gauge-cap {
+        position: absolute;
+        top: -11px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 38px;
+        height: 10px;
+        border-radius: 6px 6px 0 0;
+        background: #334155;
+    }
+    @keyframes tank-wave-drift {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(50%); }
+    }
 </style>
 {% endblock %}
 
@@ -108,6 +180,69 @@
             </div>
         </div>
     </div>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-gray-800">
+            <i class="fas fa-oil-can mr-2 text-emerald-600"></i>Schéma visuel des cuves
+        </h2>
+        <p class="text-xs text-gray-500">Quantité actuelle / capacité maximale</p>
+    </div>
+    {% if tanks_visual %}
+    <div class="space-y-3">
+        {% for tank in tanks_visual %}
+        <div class="border border-gray-200 rounded-lg p-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div class="flex-1">
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900">{{ tank.name }}</p>
+                            <p class="text-xs text-gray-500">
+                                {% if dashboard_is_manager %}{{ tank.station_name }} · {% endif %}
+                                {% if tank.product == 'gasoline' %}Essence{% else %}Gazoil{% endif %}
+                            </p>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-700 tabular-nums">
+                            {{ tank.actual_quantity|money_fr }} L
+                            {% if tank.max_capacity is not None %}
+                            / {{ tank.max_capacity|money_fr }} L
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if tank.max_capacity is not None and tank.max_capacity > 0 %}
+                    <p class="text-xs text-gray-500">{{ tank.usage_percent|floatformat:1 }}% de remplissage</p>
+                    {% else %}
+                    <p class="text-xs text-gray-500">Capacité maximale non définie</p>
+                    {% endif %}
+                </div>
+
+                <div class="shrink-0 mx-auto md:mx-0">
+                    <div class="tank-gauge-shell">
+                        <div class="tank-gauge-cap" aria-hidden="true"></div>
+                        <div
+                            class="tank-gauge-liquid {% if tank.product == 'gasoline' %}gasoline{% else %}diesel{% endif %}"
+                            data-target-height="{% if tank.usage_percent is not None %}{{ tank.usage_percent|floatformat:2 }}{% else %}0{% endif %}"
+                        >
+                            <div class="tank-gauge-wave {% if tank.product == 'gasoline' %}gasoline{% else %}diesel{% endif %}" aria-hidden="true"></div>
+                        </div>
+                        <div class="tank-gauge-percent">
+                            {% if tank.usage_percent is not None %}
+                                {{ tank.usage_percent|floatformat:1 }}%
+                            {% else %}
+                                -
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="tank-gauge-base" aria-hidden="true"></div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-500">Aucune cuve disponible sur votre périmètre.</p>
     {% endif %}
 </div>
 
@@ -462,4 +597,17 @@
 })();
 </script>
 {% endif %}
+<script>
+(function() {
+    const liquids = document.querySelectorAll('.tank-gauge-liquid[data-target-height]');
+    if (!liquids.length) return;
+    requestAnimationFrame(function() {
+        liquids.forEach(function(liquid) {
+            const target = parseFloat(liquid.getAttribute('data-target-height') || '0');
+            const safeTarget = Number.isFinite(target) ? Math.max(0, Math.min(target, 100)) : 0;
+            liquid.style.height = safeTarget + '%';
+        });
+    });
+})();
+</script>
 {% endblock %}

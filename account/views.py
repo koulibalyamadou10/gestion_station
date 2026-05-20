@@ -142,6 +142,7 @@ def _build_dashboard_context(user):
     from sale.models import Sale
     from order.models import Order
     from wallet.models import Account
+    from tank.models import Tank
 
     stations_qs = _stations_scope_for_dashboard(user)
     station_ids = list(stations_qs.values_list("id", flat=True))
@@ -233,6 +234,30 @@ def _build_dashboard_context(user):
     if dashboard_is_manager and stations_qs.exists():
         manager_station_name = stations_qs.first().name
 
+    tanks_visual = []
+    if station_ids:
+        tanks_qs = (
+            Tank.objects.filter(station_id__in=station_ids)
+            .select_related("station")
+            .order_by("station__name", "name")
+        )
+        for tank in tanks_qs:
+            max_capacity = tank.max_capacity
+            current_qty = tank.actual_quantity or Decimal("0")
+            usage_percent = None
+            if max_capacity is not None and max_capacity > 0:
+                usage_percent = float(min((current_qty / max_capacity) * Decimal("100"), Decimal("100")))
+            tanks_visual.append(
+                {
+                    "name": tank.name,
+                    "station_name": tank.station.name,
+                    "product": tank.product,
+                    "actual_quantity": current_qty,
+                    "max_capacity": max_capacity,
+                    "usage_percent": usage_percent,
+                }
+            )
+
     return {
         "stations_count": stations_count,
         "total_liters_month": total_liters_month,
@@ -256,6 +281,7 @@ def _build_dashboard_context(user):
         "dashboard_charts_full": dashboard_charts_full,
         "dashboard_charts_manager_sales_only": dashboard_charts_manager_sales_only,
         "manager_station_name": manager_station_name,
+        "tanks_visual": tanks_visual,
     }
 
 

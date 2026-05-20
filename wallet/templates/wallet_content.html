@@ -239,7 +239,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelEditWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+                <button type="submit" id="editWalletSubmitBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="editWalletSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="editWalletSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -429,7 +432,17 @@
     const cancelEditWalletModalBtn = document.getElementById('cancelEditWalletModal');
     const editWalletStationLabel = document.getElementById('editWalletStationLabel');
     const editWalletNameInput = document.getElementById('editWalletNameInput');
+    const editWalletSubmitBtn = document.getElementById('editWalletSubmitBtn');
+    const editWalletSubmitSpinner = document.getElementById('editWalletSubmitSpinner');
+    const editWalletSubmitLabel = document.getElementById('editWalletSubmitLabel');
     const UPDATE_WALLET_URL_PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
+
+    function setEditWalletSubmitting(isSubmitting) {
+        if (editWalletSubmitBtn) editWalletSubmitBtn.disabled = isSubmitting;
+        if (cancelEditWalletModalBtn) cancelEditWalletModalBtn.disabled = isSubmitting;
+        if (editWalletSubmitSpinner) editWalletSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (editWalletSubmitLabel) editWalletSubmitLabel.textContent = isSubmitting ? 'Enregistrement...' : 'Enregistrer';
+    }
 
     function sanitizeEditWalletNameInput() {
         if (!editWalletNameInput) return;
@@ -443,17 +456,26 @@
         editWalletNameInput.value = (currentName || '').toUpperCase();
         const baseUrl = editWalletForm.action;
         editWalletForm.action = baseUrl.replace(UPDATE_WALLET_URL_PLACEHOLDER, walletUuid);
+        setEditWalletSubmitting(false);
         editWalletModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
     function closeEditWalletModal() {
+        setEditWalletSubmitting(false);
         editWalletModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
 
     editWalletNameInput?.addEventListener('input', sanitizeEditWalletNameInput);
     editWalletNameInput?.addEventListener('blur', sanitizeEditWalletNameInput);
+    editWalletForm?.addEventListener('submit', function(e) {
+        if (editWalletSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        setEditWalletSubmitting(true);
+    });
     closeEditWalletModalBtn?.addEventListener('click', closeEditWalletModal);
     cancelEditWalletModalBtn?.addEventListener('click', closeEditWalletModal);
     editWalletModal?.addEventListener('click', function(e) {
