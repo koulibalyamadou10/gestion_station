@@ -1,15 +1,18 @@
-from datetime import date
+from collections import defaultdict
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock
 from inventory.models import Inventory
 from pumps.views import reverse_bulk_pump_reading_inventory
+from sale.models import Sale
 from stations.models import Station
 
 
@@ -184,6 +187,50 @@ def _system_stock_for_daily_compare(station_id, stock_date):
     return sys_g, sys_d, ("cumulative" if has_row else "none")
 
 
+def _aggregate_sales_by_date(station_id, min_date, max_date):
+    """Ventes (L) par jour entre deux dates incluses."""
+    by_date = defaultdict(lambda: (Decimal("0"), Decimal("0")))
+    rows = (
+        Sale.objects.filter(
+            station_id=station_id,
+            sale_date__gte=min_date,
+            sale_date__lte=max_date,
+        )
+        .values("sale_date")
+        .annotate(g=Sum("qty_gasoline"), d=Sum("qty_diesel"))
+    )
+    for row in rows:
+        by_date[row["sale_date"]] = (
+            row["g"] or Decimal("0"),
+            row["d"] or Decimal("0"),
+        )
+    return by_date
+
+
+def _sum_sales_in_period(by_date, date_from, date_to):
+    total_g = Decimal("0")
+    total_d = Decimal("0")
+    current = date_from
+    while current <= date_to:
+        g, d = by_date.get(current, (Decimal("0"), Decimal("0")))
+        total_g += g
+        total_d += d
+        current += timedelta(days=1)
+    return total_g, total_d
+
+
+def _sales_period_for_daily_stock(stock_date, previous_stock_date):
+    """
+    Période de ventes à imputer au relevé gérant du ``stock_date`` (jauge matin).
+    - Premier relevé : ventes du jour du relevé uniquement.
+    - Sinon : du lendemain du dernier relevé jusqu'au jour du relevé inclus
+      (le stock système reflète souvent les index / ventes déjà décomptés).
+    """
+    if previous_stock_date is None:
+        return stock_date, stock_date
+    return previous_stock_date + timedelta(days=1), stock_date
+
+
 @login_required
 def compare_receptions_vs_sales_view(request):
     """
@@ -234,22 +281,53 @@ def compare_receptions_vs_sales_view(request):
 
         ds_qs = ds_qs.order_by("-stock_date", "-id")
         daily_stock_count = ds_qs.count()
+        ds_list = list(ds_qs)
 
-        for ds in ds_qs:
+        previous_stock_date_by_current = {}
+        seen_stock_dates = []
+        for ds in sorted(ds_list, key=lambda x: x.stock_date):
+            previous_stock_date_by_current[ds.stock_date] = (
+                seen_stock_dates[-1] if seen_stock_dates else None
+            )
+            seen_stock_dates.append(ds.stock_date)
+
+        if ds_list:
+            min_sale_date = min(ds.stock_date for ds in ds_list)
+            max_sale_date = max(ds.stock_date for ds in ds_list)
+            sales_by_date = _aggregate_sales_by_date(
+                int(station_filter), min_sale_date, max_sale_date
+            )
+        else:
+            sales_by_date = {}
+
+        for ds in ds_list:
             sys_g, sys_d, system_source = _system_stock_for_daily_compare(
                 ds.station_id, ds.stock_date
             )
-            # Écart (L) = relevé gérant (DailyStock) − niveau système (Inventory), signé (+ ou −)
             decl_g = ds.qty_gasoline or Decimal("0")
             decl_d = ds.qty_diesel or Decimal("0")
+            prev_stock_date = previous_stock_date_by_current.get(ds.stock_date)
+            sales_from, sales_to = _sales_period_for_daily_stock(
+                ds.stock_date, prev_stock_date
+            )
+            sales_g, sales_d = _sum_sales_in_period(sales_by_date, sales_from, sales_to)
+            delta_g = decl_g - sys_g
+            delta_d = decl_d - sys_d
+            # Écart ajusté : le gérant jauge le matin ; le système a souvent déjà déduit les ventes.
             comparison_rows.append(
                 {
                     "daily": ds,
                     "system_gasoline": sys_g,
                     "system_diesel": sys_d,
                     "system_source": system_source,
-                    "delta_gasoline": decl_g - sys_g,
-                    "delta_diesel": decl_d - sys_d,
+                    "sales_gasoline": sales_g,
+                    "sales_diesel": sales_d,
+                    "sales_from": sales_from,
+                    "sales_to": sales_to,
+                    "delta_gasoline": delta_g,
+                    "delta_diesel": delta_d,
+                    "delta_adjusted_gasoline": delta_g - sales_g,
+                    "delta_adjusted_diesel": delta_d - sales_d,
                 }
             )
 
