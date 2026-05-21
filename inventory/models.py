@@ -13,10 +13,12 @@ class Inventory(models.Model):
     SOURCE_BULK_READING = "bulk_reading"
     SOURCE_SALE = "sale"
     SOURCE_STATION_INIT = "station_init"
+    SOURCE_TANK_INIT = "tank_init"
     SOURCE_CHOICES = [
         (SOURCE_BULK_READING, "Saisie groupée pompes"),
         (SOURCE_SALE, "Vente (lecture unitaire)"),
         (SOURCE_STATION_INIT, "Création station"),
+        (SOURCE_TANK_INIT, "Création cuve"),
     ]
 
     station = models.ForeignKey("stations.Station", on_delete=models.CASCADE)
