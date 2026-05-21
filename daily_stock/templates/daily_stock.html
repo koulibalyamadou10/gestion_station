@@ -181,7 +181,7 @@
                                         min="0"
                                         step="0.01"
                                         required
-                                        value=""
+                                        value="0"
                                         class="tank-qty-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"
                                         data-product="{{ tank.product }}"
                                         placeholder="0"
@@ -265,7 +265,7 @@
     function openM() {
         modal?.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
-        document.querySelectorAll('.tank-qty-input').forEach(function(inp) { inp.value = ''; });
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) { inp.value = '0'; });
         updateTankTotals();
         resetDailyStockSubmit();
     }
