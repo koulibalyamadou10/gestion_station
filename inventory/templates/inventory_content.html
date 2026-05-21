@@ -65,7 +65,7 @@
                 {% if inventory_rows %}
                     {% for row in inventory_rows %}
                     <tr class="hover:bg-gray-50 transition-colors">
-                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ row.created_at|date:"d/m/Y H:i" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ row.created_at|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.station.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.qty_gasoline|money_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ row.qty_diesel|money_fr }}</td>

@@ -14,16 +14,29 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from pathlib import Path
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import FileResponse
 from django.urls import path, include
 from django.shortcuts import render
 
 def view_home(request):
     return render(request, 'home.html')
 
+
+def favicon_view(request):
+    favicon_path = Path(settings.MEDIA_ROOT) / 'favicon.ico'
+    if not favicon_path.is_file():
+        from django.http import HttpResponseNotFound
+        return HttpResponseNotFound()
+    return FileResponse(favicon_path.open('rb'), content_type='image/vnd.microsoft.icon')
+
+
 urlpatterns = [
+    path('favicon.ico', favicon_view, name='favicon'),
     path('admin/', admin.site.urls),
     path('', view_home, name='home'),
     path('', include('account.urls')),
