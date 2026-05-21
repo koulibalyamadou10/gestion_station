@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.http import JsonResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 from city.models import City
@@ -439,6 +440,17 @@ def update_station_view(request, station_uuid):
     
     return redirect('stations:stations_list')
 
+def _redirect_after_failed_station_delete(request, station_uuid):
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("stations:stations_list")
+
+
 @login_required
 def delete_station_view(request, station_uuid):
     """
@@ -448,23 +460,33 @@ def delete_station_view(request, station_uuid):
     if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission de supprimer une station.')
         return redirect('stations:stations_list')
-    
+
+    station = get_object_or_404(Station, station_uuid=station_uuid)
+
     if request.method == 'POST':
+        password = (request.POST.get("password") or "").strip()
+        if not password:
+            messages.error(
+                request,
+                "Veuillez saisir votre mot de passe pour confirmer la suppression.",
+            )
+            return _redirect_after_failed_station_delete(request, station_uuid)
+        if not request.user.check_password(password):
+            messages.error(request, "Mot de passe incorrect.")
+            return _redirect_after_failed_station_delete(request, station_uuid)
+
         try:
-            station = get_object_or_404(Station, station_uuid=station_uuid)
-            
-            # Vérifier les permissions
             if request.user.role == 'admin' and station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de supprimer cette station.')
                 return redirect('stations:stations_list')
-            
+
             station_name = station.name
             station.delete()
-            
+
             messages.success(request, f'La station "{station_name}" a été supprimée avec succès.')
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
-    
+
     return redirect('stations:stations_list')
 
 @login_required

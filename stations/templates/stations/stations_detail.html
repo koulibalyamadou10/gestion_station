@@ -36,6 +36,8 @@
                         id="deleteStationForm"
                     >
                         {% csrf_token %}
+                        <input type="hidden" name="password" id="deleteStationPasswordHidden" value="">
+                        <input type="hidden" name="next" value="{{ request.path }}">
                         <button 
                             type="submit"
                             class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-semibold flex items-center"
@@ -488,15 +490,30 @@
                 </div>
                 <h3 class="text-lg font-bold text-gray-800">Confirmer la suppression</h3>
             </div>
-            <p class="text-sm text-gray-600 mb-5">
+            <p class="text-sm text-gray-600 mb-4">
                 Voulez-vous vraiment supprimer la station <strong>{{ station.name }}</strong> ?
+                Cette action est irréversible.
             </p>
+            <div class="mb-5">
+                <label for="deleteStationPassword" class="block text-sm font-semibold text-gray-700 mb-2">
+                    Mot de passe <span class="text-red-500">*</span>
+                </label>
+                <input
+                    type="password"
+                    id="deleteStationPassword"
+                    autocomplete="current-password"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                    placeholder="Votre mot de passe de connexion"
+                >
+                <p class="text-xs text-gray-500 mt-1">Saisissez votre mot de passe pour confirmer la suppression.</p>
+            </div>
             <div class="flex items-center justify-end gap-3">
                 <button id="cancelDeleteStationBtn" type="button" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-semibold">
                     Annuler
                 </button>
-                <button id="confirmDeleteStationBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold">
-                    Supprimer
+                <button id="confirmDeleteStationBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="confirmDeleteStationSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="confirmDeleteStationLabel">Supprimer</span>
                 </button>
             </div>
         </div>
@@ -792,8 +809,8 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité maximale (L)</label>
-                <input type="text" name="max_capacity" inputmode="decimal" autocomplete="off" class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Optionnel">
-                <p class="text-xs text-gray-500 mt-1">Champ facultatif.</p>
+                <input type="text" name="max_capacity" inputmode="decimal" autocomplete="off" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-right tabular-nums" placeholder="Ex. 50 000 ou 50 000,60">
+                <p class="text-xs text-gray-500 mt-1">Champ facultatif. Séparateur de milliers à la saisie.</p>
             </div>
 
             <div>
@@ -840,10 +857,10 @@
                     id="stationDetailEditTankMaxCapacityInput"
                     inputmode="decimal"
                     autocomplete="off"
-                    class="js-decimal-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
-                    placeholder="Optionnel"
+                    class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-right tabular-nums"
+                    placeholder="Ex. 50 000 ou 50 000,60"
                 >
-                <p class="text-xs text-gray-500 mt-1">Laissez vide pour retirer la valeur maximale.</p>
+                <p class="text-xs text-gray-500 mt-1">Laissez vide pour retirer la valeur maximale. Séparateur de milliers à la saisie.</p>
             </div>
 
             <div class="flex items-center justify-end gap-3 pt-2">
@@ -1040,7 +1057,14 @@
             editTankMaxCapacityForm.action = updateUrl || '';
             if (editTankMaxCapacityName) editTankMaxCapacityName.textContent = tankName || '-';
             if (editTankMaxCapacityInput) {
-                editTankMaxCapacityInput.value = maxCapacityValue || '';
+                const rawMax = (maxCapacityValue || '').toString().trim();
+                if (rawMax && window.NumberFormat) {
+                    editTankMaxCapacityInput.value = window.NumberFormat.formatAmount(
+                        window.NumberFormat.parseAmountInput(rawMax)
+                    );
+                } else {
+                    editTankMaxCapacityInput.value = rawMax;
+                }
             }
             editTankMaxCapacityModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
@@ -1576,14 +1600,30 @@
     
     const deleteStationModal = document.getElementById('deleteStationModal');
     const deleteStationForm = document.getElementById('deleteStationForm');
+    const deleteStationPassword = document.getElementById('deleteStationPassword');
+    const deleteStationPasswordHidden = document.getElementById('deleteStationPasswordHidden');
     const cancelDeleteStationBtn = document.getElementById('cancelDeleteStationBtn');
     const confirmDeleteStationBtn = document.getElementById('confirmDeleteStationBtn');
+    const confirmDeleteStationSpinner = document.getElementById('confirmDeleteStationSpinner');
+    const confirmDeleteStationLabel = document.getElementById('confirmDeleteStationLabel');
+
+    function setDeleteStationSubmitting(isSubmitting) {
+        if (confirmDeleteStationBtn) confirmDeleteStationBtn.disabled = isSubmitting;
+        if (cancelDeleteStationBtn) cancelDeleteStationBtn.disabled = isSubmitting;
+        if (deleteStationPassword) deleteStationPassword.disabled = isSubmitting;
+        if (confirmDeleteStationSpinner) confirmDeleteStationSpinner.classList.toggle('hidden', !isSubmitting);
+        if (confirmDeleteStationLabel) confirmDeleteStationLabel.textContent = isSubmitting ? 'Suppression…' : 'Supprimer';
+    }
 
     deleteStationForm?.addEventListener('submit', function(e) {
         e.preventDefault();
+        if (deleteStationPassword) deleteStationPassword.value = '';
+        if (deleteStationPasswordHidden) deleteStationPasswordHidden.value = '';
+        setDeleteStationSubmitting(false);
         if (deleteStationModal) {
             deleteStationModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            deleteStationPassword?.focus();
         }
     });
 
@@ -1592,10 +1632,22 @@
             deleteStationModal.classList.add('hidden');
         }
         document.body.style.overflow = 'auto';
+        if (deleteStationPassword) deleteStationPassword.value = '';
+        if (deleteStationPasswordHidden) deleteStationPasswordHidden.value = '';
+        setDeleteStationSubmitting(false);
     }
 
     cancelDeleteStationBtn?.addEventListener('click', closeDeleteStationModal);
     confirmDeleteStationBtn?.addEventListener('click', function () {
+        if (confirmDeleteStationBtn?.disabled) return;
+        const pwd = (deleteStationPassword?.value || '').trim();
+        if (!pwd) {
+            alert('Veuillez saisir votre mot de passe pour confirmer la suppression.');
+            deleteStationPassword?.focus();
+            return;
+        }
+        if (deleteStationPasswordHidden) deleteStationPasswordHidden.value = pwd;
+        setDeleteStationSubmitting(true);
         deleteStationForm?.submit();
     });
     deleteStationModal?.addEventListener('click', function (e) {
