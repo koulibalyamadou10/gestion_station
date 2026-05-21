@@ -433,6 +433,9 @@ def order_confirm_view(request, order_uuid):
 
     purchase_order_reference = (request.POST.get("purchase_order_reference") or "").strip() or None
     purchase_order_file = request.FILES.get("purchase_order_file")
+    truck_number = (request.POST.get("truck_number") or "").strip() or None
+    driver_name = (request.POST.get("driver_name") or "").strip() or None
+    driver_phone = (request.POST.get("driver_phone") or "").strip() or None
 
     with transaction.atomic():
         OrderSupplier.objects.create(
@@ -442,6 +445,9 @@ def order_confirm_view(request, order_uuid):
             qty_diesel=qty_diesel,
             unit_price_gasoline=unit_price_gasoline,
             unit_price_diesel=unit_price_diesel,
+            truck_number=truck_number,
+            driver_name=driver_name,
+            driver_phone=driver_phone,
         )
         order.status = Order.STATUS_CONFIRMED
         order.purchase_order_reference = purchase_order_reference

@@ -75,6 +75,11 @@
             </div>
         </div>
         <div class="md:col-span-2 pt-2 border-t border-gray-100"><span class="text-gray-500">Fournisseur :</span> <span class="font-semibold text-gray-800">{{ order_supplier.supplier.name|default:"Non défini" }}</span></div>
+        <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100 text-sm">
+            <div><span class="text-gray-500">N° véhicule :</span> <span class="font-semibold text-gray-800">{{ order_supplier.truck_number|default:"—" }}</span></div>
+            <div><span class="text-gray-500">Chauffeur :</span> <span class="font-semibold text-gray-800">{{ order_supplier.driver_name|default:"—" }}</span></div>
+            <div><span class="text-gray-500">Téléphone :</span> <span class="font-semibold text-gray-800">{{ order_supplier.driver_phone|default:"—" }}</span></div>
+        </div>
     </div>
     {% else %}
     <p class="text-gray-500 text-sm">Pas encore de ligne fournisseur — la commande sera finalisée à la confirmation par l’administrateur.</p>

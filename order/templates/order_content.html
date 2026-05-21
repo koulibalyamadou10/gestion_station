@@ -158,6 +158,9 @@
                                     data-order-date="{{ order.order_date|date:'d/m/Y' }}"
                                     data-requested-qty-gasoline="{{ order.requested_qty_gasoline }}"
                                     data-requested-qty-diesel="{{ order.requested_qty_diesel }}"
+                                    data-truck-number="{{ order.truck_number|default:'' }}"
+                                    data-driver-name="{{ order.driver_name|default:'' }}"
+                                    data-driver-phone="{{ order.driver_phone|default:'' }}"
                                 >
                                     <i class="fas fa-check-circle"></i>
                                 </button>
@@ -191,9 +194,9 @@
                                         data-station-id="{{ order.station_id }}"
                                         data-qty-gasoline="{{ line.qty_gasoline }}"
                                         data-qty-diesel="{{ line.qty_diesel }}"
-                                        data-truck-number="{{ order.truck_number|default:'' }}"
-                                        data-driver-name="{{ order.driver_name|default:'' }}"
-                                        data-driver-phone="{{ order.driver_phone|default:'' }}"
+                                        data-truck-number="{{ line.truck_number|default:'' }}"
+                                        data-driver-name="{{ line.driver_name|default:'' }}"
+                                        data-driver-phone="{{ line.driver_phone|default:'' }}"
                                     >
                                         <i class="fas fa-truck"></i>
                                     </button>
@@ -438,6 +441,24 @@
                             <span class="leading-tight">Gasoil (L)</span><span class="text-red-500 shrink-0" aria-hidden="true">*</span>
                         </label>
                         <input type="number" name="confirm_qty_diesel" id="confirm_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg tabular-nums">
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-3 rounded-lg border border-gray-200 bg-slate-50/80 px-4 py-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Transport</p>
+                <p class="text-xs text-gray-500">Renseigné par le gérant à la création — vous pouvez corriger avant confirmation.</p>
+                <div>
+                    <label for="confirm_truck_number" class="block text-sm font-semibold text-gray-700 mb-2">N° véhicule / camion</label>
+                    <input type="text" name="truck_number" id="confirm_truck_number" maxlength="50" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Ex. AB-123-CD">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="confirm_driver_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du chauffeur</label>
+                        <input type="text" name="driver_name" id="confirm_driver_name" maxlength="100" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Nom complet">
+                    </div>
+                    <div>
+                        <label for="confirm_driver_phone" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone chauffeur</label>
+                        <input type="tel" name="driver_phone" id="confirm_driver_phone" maxlength="100" autocomplete="tel" inputmode="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Ex. +224 …">
                     </div>
                 </div>
             </div>
@@ -767,7 +788,7 @@
         lockBody(false);
     }
 
-    function openConfirmOrderModal(orderUuid, stationName, orderDate, requestedGasoline, requestedDiesel) {
+    function openConfirmOrderModal(orderUuid, stationName, orderDate, requestedGasoline, requestedDiesel, truckNumber, driverName, driverPhone) {
         if (!confirmOrderModal || !confirmOrderForm) return;
         confirmOrderForm.action = orderConfirmUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
         if (confirmOrderStation) confirmOrderStation.textContent = stationName || '';
@@ -778,6 +799,12 @@
         const cqD = document.getElementById('confirm_qty_diesel');
         if (cqG) cqG.value = requestedGasoline != null && requestedGasoline !== '' ? String(requestedGasoline) : '0';
         if (cqD) cqD.value = requestedDiesel != null && requestedDiesel !== '' ? String(requestedDiesel) : '0';
+        const truckEl = document.getElementById('confirm_truck_number');
+        const driverEl = document.getElementById('confirm_driver_name');
+        const phoneEl = document.getElementById('confirm_driver_phone');
+        if (truckEl) truckEl.value = truckNumber != null ? String(truckNumber) : '';
+        if (driverEl) driverEl.value = driverName != null ? String(driverName) : '';
+        if (phoneEl) phoneEl.value = driverPhone != null ? String(driverPhone) : '';
         const poFile = document.getElementById('purchase_order_file');
         const poRef = document.getElementById('purchase_order_reference');
         clearPurchaseOrderPreview();
@@ -811,7 +838,10 @@
                 btn.dataset.station || '',
                 btn.dataset.orderDate || '',
                 btn.dataset.requestedQtyGasoline,
-                btn.dataset.requestedQtyDiesel
+                btn.dataset.requestedQtyDiesel,
+                btn.dataset.truckNumber,
+                btn.dataset.driverName,
+                btn.dataset.driverPhone
             );
         });
     });
