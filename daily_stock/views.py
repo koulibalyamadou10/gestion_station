@@ -48,23 +48,22 @@ def _stock_detail_allowed_stations(user):
     return Station.objects.none()
 
 
-def _inventory_qty_at_period_start(station_id, date_from, station_fallback):
+def _inventory_qty_at_period_start(station_id, date_from):
     """
-    Stock cuve au début de la période : dernier inventaire système avec
-    ``created_at`` au plus tard le jour ``date_from`` (inclus), sinon stocks cuve sur la station.
+    Stock cuve au début de la période : premier inventaire système dont
+    ``created_at`` est au moins le jour ``date_from`` (inclus).
+    Retourne (None, None) s'il n'y en a pas — pas de repli sur la station.
     """
-    last = (
+    first = (
         Inventory.objects.filter(
-            station_id=station_id, created_at__date__lte=date_from
+            station_id=station_id, created_at__date__gte=date_from
         )
-        .order_by("-created_at", "-id")
+        .order_by("created_at", "id")
         .first()
     )
-    if last:
-        return last.qty_gasoline or Decimal("0"), last.qty_diesel or Decimal("0")
-    g = station_fallback.stock_gasoline or Decimal("0")
-    d = station_fallback.stock_diesel or Decimal("0")
-    return g, d
+    if not first:
+        return None, None
+    return first.qty_gasoline or Decimal("0"), first.qty_diesel or Decimal("0")
 
 
 def _day_sale_totals(station_id, d):
@@ -99,26 +98,27 @@ def _day_reception_net_totals(station_id, d):
     return g, dz
 
 
-def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
+def _build_cuve_ledger(station_id, date_from, date_to):
     """
-    Grand livre : Stock départ (Inventory à la date début), puis par jour
+    Grand livre : Stock départ (premier Inventory >= date début), puis par jour
     Vente (Sale, agrégé) puis Réception (Delivery, livré − manquant, plusieurs livraisons sommées).
     Stock après Vente = stock précédent − sortie ; après Réception = stock précédent + entrée.
     """
-    open_g, open_d = _inventory_qty_at_period_start(station_id, date_from, station_obj)
+    open_g, open_d = _inventory_qty_at_period_start(station_id, date_from)
 
-    def build_one(opening: Decimal, vente_fn, recv_fn):
+    def build_one(opening, vente_fn, recv_fn):
         rows = []
-        rows.append(
-            {
-                "date": date_from,
-                "label": "Stock départ",
-                "entree": opening,
-                "sortie": None,
-                "stock": opening,
-            }
-        )
-        cur = opening
+        cur = opening if opening is not None else Decimal("0")
+        if opening is not None:
+            rows.append(
+                {
+                    "date": date_from,
+                    "label": "Stock départ",
+                    "entree": opening,
+                    "sortie": None,
+                    "stock": opening,
+                }
+            )
         d = date_from
         while d <= date_to:
             vendu = vente_fn(d)
@@ -164,7 +164,9 @@ def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
 def _ledger_period_stats(rows):
     total_entree = Decimal("0")
     total_sortie = Decimal("0")
-    for row in rows[1:]:
+    for row in rows:
+        if row["label"] == "Stock départ":
+            continue
         if row["label"] == "Réception" and row["entree"] is not None:
             total_entree += row["entree"]
         if row["label"] == "Vente" and row["sortie"] is not None:
@@ -180,8 +182,8 @@ def _ledger_period_stats(rows):
 @login_required
 def stock_detail_view(request):
     """
-    Détail mouvements cuves : stock départ (Inventory), sorties ventes (Sale),
-    entrées réceptions (Delivery net).
+    Détail mouvements cuves : stock départ (premier Inventory >= date début),
+    sorties ventes (Sale), entrées réceptions (Delivery net).
     """
     if request.user.role not in ("admin", "manager", "super_admin"):
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
@@ -241,7 +243,7 @@ def stock_detail_view(request):
         selected_station = stations_qs.filter(pk=station_filter).first()
         if selected_station:
             rows_essence, rows_gazoil = _build_cuve_ledger(
-                selected_station.pk, date_from, date_to, selected_station
+                selected_station.pk, date_from, date_to
             )
             stats_e = _ledger_period_stats(rows_essence)
             stats_g = _ledger_period_stats(rows_gazoil)
