@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -166,16 +166,24 @@ def create_station_view(request):
         if not name or not city_id or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations:stations_list')
-        
-        if not latitude or not longitude:
-            messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
-            return redirect('stations:stations_list')
-        
+
+        latitude_decimal = None
+        longitude_decimal = None
+        if latitude or longitude:
+            if not latitude or not longitude:
+                messages.error(
+                    request,
+                    'Si vous renseignez la carte, sélectionnez un point complet (latitude et longitude).',
+                )
+                return redirect('stations:stations_list')
+            try:
+                latitude_decimal = Decimal(latitude)
+                longitude_decimal = Decimal(longitude)
+            except (InvalidOperation, ValueError):
+                messages.error(request, 'Coordonnées de la carte invalides.')
+                return redirect('stations:stations_list')
+
         try:
-            # Convertir les coordonnées en Decimal
-            latitude_decimal = Decimal(latitude)
-            longitude_decimal = Decimal(longitude)
-            
             # Ville sélectionnée
             try:
                 city = City.objects.get(id=city_id)

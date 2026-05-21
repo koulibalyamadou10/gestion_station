@@ -289,9 +289,9 @@
             <!-- Carte Mapbox pour sélectionner l'emplacement -->
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                    Emplacement sur la carte <span class="text-red-500">*</span>
+                    Emplacement sur la carte <span class="text-gray-400 font-normal">(optionnel)</span>
                 </label>
-                <p class="text-xs text-gray-500 mb-2">Cliquez sur la carte pour définir l'emplacement exact de la station</p>
+                <p class="text-xs text-gray-500 mb-2">Cliquez sur la carte pour définir l'emplacement exact de la station (facultatif)</p>
                 <div id="map" class="w-full h-96 rounded-lg border border-gray-300 overflow-hidden"></div>
                 <div class="mt-2 flex items-center space-x-4 text-sm">
                     <div class="flex items-center text-gray-600">
@@ -300,8 +300,8 @@
                     </div>
                 </div>
                 <!-- Champs cachés pour latitude et longitude -->
-                <input type="hidden" name="latitude" id="latitude" required>
-                <input type="hidden" name="longitude" id="longitude" required>
+                <input type="hidden" name="latitude" id="latitude">
+                <input type="hidden" name="longitude" id="longitude">
             </div>
 
             <!-- Champ propriétaire : visible uniquement pour super_admin -->
@@ -716,11 +716,6 @@
     createStationForm?.addEventListener('submit', function(e) {
         if (createStationSubmitBtn?.disabled) {
             e.preventDefault();
-            return false;
-        }
-        if (!latitudeInput.value || !longitudeInput.value) {
-            e.preventDefault();
-            alert('Veuillez sélectionner un emplacement sur la carte en cliquant dessus.');
             return false;
         }
         if (window.NumberFormat) {
