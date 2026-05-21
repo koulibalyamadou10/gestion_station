@@ -104,6 +104,10 @@ class OrderSupplier(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    truck_number = models.CharField(max_length=50, null=True, blank=True)
+    driver_name = models.CharField(max_length=100, null=True, blank=True)
+    driver_phone = models.CharField(max_length=100, null=True, blank=True)
+
     class Meta:
         db_table = "commande_fournisseur"
 
