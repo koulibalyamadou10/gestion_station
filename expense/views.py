@@ -27,7 +27,7 @@ EXPENSE_CATEGORY_LABELS = [
 
 
 class InsufficientBalanceError(Exception):
-    """Raised when wallet balance is too low for the expense."""
+    """Raised when compte balance is too low for the expense."""
 
 
 def _normalize_category(raw: str) -> Optional[str]:
@@ -139,7 +139,7 @@ def expense_list_view(request):
         except InsufficientBalanceError:
             messages.error(
                 request,
-                "Solde du wallet insuffisant pour enregistrer cette dépense.",
+                "Solde du compte insuffisant pour enregistrer cette dépense.",
             )
             return redirect("expense:expense_list")
         except ValueError as exc:

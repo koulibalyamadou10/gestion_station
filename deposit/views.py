@@ -183,7 +183,7 @@ def update_deposit_view(request, pk):
     """
     Modification d'un versement (dépense) — réservé au gérant de la station du compte.
 
-    Solde wallet : on réintègre d'abord l'ancien montant sur le compte concerné, puis on
+    Solde compte : on réintègre d'abord l'ancien montant sur le compte concerné, puis on
     débite le nouveau montant. Équivalent au delta (nouveau − ancien) sur le même compte :
     ex. 20 000 → 30 000 : débit supplémentaire de 10 000 (refus si solde insuffisant) ;
     20 000 → 10 000 : recrédit net de 10 000.
@@ -262,7 +262,7 @@ def update_deposit_view(request, pk):
             if old_acc.station_id != manager_station.id or new_acc.station_id != manager_station.id:
                 raise ValueError("invalid_wallet")
 
-            # 1) Réintégrer l'ancien débit (le wallet reçoit de nouveau l'ancien montant)
+            # 1) Réintégrer l'ancien débit (le compte reçoit de nouveau l'ancien montant)
             old_bal = old_acc.balance or Decimal("0")
             old_acc.balance = old_bal + old_amount
             old_acc.save(update_fields=["balance", "updated_at"])
@@ -271,7 +271,7 @@ def update_deposit_view(request, pk):
             if new_acc.pk == old_acc.pk:
                 new_acc.refresh_from_db()
 
-            # 2) Appliquer le nouveau débit (même logique qu'à la création : diminution du wallet)
+            # 2) Appliquer le nouveau débit (même logique qu'à la création : diminution du compte)
             new_bal = new_acc.balance or Decimal("0")
             if new_bal < new_amount:
                 raise ValueError("insufficient_balance")
