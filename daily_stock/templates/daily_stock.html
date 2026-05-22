@@ -174,15 +174,15 @@
                                     <p class="text-xs text-gray-500 truncate">{{ tank.description }}</p>
                                     {% endif %}
                                 </div>
-                                <div class="w-28 shrink-0">
+                                <div class="w-32 shrink-0">
                                     <input
-                                        type="number"
+                                        type="text"
                                         name="tank_{{ tank.id }}"
-                                        min="0"
-                                        step="0.01"
+                                        inputmode="decimal"
+                                        autocomplete="off"
                                         required
                                         value="0"
-                                        class="tank-qty-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"
+                                        class="tank-qty-input js-number-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"
                                         data-product="{{ tank.product }}"
                                         placeholder="0"
                                     >
@@ -265,7 +265,9 @@
     function openM() {
         modal?.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
-        document.querySelectorAll('.tank-qty-input').forEach(function(inp) { inp.value = '0'; });
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+            inp.value = window.NumberFormat ? window.NumberFormat.formatAmount(0) : '0';
+        });
         updateTankTotals();
         resetDailyStockSubmit();
     }
@@ -279,25 +281,38 @@
     cancelBtn?.addEventListener('click', closeM);
     modal?.addEventListener('click', function(e) { if (e.target === modal) closeM(); });
 
+    function parseTankInputValue(inp) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.parseAmountInput(inp.value);
+        }
+        return parseFloat(String(inp.value).replace(/\s/g, '').replace(',', '.')) || 0;
+    }
+
     function formatQty(n) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.formatAmount(n);
+        }
         const v = Math.round(n * 100) / 100;
         return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
+
     function updateTankTotals() {
         const elE = document.getElementById('dailyStockTotalEssence');
         const elG = document.getElementById('dailyStockTotalGazoil');
         if (!elE || !elG) return;
         let sumE = 0, sumG = 0;
         document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
-            const v = parseFloat(String(inp.value).replace(',', '.')) || 0;
+            const v = parseTankInputValue(inp);
             if (inp.dataset.product === 'gasoline') sumE += v;
             else sumG += v;
         });
         elE.textContent = formatQty(sumE);
         elG.textContent = formatQty(sumG);
     }
+
     document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
         inp.addEventListener('input', updateTankTotals);
+        inp.addEventListener('blur', updateTankTotals);
     });
     updateTankTotals();
 
@@ -305,6 +320,9 @@
 
     dailyStockForm?.addEventListener('submit', function() {
         if (submitBtn?.disabled) return;
+        if (window.NumberFormat) {
+            window.NumberFormat.stripNumberInputsForSubmit(dailyStockForm);
+        }
         setDailyStockSubmitLoading(true);
     });
 })();

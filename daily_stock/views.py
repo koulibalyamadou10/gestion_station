@@ -391,7 +391,13 @@ def daily_stock_create_view(request):
     qty_diesel = Decimal("0")
 
     for tank in tanks:
-        raw = (request.POST.get(f"tank_{tank.id}") or "").replace(",", ".").strip()
+        raw = (
+            (request.POST.get(f"tank_{tank.id}") or "")
+            .replace("\u00a0", " ")
+            .replace(" ", "")
+            .replace(",", ".")
+            .strip()
+        )
         if raw == "":
             messages.error(request, f"Veuillez saisir la quantité pour la cuve « {tank.name} ».")
             return redirect("daily_stock:daily_sales")
