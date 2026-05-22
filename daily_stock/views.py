@@ -11,7 +11,6 @@ from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock, DailyStockTankLine
 from delivery.models import Delivery
-from inventory.models import Inventory
 from sale.models import Sale
 from stations.models import Station, StationManager
 from tank.models import Tank
@@ -48,22 +47,19 @@ def _stock_detail_allowed_stations(user):
     return Station.objects.none()
 
 
-def _inventory_qty_at_period_start(station_id, date_from):
+def _daily_stock_at_period_start(station_id, date_from):
     """
-    Stock cuve au début de la période : premier inventaire système dont
-    ``created_at`` est au moins le jour ``date_from`` (inclus).
-    Retourne (None, None) s'il n'y en a pas — pas de repli sur la station.
+    Premier relevé journalier (DailyStock) dont ``stock_date`` est au moins
+    ``date_from`` (inclus). Retourne None s'il n'y en a pas.
     """
-    first = (
-        Inventory.objects.filter(
-            station_id=station_id, created_at__date__gte=date_from
+    return (
+        DailyStock.objects.filter(
+            station_id=station_id,
+            stock_date__gte=date_from,
         )
-        .order_by("created_at", "id")
+        .order_by("stock_date", "id")
         .first()
     )
-    if not first:
-        return None, None
-    return first.qty_gasoline or Decimal("0"), first.qty_diesel or Decimal("0")
 
 
 def _day_sale_totals(station_id, d):
@@ -100,11 +96,17 @@ def _day_reception_net_totals(station_id, d):
 
 def _build_cuve_ledger(station_id, date_from, date_to):
     """
-    Grand livre : Stock départ (premier Inventory >= date début), puis par jour
+    Grand livre : Stock départ (premier DailyStock >= date début), puis par jour
     Vente (Sale, agrégé) puis Réception (Delivery, livré − manquant, plusieurs livraisons sommées).
     Stock après Vente = stock précédent − sortie ; après Réception = stock précédent + entrée.
     """
-    open_g, open_d = _inventory_qty_at_period_start(station_id, date_from)
+    first_daily = _daily_stock_at_period_start(station_id, date_from)
+    open_g = open_d = None
+    depart_date = date_from
+    if first_daily:
+        open_g = first_daily.qty_gasoline or Decimal("0")
+        open_d = first_daily.qty_diesel or Decimal("0")
+        depart_date = first_daily.stock_date
 
     def build_one(opening, vente_fn, recv_fn):
         rows = []
@@ -112,7 +114,7 @@ def _build_cuve_ledger(station_id, date_from, date_to):
         if opening is not None:
             rows.append(
                 {
-                    "date": date_from,
+                    "date": depart_date,
                     "label": "Stock départ",
                     "entree": opening,
                     "sortie": None,
@@ -182,7 +184,7 @@ def _ledger_period_stats(rows):
 @login_required
 def stock_detail_view(request):
     """
-    Détail mouvements cuves : stock départ (premier Inventory >= date début),
+    Détail mouvements cuves : stock départ (premier DailyStock >= date début),
     sorties ventes (Sale), entrées réceptions (Delivery net).
     """
     if request.user.role not in ("admin", "manager", "super_admin"):
