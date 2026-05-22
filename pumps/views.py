@@ -810,13 +810,30 @@ def update_pump_view(request, pump_uuid):
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
 
+def _verify_deletion_password(request):
+    password = (request.POST.get("password") or "").strip()
+    if not password:
+        messages.error(
+            request,
+            "Veuillez saisir votre mot de passe pour confirmer la suppression.",
+        )
+        return False
+    if not request.user.check_password(password):
+        messages.error(request, "Mot de passe incorrect.")
+        return False
+    return True
+
+
 @login_required
 def delete_pump_view(request, pump_uuid):
     """
     Vue pour supprimer une pompe
-    Accessible uniquement aux managers
+    Accessible aux admins, super_admin et gérant de la station
     """
     if request.method == 'POST':
+        if not _verify_deletion_password(request):
+            return _redirect_after_pump_form(request)
+
         try:
             pump = get_object_or_404(Pump, pump_uuid=pump_uuid)
             

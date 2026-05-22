@@ -1,6 +1,6 @@
 from django.urls import path
 
-from tank.views import create_tank_view, update_tank_max_capacity_view
+from tank.views import create_tank_view, delete_tank_view, update_tank_max_capacity_view
 
 app_name = "tank"
 
@@ -11,4 +11,5 @@ urlpatterns = [
         update_tank_max_capacity_view,
         name="update_tank_max_capacity",
     ),
+    path("delete/<uuid:tank_uuid>/", delete_tank_view, name="delete_tank"),
 ]

@@ -286,7 +286,11 @@ def station_detail_view(request, station_uuid):
         can_manage_tanks = can_manage_pumps
         can_record_pump_readings = is_station_manager or can_manage_pumps
 
-        station_tanks = Tank.objects.filter(station=station).order_by('name')
+        station_tanks = (
+            Tank.objects.filter(station=station)
+            .annotate(pumps_count=Count("pump"))
+            .order_by("name")
+        )
         station_tanks_total = station_tanks.count()
 
         search_query = request.GET.get('search', '').strip()

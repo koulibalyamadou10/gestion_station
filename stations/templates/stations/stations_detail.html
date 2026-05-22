@@ -182,14 +182,24 @@
                             </td>
                             {% if can_manage_tanks %}
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <button
-                                    type="button"
-                                    class="text-blue-600 hover:text-blue-800 transition-colors"
-                                    title="Modifier la quantité maximale"
-                                    onclick="openStationDetailEditTankMaxCapacityModal('{% url 'tank:update_tank_max_capacity' tank.tank_uuid %}', '{{ tank.name|escapejs }}', '{% if tank.max_capacity is not None %}{{ tank.max_capacity }}{% endif %}')"
-                                >
-                                    <i class="fas fa-pen"></i>
-                                </button>
+                                <div class="flex items-center justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        class="text-blue-600 hover:text-blue-800 transition-colors"
+                                        title="Modifier la quantité maximale"
+                                        onclick="openStationDetailEditTankMaxCapacityModal('{% url 'tank:update_tank_max_capacity' tank.tank_uuid %}', '{{ tank.name|escapejs }}', '{% if tank.max_capacity is not None %}{{ tank.max_capacity }}{% endif %}')"
+                                    >
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="text-red-600 hover:text-red-800 transition-colors"
+                                        title="Supprimer la cuve"
+                                        onclick="openStationDetailDeleteTankModal('{% url 'tank:delete_tank' tank.tank_uuid %}', '{{ tank.name|escapejs }}', '{{ tank.pumps_count }}')"
+                                    >
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
                             </td>
                             {% endif %}
                         </tr>
@@ -326,7 +336,7 @@
                                         type="button"
                                         class="text-red-600 hover:text-red-800 transition-colors"
                                         title="Supprimer"
-                                        onclick="openStationDetailDeletePumpModal('{{ pump.pump_uuid }}', '{{ pump.name|escapejs }}', '{{ pump.readings_count }}')"
+                                        onclick="openStationDetailDeletePumpModal('{% url 'pumps:delete_pump' pump.pump_uuid %}', '{{ pump.name|escapejs }}', '{{ pump.readings_count }}')"
                                     >
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -799,7 +809,7 @@
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Date de relevé <span class="text-red-500">*</span></label>
                 <input type="date" name="reading_date" required value="{% now 'Y-m-01' %}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none">
-                <p class="text-xs text-gray-500 mt-1">Stock réel enregistré à cette date. Plusieurs cuves le même jour mettent à jour la même ligne.</p>
+                <p class="text-xs text-gray-500 mt-1">Enregistre le stock réel et le stock journalier à cette date. Même jour : mise à jour essence ou gazoil selon la cuve, l'autre produit est conservé.</p>
             </div>
 
             <div>
@@ -896,18 +906,87 @@
             <div id="stationDetailDeletePumpBlockedMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
                 Suppression impossible : cette pompe possède plus d'une lecture.
             </div>
+            <div>
+                <label for="stationDetailDeletePumpPassword" class="block text-sm font-semibold text-gray-700 mb-2">
+                    Mot de passe <span class="text-red-500">*</span>
+                </label>
+                <input
+                    type="password"
+                    id="stationDetailDeletePumpPassword"
+                    autocomplete="current-password"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                    placeholder="Votre mot de passe de connexion"
+                >
+            </div>
             <div class="flex items-center justify-end space-x-3 pt-2">
                 <button type="button" id="stationDetailCancelDeletePump" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Annuler</button>
                 <form id="stationDetailDeletePumpForm" method="POST" action="" class="inline">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.path }}">
-                    <button id="stationDetailConfirmDeletePumpBtn" type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Supprimer</button>
+                    <input type="hidden" name="password" id="stationDetailDeletePumpPasswordHidden" value="">
+                    <button id="stationDetailConfirmDeletePumpBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                        <i id="stationDetailDeletePumpSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                        <span id="stationDetailDeletePumpSubmitLabel">Supprimer</span>
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endif %}
 
+{% if can_manage_tanks %}
+<!-- Modal suppression cuve -->
+<div id="stationDetailDeleteTankModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>
+                Confirmer la suppression
+            </h3>
+            <button type="button" id="stationDetailCloseDeleteTankModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-700">
+                Voulez-vous vraiment supprimer la cuve
+                <span id="stationDetailDeleteTankName" class="font-semibold text-gray-900"></span> ?
+                Cette action est irréversible.
+            </p>
+            <div id="stationDetailDeleteTankBlockedMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                Suppression impossible : des pompes sont encore liées à cette cuve. Supprimez-les d'abord.
+            </div>
+            <div>
+                <label for="stationDetailDeleteTankPassword" class="block text-sm font-semibold text-gray-700 mb-2">
+                    Mot de passe <span class="text-red-500">*</span>
+                </label>
+                <input
+                    type="password"
+                    id="stationDetailDeleteTankPassword"
+                    autocomplete="current-password"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                    placeholder="Votre mot de passe de connexion"
+                >
+            </div>
+            <div class="flex items-center justify-end space-x-3 pt-2">
+                <button type="button" id="stationDetailCancelDeleteTank" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Annuler</button>
+                <form id="stationDetailDeleteTankForm" method="POST" action="" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <input type="hidden" name="password" id="stationDetailDeleteTankPasswordHidden" value="">
+                    <button id="stationDetailConfirmDeleteTankBtn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                        <i id="stationDetailDeleteTankSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                        <span id="stationDetailDeleteTankSubmitLabel">Supprimer</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if can_manage_pumps %}
 <!-- Modal création pompe (POST vers pumps:create_pump) -->
 <div id="stationDetailCreatePumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -1208,46 +1287,166 @@
             setCreatePumpSubmitLoading(true);
         });
 
-        const deleteModal = document.getElementById('stationDetailDeletePumpModal');
-        const deleteForm = document.getElementById('stationDetailDeletePumpForm');
-        const deleteNameEl = document.getElementById('stationDetailDeletePumpName');
-        const deleteBlocked = document.getElementById('stationDetailDeletePumpBlockedMessage');
-        const deleteConfirmBtn = document.getElementById('stationDetailConfirmDeletePumpBtn');
+        const deletePumpModal = document.getElementById('stationDetailDeletePumpModal');
+        const deletePumpForm = document.getElementById('stationDetailDeletePumpForm');
+        const deletePumpNameEl = document.getElementById('stationDetailDeletePumpName');
+        const deletePumpBlocked = document.getElementById('stationDetailDeletePumpBlockedMessage');
+        const deletePumpPassword = document.getElementById('stationDetailDeletePumpPassword');
+        const deletePumpPasswordHidden = document.getElementById('stationDetailDeletePumpPasswordHidden');
+        const deletePumpConfirmBtn = document.getElementById('stationDetailConfirmDeletePumpBtn');
+        const deletePumpSpinner = document.getElementById('stationDetailDeletePumpSubmitSpinner');
+        const deletePumpLabel = document.getElementById('stationDetailDeletePumpSubmitLabel');
+        const cancelDeletePumpBtn = document.getElementById('stationDetailCancelDeletePump');
 
-        window.openStationDetailDeletePumpModal = function (pumpUuid, pumpName, readingsCount) {
-            if (!deleteModal || !deleteForm || !deleteNameEl) return;
-            deleteNameEl.textContent = '"' + pumpName + '"';
-            deleteForm.action = '/pumps/delete/' + pumpUuid + '/';
+        function setDeletePumpSubmitting(isSubmitting) {
+            if (deletePumpConfirmBtn) deletePumpConfirmBtn.disabled = isSubmitting;
+            if (cancelDeletePumpBtn) cancelDeletePumpBtn.disabled = isSubmitting;
+            if (deletePumpPassword) deletePumpPassword.disabled = isSubmitting;
+            if (deletePumpSpinner) deletePumpSpinner.classList.toggle('hidden', !isSubmitting);
+            if (deletePumpLabel) deletePumpLabel.textContent = isSubmitting ? 'Suppression…' : 'Supprimer';
+        }
+
+        function resetDeletePumpModal() {
+            if (deletePumpPassword) deletePumpPassword.value = '';
+            if (deletePumpPasswordHidden) deletePumpPasswordHidden.value = '';
+            setDeletePumpSubmitting(false);
+        }
+
+        window.openStationDetailDeletePumpModal = function (deleteUrl, pumpName, readingsCount) {
+            if (!deletePumpModal || !deletePumpForm || !deletePumpNameEl) return;
+            resetDeletePumpModal();
+            deletePumpNameEl.textContent = '"' + pumpName + '"';
+            deletePumpForm.action = deleteUrl || '';
 
             const count = parseInt(readingsCount || '0', 10);
-            if (count > 1) {
-                deleteBlocked?.classList.remove('hidden');
-                if (deleteConfirmBtn) {
-                    deleteConfirmBtn.disabled = true;
-                    deleteConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            const blocked = count > 1;
+            if (blocked) {
+                deletePumpBlocked?.classList.remove('hidden');
+                if (deletePumpConfirmBtn) {
+                    deletePumpConfirmBtn.disabled = true;
+                    deletePumpConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
                 }
+                if (deletePumpPassword) deletePumpPassword.disabled = true;
             } else {
-                deleteBlocked?.classList.add('hidden');
-                if (deleteConfirmBtn) {
-                    deleteConfirmBtn.disabled = false;
-                    deleteConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                deletePumpBlocked?.classList.add('hidden');
+                if (deletePumpConfirmBtn) {
+                    deletePumpConfirmBtn.disabled = false;
+                    deletePumpConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 }
+                if (deletePumpPassword) deletePumpPassword.disabled = false;
             }
 
-            deleteModal.classList.remove('hidden');
+            deletePumpModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            if (!blocked) deletePumpPassword?.focus();
         };
 
         function closeDeletePumpModalFunc() {
-            if (!deleteModal) return;
-            deleteModal.classList.add('hidden');
+            if (!deletePumpModal) return;
+            deletePumpModal.classList.add('hidden');
             document.body.style.overflow = 'auto';
+            resetDeletePumpModal();
         }
 
         document.getElementById('stationDetailCloseDeletePumpModal')?.addEventListener('click', closeDeletePumpModalFunc);
-        document.getElementById('stationDetailCancelDeletePump')?.addEventListener('click', closeDeletePumpModalFunc);
-        deleteModal?.addEventListener('click', function (e) {
-            if (e.target === deleteModal) closeDeletePumpModalFunc();
+        cancelDeletePumpBtn?.addEventListener('click', closeDeletePumpModalFunc);
+        deletePumpModal?.addEventListener('click', function (e) {
+            if (e.target === deletePumpModal) closeDeletePumpModalFunc();
+        });
+        deletePumpConfirmBtn?.addEventListener('click', function () {
+            if (deletePumpConfirmBtn?.disabled) return;
+            const pwd = (deletePumpPassword?.value || '').trim();
+            if (!pwd) {
+                alert('Veuillez saisir votre mot de passe pour confirmer la suppression.');
+                deletePumpPassword?.focus();
+                return;
+            }
+            if (deletePumpPasswordHidden) deletePumpPasswordHidden.value = pwd;
+            setDeletePumpSubmitting(true);
+            deletePumpForm?.submit();
+        });
+    })();
+    {% endif %}
+
+    {% if can_manage_tanks %}
+    (function () {
+        const deleteTankModal = document.getElementById('stationDetailDeleteTankModal');
+        const deleteTankForm = document.getElementById('stationDetailDeleteTankForm');
+        const deleteTankNameEl = document.getElementById('stationDetailDeleteTankName');
+        const deleteTankBlocked = document.getElementById('stationDetailDeleteTankBlockedMessage');
+        const deleteTankPassword = document.getElementById('stationDetailDeleteTankPassword');
+        const deleteTankPasswordHidden = document.getElementById('stationDetailDeleteTankPasswordHidden');
+        const deleteTankConfirmBtn = document.getElementById('stationDetailConfirmDeleteTankBtn');
+        const deleteTankSpinner = document.getElementById('stationDetailDeleteTankSubmitSpinner');
+        const deleteTankLabel = document.getElementById('stationDetailDeleteTankSubmitLabel');
+        const cancelDeleteTankBtn = document.getElementById('stationDetailCancelDeleteTank');
+
+        function setDeleteTankSubmitting(isSubmitting) {
+            if (deleteTankConfirmBtn) deleteTankConfirmBtn.disabled = isSubmitting;
+            if (cancelDeleteTankBtn) cancelDeleteTankBtn.disabled = isSubmitting;
+            if (deleteTankPassword) deleteTankPassword.disabled = isSubmitting;
+            if (deleteTankSpinner) deleteTankSpinner.classList.toggle('hidden', !isSubmitting);
+            if (deleteTankLabel) deleteTankLabel.textContent = isSubmitting ? 'Suppression…' : 'Supprimer';
+        }
+
+        function resetDeleteTankModal() {
+            if (deleteTankPassword) deleteTankPassword.value = '';
+            if (deleteTankPasswordHidden) deleteTankPasswordHidden.value = '';
+            setDeleteTankSubmitting(false);
+        }
+
+        window.openStationDetailDeleteTankModal = function (deleteUrl, tankName, pumpsCount) {
+            if (!deleteTankModal || !deleteTankForm || !deleteTankNameEl) return;
+            resetDeleteTankModal();
+            deleteTankNameEl.textContent = '"' + tankName + '"';
+            deleteTankForm.action = deleteUrl || '';
+
+            const count = parseInt(pumpsCount || '0', 10);
+            const blocked = count > 0;
+            if (blocked) {
+                deleteTankBlocked?.classList.remove('hidden');
+                if (deleteTankConfirmBtn) {
+                    deleteTankConfirmBtn.disabled = true;
+                    deleteTankConfirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if (deleteTankPassword) deleteTankPassword.disabled = true;
+            } else {
+                deleteTankBlocked?.classList.add('hidden');
+                if (deleteTankConfirmBtn) {
+                    deleteTankConfirmBtn.disabled = false;
+                    deleteTankConfirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                if (deleteTankPassword) deleteTankPassword.disabled = false;
+            }
+
+            deleteTankModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (!blocked) deleteTankPassword?.focus();
+        };
+
+        function closeDeleteTankModalFunc() {
+            if (!deleteTankModal) return;
+            deleteTankModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            resetDeleteTankModal();
+        }
+
+        document.getElementById('stationDetailCloseDeleteTankModal')?.addEventListener('click', closeDeleteTankModalFunc);
+        cancelDeleteTankBtn?.addEventListener('click', closeDeleteTankModalFunc);
+        deleteTankModal?.addEventListener('click', function (e) {
+            if (e.target === deleteTankModal) closeDeleteTankModalFunc();
+        });
+        deleteTankConfirmBtn?.addEventListener('click', function () {
+            if (deleteTankConfirmBtn?.disabled) return;
+            const pwd = (deleteTankPassword?.value || '').trim();
+            if (!pwd) {
+                alert('Veuillez saisir votre mot de passe pour confirmer la suppression.');
+                deleteTankPassword?.focus();
+                return;
+            }
+            if (deleteTankPasswordHidden) deleteTankPasswordHidden.value = pwd;
+            setDeleteTankSubmitting(true);
+            deleteTankForm?.submit();
         });
     })();
     {% endif %}
