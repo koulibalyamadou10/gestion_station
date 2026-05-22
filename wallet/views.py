@@ -51,7 +51,7 @@ def wallet_list_view(request):
 
         name = normalize_account_name(name_raw)
         if not name:
-            messages.error(request, "Le nom du wallet est obligatoire.")
+            messages.error(request, "Le nom du compte est obligatoire.")
             return redirect("wallet:wallet_list")
         if not re.fullmatch(r"[A-Z ]+", name):
             messages.error(request, "Le nom ne doit contenir que des lettres et des espaces.")
@@ -60,7 +60,7 @@ def wallet_list_view(request):
         if Account.objects.filter(station=station, name=name).exists():
             messages.error(
                 request,
-                f'Un wallet nom "{name}" existe deja pour cette station.',
+                f'Un compte nom "{name}" existe deja pour cette station.',
             )
             return redirect("wallet:wallet_list")
 
@@ -84,7 +84,7 @@ def wallet_list_view(request):
         except IntegrityError:
             messages.error(
                 request,
-                f'Un wallet nom "{name}" existe deja pour cette station.',
+                f'Un compte nom "{name}" existe deja pour cette station.',
             )
             return redirect("wallet:wallet_list")
 
@@ -172,44 +172,44 @@ def delete_wallet_view(request, uuid):
         return redirect("wallet:wallet_list")
 
     if request.user.role != "admin":
-        messages.error(request, "Vous n'avez pas la permission de supprimer un wallet.")
+        messages.error(request, "Vous n'avez pas la permission de supprimer un compte.")
         return redirect("account:not_access")
 
     wallet = get_object_or_404(Account, uuid=uuid)
 
     if wallet.station.owner != request.user:
-        messages.error(request, "Vous n'avez pas la permission de supprimer ce wallet.")
+        messages.error(request, "Vous n'avez pas la permission de supprimer ce compte.")
         return redirect("wallet:wallet_list")
 
     if wallet.balance != Decimal("0"):
-        messages.error(request, "Suppression impossible: le solde du wallet doit etre a 0.")
+        messages.error(request, "Suppression impossible: le solde du compte doit etre a 0.")
         return redirect("wallet:wallet_list")
 
     wallet.delete()
-    messages.success(request, "Wallet supprime avec succes.")
+    messages.success(request, "Compte supprime avec succes.")
     return redirect("wallet:wallet_list")
 
 
 @login_required
 def update_wallet_view(request, uuid):
-    """Modification du nom du wallet uniquement (unicité par station)."""
+    """Modification du nom du compte uniquement (unicité par station)."""
     if request.method != "POST":
         return redirect("wallet:wallet_list")
 
     if request.user.role != "admin":
-        messages.error(request, "Vous n'avez pas la permission de modifier ce wallet.")
+        messages.error(request, "Vous n'avez pas la permission de modifier ce compte.")
         return redirect("account:not_access")
 
     wallet = get_object_or_404(Account, uuid=uuid)
 
     if wallet.station.owner != request.user:
-        messages.error(request, "Vous n'avez pas la permission de modifier ce wallet.")
+        messages.error(request, "Vous n'avez pas la permission de modifier ce compte.")
         return redirect("wallet:wallet_list")
 
     name_raw = request.POST.get("name", "")
     name = normalize_account_name(name_raw)
     if not name:
-        messages.error(request, "Le nom du wallet est obligatoire.")
+        messages.error(request, "Le nom du compte est obligatoire.")
         return redirect("wallet:wallet_list")
     if not re.fullmatch(r"[A-Z ]+", name):
         messages.error(request, "Le nom ne doit contenir que des lettres et des espaces.")
@@ -222,7 +222,7 @@ def update_wallet_view(request, uuid):
     ):
         messages.error(
             request,
-            f'Un wallet nom "{name}" existe deja pour cette station.',
+            f'Un compte nom "{name}" existe deja pour cette station.',
         )
         return redirect("wallet:wallet_list")
 
@@ -232,11 +232,11 @@ def update_wallet_view(request, uuid):
     except IntegrityError:
         messages.error(
             request,
-            f'Un wallet nom "{name}" existe deja pour cette station.',
+            f'Un compte nom "{name}" existe deja pour cette station.',
         )
         return redirect("wallet:wallet_list")
 
-    messages.success(request, "Nom du wallet mis a jour avec succes.")
+    messages.success(request, "Nom du compte mis a jour avec succes.")
     return redirect("wallet:wallet_list")
 
 

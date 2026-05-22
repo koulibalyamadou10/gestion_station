@@ -137,15 +137,25 @@ def _stations_scope_for_dashboard(user):
     return Station.objects.none()
 
 
-def _build_dashboard_context(user):
+def _build_dashboard_context(user, station_filter_id=None):
     """Statistiques et données de graphiques pour le tableau de bord."""
     from sale.models import Sale
     from order.models import Order
     from wallet.models import Account
     from tank.models import Tank
 
-    stations_qs = _stations_scope_for_dashboard(user)
-    station_ids = list(stations_qs.values_list("id", flat=True))
+    stations_qs = _stations_scope_for_dashboard(user).order_by("name")
+    stations_list = list(stations_qs)
+    station_ids = [s.id for s in stations_list]
+
+    selected_station = None
+    if stations_list:
+        if station_filter_id:
+            selected_station = next(
+                (s for s in stations_list if s.id == station_filter_id), None
+            )
+        if not selected_station:
+            selected_station = stations_list[0]
     today = timezone.now().date()
     month_start = today - timedelta(days=29)
     week_start = today - timedelta(days=6)
@@ -235,11 +245,11 @@ def _build_dashboard_context(user):
         manager_station_name = stations_qs.first().name
 
     tanks_visual = []
-    if station_ids:
+    if selected_station:
         tanks_qs = (
-            Tank.objects.filter(station_id__in=station_ids)
+            Tank.objects.filter(station_id=selected_station.pk)
             .select_related("station")
-            .order_by("station__name", "name")
+            .order_by("name")
         )
         for tank in tanks_qs:
             max_capacity = tank.max_capacity
@@ -282,6 +292,10 @@ def _build_dashboard_context(user):
         "dashboard_charts_manager_sales_only": dashboard_charts_manager_sales_only,
         "manager_station_name": manager_station_name,
         "tanks_visual": tanks_visual,
+        "dashboard_stations": stations_list,
+        "selected_station": selected_station,
+        "selected_station_id": selected_station.pk if selected_station else None,
+        "show_tank_station_filter": len(stations_list) > 1 and not dashboard_is_manager,
     }
 
 
@@ -290,8 +304,13 @@ def dashboard_view(request):
     """
     Vue pour le tableau de bord après connexion
     """
+    station_filter_raw = (request.GET.get("station") or "").strip()
+    station_filter_id = None
+    if station_filter_raw.isdigit():
+        station_filter_id = int(station_filter_raw)
+
     ctx = {"user": request.user}
-    ctx.update(_build_dashboard_context(request.user))
+    ctx.update(_build_dashboard_context(request.user, station_filter_id=station_filter_id))
     return render(request, "dashboard/dashboard.html", ctx)
 
 @csrf_protect

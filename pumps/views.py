@@ -389,11 +389,11 @@ def _parse_and_validate_wallet_allocations(
         try:
             amount = Decimal(amount_raw)
         except (InvalidOperation, ValueError):
-            messages.error(request, "Montant wallet invalide.")
+            messages.error(request, "Montant compte invalide.")
             return None, True
 
         if amount < 0:
-            messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
+            messages.error(request, "Les montants comptes ne peuvent pas être négatifs.")
             return None, True
         allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
 
@@ -401,20 +401,20 @@ def _parse_and_validate_wallet_allocations(
         allocations_by_uuid[str(station_wallets[0].uuid)] = total_expected
 
     if not allocations_by_uuid:
-        messages.error(request, "Veuillez répartir le montant dans au moins un wallet.")
+        messages.error(request, "Veuillez répartir le montant dans au moins un compte.")
         return None, True
 
     valid_wallets_map = {str(w.uuid): w for w in station_wallets}
     for wallet_uuid in allocations_by_uuid.keys():
         if wallet_uuid not in valid_wallets_map:
-            messages.error(request, "Un wallet sélectionné est invalide pour cette station.")
+            messages.error(request, "Un compte sélectionné est invalide pour cette station.")
             return None, True
 
     allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
     if allocated_sum.quantize(Decimal("0.01")) != total_expected.quantize(Decimal("0.01")):
         messages.error(
             request,
-            "La somme répartie dans les wallets doit être égale au montant total des ventes.",
+            "La somme répartie dans les comptes doit être égale au montant total des ventes.",
         )
         return None, True
 
@@ -923,7 +923,7 @@ def create_reading_view(request, pump_uuid):
                 if not station_wallets:
                     messages.error(
                         request,
-                        "Aucun wallet n'est configuré pour cette station. Veuillez créer au moins un wallet."
+                        "Aucun compte n'est configuré pour cette station. Veuillez créer au moins un compte."
                     )
                     return redirect('pumps:pumps_list')
 
@@ -957,11 +957,11 @@ def create_reading_view(request, pump_uuid):
                             try:
                                 amount = Decimal(amount_raw)
                             except (InvalidOperation, ValueError):
-                                messages.error(request, "Montant wallet invalide.")
-                                raise ValueError("Montant wallet invalide.")
+                                messages.error(request, "Montant compte invalide.")
+                                raise ValueError("Montant compte invalide.")
 
                             if amount < 0:
-                                messages.error(request, "Les montants wallet ne peuvent pas être négatifs.")
+                                messages.error(request, "Les montants comptes ne peuvent pas être négatifs.")
                                 raise ValueError("wallet_negatif")
 
                             allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
@@ -974,7 +974,7 @@ def create_reading_view(request, pump_uuid):
                             if not allocations_by_uuid:
                                 messages.error(
                                     request,
-                                    "Veuillez répartir le montant de la vente dans au moins un wallet.",
+                                    "Veuillez répartir le montant de la vente dans au moins un compte.",
                                 )
                                 raise ValueError("wallet_repartition")
 
@@ -983,7 +983,7 @@ def create_reading_view(request, pump_uuid):
                                 if wallet_uuid not in valid_wallets_map:
                                     messages.error(
                                         request,
-                                        "Un wallet sélectionné est invalide pour cette station.",
+                                        "Un compte sélectionné est invalide pour cette station.",
                                     )
                                     raise ValueError("wallet_invalide")
 
@@ -1235,7 +1235,7 @@ def bulk_pump_reading_view(request):
         if not station_wallets_list:
             messages.error(
                 request,
-                "Aucun wallet n'est configuré pour cette station.",
+                "Aucun compte n'est configuré pour cette station.",
             )
             return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
@@ -1449,7 +1449,7 @@ def bulk_pump_reading_view(request):
 
         messages.success(
             request,
-            f"{len(prepared)} lecture(s) enregistrée(s) et montants répartis sur les wallets.",
+            f"{len(prepared)} lecture(s) enregistrée(s) et montants répartis sur les comptes.",
         )
         return redirect("daily_stock:daily_sales")
 

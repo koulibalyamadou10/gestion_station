@@ -1311,7 +1311,7 @@
                     <button type="button" id="addWalletAllocationBtn" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">+ Ajouter wallet</button>
                 </div>
                 <div id="walletAllocationsContainer" class="space-y-2"></div>
-                <p id="noWalletForStationMessage" class="hidden text-xs text-red-600 mt-2">Aucun wallet disponible pour cette station.</p>
+                <p id="noWalletForStationMessage" class="hidden text-xs text-red-600 mt-2">Aucun compte disponible pour cette station.</p>
                 <div class="mt-3 text-xs text-gray-600">
                     Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0.00</span> GNF
                 </div>
@@ -2005,12 +2005,12 @@
             }
             if (totalAmount > 0 && allocations.length === 0) {
                 e.preventDefault();
-                alert('Veuillez sélectionner au moins un wallet et répartir le montant.');
+                alert('Veuillez sélectionner au moins un compte et répartir le montant.');
                 return false;
             }
             if (Math.abs(allocatedSum - totalAmount) > 0.01) {
                 e.preventDefault();
-                alert('La somme des montants des wallets doit être égale au montant total.');
+                alert('La somme des montants des comptes doit être égale au montant total.');
                 return false;
             }
         });

@@ -90,14 +90,14 @@ def expense_list_view(request):
             return redirect("expense:expense_list")
 
         if not account_id or not amount_raw or not expense_date:
-            messages.error(request, "Wallet, montant et date sont obligatoires.")
+            messages.error(request, "Compte, montant et date sont obligatoires.")
             return redirect("expense:expense_list")
 
         amount_raw = _normalize_amount_raw(amount_raw)
 
         account = accounts_qs.filter(pk=account_id).first()
         if not account:
-            messages.error(request, "Wallet invalide pour votre station.")
+            messages.error(request, "Compte invalide pour votre station.")
             return redirect("expense:expense_list")
 
         try:
@@ -114,7 +114,7 @@ def expense_list_view(request):
         if current_balance < amount:
             messages.error(
                 request,
-                "Solde du wallet insuffisant pour enregistrer cette dépense.",
+                "Solde du compte insuffisant pour enregistrer cette dépense.",
             )
             return redirect("expense:expense_list")
 
@@ -144,7 +144,7 @@ def expense_list_view(request):
             return redirect("expense:expense_list")
         except ValueError as exc:
             if str(exc) == "invalid_wallet":
-                messages.error(request, "Wallet invalide pour votre station.")
+                messages.error(request, "Compte invalide pour votre station.")
             else:
                 messages.error(request, f"Erreur : {exc}")
             return redirect("expense:expense_list")
@@ -152,7 +152,7 @@ def expense_list_view(request):
             messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
             return redirect("expense:expense_list")
 
-        messages.success(request, "Dépense enregistrée et wallet mis à jour.")
+        messages.success(request, "Dépense enregistrée et compte mis à jour.")
         return redirect("expense:expense_list")
 
     # --- GET : liste ---
@@ -236,7 +236,7 @@ def update_expense_view(request, pk):
     """
     Modification d'une dépense — gérant uniquement, station du compte.
 
-    Wallet : réintégration de l'ancien montant sur le(s) compte(s), puis débit du nouveau montant
+    Compte : réintégration de l'ancien montant sur le(s) compte(s), puis débit du nouveau montant
     (équivalent au delta si le compte ne change pas). Refus si solde insuffisant pour le nouveau débit.
     """
     if request.user.role != "manager":
@@ -275,7 +275,7 @@ def update_expense_view(request, pk):
         return redirect("expense:expense_list")
 
     if not account_id or not amount_raw or not expense_date_raw:
-        messages.error(request, "Wallet, montant et date sont obligatoires.")
+        messages.error(request, "Compte, montant et date sont obligatoires.")
         return redirect("expense:expense_list")
 
     amount_raw = _normalize_amount_raw(amount_raw)
@@ -283,7 +283,7 @@ def update_expense_view(request, pk):
         pk=account_id, station=manager_station
     ).first()
     if not new_account:
-        messages.error(request, "Wallet invalide.")
+        messages.error(request, "Compte invalide.")
         return redirect("expense:expense_list")
 
     try:
@@ -342,14 +342,14 @@ def update_expense_view(request, pk):
         return redirect("expense:expense_list")
     except Exception as exc:
         if str(exc) == "invalid_wallet":
-            messages.error(request, "Wallet invalide pour votre station.")
+            messages.error(request, "Compte invalide pour votre station.")
             return redirect("expense:expense_list")
         if str(exc) == "insufficient_balance":
             messages.error(
                 request,
                 "Solde insuffisant sur le compte : après réintégration de l'ancienne dépense, "
                 "le solde ne permet pas de débiter le nouveau montant (par ex. si vous augmentez "
-                "le montant, le wallet doit couvrir ce supplément).",
+                "le montant, le compte doit couvrir ce supplément).",
             )
             return redirect("expense:expense_list")
         messages.error(request, f"Erreur lors de la modification : {exc}")
@@ -363,7 +363,7 @@ def update_expense_view(request, pk):
 def delete_expense_view(request, pk):
     """
     Suppression d'une dépense — admin uniquement (stations dont il est propriétaire).
-    Recrédite le wallet du montant de la dépense.
+    Recrédite le compte du montant de la dépense.
     """
     if request.user.role != "admin":
         messages.error(request, "Seul un administrateur peut supprimer une dépense.")
@@ -402,6 +402,6 @@ def delete_expense_view(request, pk):
 
     messages.success(
         request,
-        "Dépense supprimée : le montant a été recrédité sur le wallet.",
+        "Dépense supprimée : le montant a été recrédité sur le compte.",
     )
     return redirect("expense:expense_list")
