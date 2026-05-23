@@ -127,13 +127,7 @@ def inventory_by_delivery_view(request):
         qs = qs.filter(created_at__date__lte=date_to)
 
     total_entries = qs.count()
-    last_row = qs.order_by("-created_at", "-id").first()
-    if last_row:
-        total_gasoline = last_row.qty_gasoline or Decimal("0")
-        total_diesel = last_row.qty_diesel or Decimal("0")
-    else:
-        total_gasoline = Decimal("0")
-        total_diesel = Decimal("0")
+    last_entry = qs.order_by("-created_at", "-id").first()
 
     sort_map = {
         "created_desc": ("-created_at", "-id"),
@@ -155,8 +149,7 @@ def inventory_by_delivery_view(request):
         "date_to": date_to_raw,
         "sort": sort,
         "total_entries": total_entries,
-        "total_gasoline": total_gasoline,
-        "total_diesel": total_diesel,
+        "last_entry": last_entry,
         "can_delete_inventory": True,
         "latest_deletable_inventory_ids": latest_deletable_inventory_ids,
     }

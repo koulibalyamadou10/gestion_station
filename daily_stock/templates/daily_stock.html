@@ -14,18 +14,10 @@
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-sm">
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
         <p class="text-sm text-gray-600">Entrées enregistrées</p>
         <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_entries }}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
-        <p class="text-sm text-gray-600">Total qté essence</p>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_gasoline|qty_fr }}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-600">
-        <p class="text-sm text-gray-600">Total qté gazoil</p>
-        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_diesel|qty_fr }}</p>
     </div>
 </div>
 

@@ -331,13 +331,8 @@ def daily_sales_view(request):
     if date_to:
         qs = qs.filter(stock_date__lte=date_to)
 
-    stats = qs.aggregate(
-        total_gasoline=Sum("qty_gasoline"),
-        total_diesel=Sum("qty_diesel"),
-    )
     total_entries = qs.count()
-    total_gasoline = stats["total_gasoline"] or Decimal("0")
-    total_diesel = stats["total_diesel"] or Decimal("0")
+    last_entry = qs.order_by("-stock_date", "-id").first()
 
     sort_map = {
         "date_desc": ("-stock_date", "-id"),
@@ -373,8 +368,7 @@ def daily_sales_view(request):
         "date_to": date_to_raw,
         "sort": sort,
         "total_entries": total_entries,
-        "total_gasoline": total_gasoline,
-        "total_diesel": total_diesel,
+        "last_entry": last_entry,
         "can_create_daily_stock": request.user.role == "manager" and manager_station is not None,
         "can_delete_daily_stock": request.user.role == "admin",
         "latest_deletable_daily_stock_ids": latest_deletable_daily_stock_ids,
