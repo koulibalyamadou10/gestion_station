@@ -35,6 +35,31 @@ def _daily_stock_scope_for_user(user):
     return None, None
 
 
+def _latest_daily_stock_ids_per_station(base_qs):
+    """PK de la dernière entrée par station (date de stock puis id décroissants)."""
+    latest_ids = set()
+    for station_id in base_qs.values_list("station_id", flat=True).distinct():
+        latest_pk = (
+            base_qs.filter(station_id=station_id)
+            .order_by("-stock_date", "-id")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if latest_pk is not None:
+            latest_ids.add(latest_pk)
+    return latest_ids
+
+
+def _is_latest_daily_stock_for_station(base_qs, daily_stock):
+    latest_pk = (
+        base_qs.filter(station_id=daily_stock.station_id)
+        .order_by("-stock_date", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+    return latest_pk == daily_stock.pk
+
+
 def _stock_detail_allowed_stations(user):
     if user.role == "admin":
         return Station.objects.filter(owner=user).order_by("name")
@@ -325,6 +350,8 @@ def daily_sales_view(request):
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
 
+    latest_deletable_daily_stock_ids = _latest_daily_stock_ids_per_station(base_qs)
+
     manager_station = None
     station_tanks = []
     if request.user.role == "manager":
@@ -349,10 +376,47 @@ def daily_sales_view(request):
         "total_diesel": total_diesel,
         "can_create_daily_stock": request.user.role == "manager" and manager_station is not None,
         "can_delete_daily_stock": request.user.role == "admin",
+        "latest_deletable_daily_stock_ids": latest_deletable_daily_stock_ids,
         "manager_station": manager_station,
         "station_tanks": station_tanks,
     }
     return render(request, "daily_stock.html", context)
+
+
+@login_required
+def daily_stock_detail_view(request, pk):
+    """Détail d'une entrée stock journalier et relevé par cuve."""
+    if request.user.role not in ("admin", "manager"):
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    base_qs, _ = _daily_stock_scope_for_user(request.user)
+    if base_qs is None:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+
+    daily_stock = get_object_or_404(
+        base_qs.select_related("station", "recorded_by"),
+        pk=pk,
+    )
+    tank_lines = []
+    for line in daily_stock.tank_lines.select_related("tank").order_by(
+        "tank__product", "tank__name"
+    ):
+        line.quantity_delta = (line.recorded_quantity or Decimal("0")) - (
+            line.previous_quantity or Decimal("0")
+        )
+        tank_lines.append(line)
+
+    context = {
+        "daily_stock": daily_stock,
+        "tank_lines": tank_lines,
+        "can_delete_daily_stock": (
+            request.user.role == "admin"
+            and _is_latest_daily_stock_for_station(base_qs, daily_stock)
+        ),
+    }
+    return render(request, "daily_stock_detail.html", context)
 
 
 @login_required
@@ -492,6 +556,15 @@ def daily_stock_delete_view(request, pk):
         pk=pk,
         station__owner=request.user,
     )
+
+    owner_qs = DailyStock.objects.filter(station__owner=request.user)
+    if not _is_latest_daily_stock_for_station(owner_qs, ds):
+        messages.error(
+            request,
+            "Seule la dernière entrée enregistrée pour cette station peut être supprimée.",
+        )
+        return redirect("daily_stock:daily_sales")
+
     tank_lines = list(ds.tank_lines.all())
     if not tank_lines:
         messages.error(

@@ -11,9 +11,78 @@ from django.utils.dateparse import parse_date
 
 from daily_stock.models import DailyStock
 from inventory.models import Inventory
-from pumps.views import reverse_bulk_pump_reading_inventory
+from pumps.models import PumpReadingBatch
+from pumps.views import _quantity_sold_for_reading, reverse_bulk_pump_reading_inventory
 from sale.models import Sale
 from stations.models import Station
+
+
+def _inventory_base_qs_for_user(user):
+    return Inventory.objects.filter(station__owner=user)
+
+
+def _latest_inventory_ids_per_station(base_qs):
+    """PK de la dernière entrée par station (created_at puis id décroissants)."""
+    latest_ids = set()
+    for station_id in base_qs.values_list("station_id", flat=True).distinct():
+        latest_pk = (
+            base_qs.filter(station_id=station_id)
+            .order_by("-created_at", "-id")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if latest_pk is not None:
+            latest_ids.add(latest_pk)
+    return latest_ids
+
+
+def _is_latest_inventory_for_station(base_qs, inventory_row):
+    latest_pk = (
+        base_qs.filter(station_id=inventory_row.station_id)
+        .order_by("-created_at", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+    return latest_pk == inventory_row.pk
+
+
+def _sales_for_inventory(inventory, reading_batch):
+    """Ventes liées à une ligne d'inventaire (saisie groupée ou vente unitaire)."""
+    qs = Sale.objects.select_related(
+        "pump_reading__pump__tank",
+        "pump_reading__employee",
+        "recorded_by",
+    )
+    if reading_batch:
+        reading_ids = reading_batch.readings.values_list("pk", flat=True)
+        return list(
+            qs.filter(pump_reading_id__in=reading_ids).order_by(
+                "pump_reading__pump__tank__name", "pump_reading__pump__name"
+            )
+        )
+    if inventory.source != Inventory.SOURCE_SALE:
+        return []
+
+    ref_date = inventory.reading_date or inventory.created_at.date()
+    candidates = qs.filter(
+        station_id=inventory.station_id,
+        sale_date=ref_date,
+        created_at__lte=inventory.created_at,
+    ).order_by("-created_at", "-id")
+    if inventory.previous_stock_gasoline is not None and inventory.previous_stock_diesel is not None:
+        g_delta = (inventory.previous_stock_gasoline or Decimal("0")) - (
+            inventory.qty_gasoline or Decimal("0")
+        )
+        d_delta = (inventory.previous_stock_diesel or Decimal("0")) - (
+            inventory.qty_diesel or Decimal("0")
+        )
+        for sale in candidates[:20]:
+            if (sale.qty_gasoline or Decimal("0")) == g_delta and (
+                sale.qty_diesel or Decimal("0")
+            ) == d_delta:
+                return [sale]
+    first = candidates.first()
+    return [first] if first else []
 
 
 @login_required
@@ -42,8 +111,10 @@ def inventory_by_delivery_view(request):
         date_to = parse_date(date_to_raw)
 
     allowed_stations = Station.objects.filter(owner=request.user).order_by("name")
+    base_qs = _inventory_base_qs_for_user(request.user)
+    latest_deletable_inventory_ids = _latest_inventory_ids_per_station(base_qs)
 
-    qs = Inventory.objects.select_related("station").filter(station__in=allowed_stations)
+    qs = base_qs.select_related("station")
 
     if station_filter:
         qs = qs.filter(station_id=station_filter)
@@ -85,8 +156,65 @@ def inventory_by_delivery_view(request):
         "total_gasoline": total_gasoline,
         "total_diesel": total_diesel,
         "can_delete_inventory": True,
+        "latest_deletable_inventory_ids": latest_deletable_inventory_ids,
     }
     return render(request, "inventory_content.html", context)
+
+
+@login_required
+def inventory_detail_view(request, pk):
+    """Détail d'une ligne de stock réel (inventaire système)."""
+    if request.user.role != "admin":
+        messages.error(request, "Seul un administrateur peut accéder à cette page.")
+        return redirect("account:not_access")
+
+    inventory = get_object_or_404(
+        Inventory.objects.select_related("station").prefetch_related(
+            "wallet_allocations__account",
+        ),
+        pk=pk,
+        station__owner=request.user,
+    )
+
+    reading_batch = PumpReadingBatch.objects.filter(inventory_id=inventory.pk).first()
+    pump_readings = []
+    if reading_batch:
+        for reading in (
+            reading_batch.readings.select_related("pump__tank", "employee")
+            .prefetch_related("sale_set")
+            .order_by("pump__tank__name", "pump__name")
+        ):
+            reading.quantity_sold = _quantity_sold_for_reading(reading)
+            reading.sale = reading.sale_set.first()
+            pump_readings.append(reading)
+
+    wallet_allocations = list(
+        inventory.wallet_allocations.select_related("account").order_by("account__name")
+    )
+
+    associated_sales = _sales_for_inventory(inventory, reading_batch)
+    total_sale_amount = sum((s.total_amount or Decimal("0")) for s in associated_sales)
+    total_sale_gasoline = sum((s.qty_gasoline or Decimal("0")) for s in associated_sales)
+    total_sale_diesel = sum((s.qty_diesel or Decimal("0")) for s in associated_sales)
+
+    owner_qs = _inventory_base_qs_for_user(request.user)
+
+    context = {
+        "inventory": inventory,
+        "reading_batch": reading_batch,
+        "pump_readings": pump_readings,
+        "wallet_allocations": wallet_allocations,
+        "associated_sales": associated_sales,
+        "total_sale_amount": total_sale_amount,
+        "total_sale_gasoline": total_sale_gasoline,
+        "total_sale_diesel": total_sale_diesel,
+        "can_delete_inventory": (
+            inventory.source == Inventory.SOURCE_BULK_READING
+            and reading_batch is not None
+            and _is_latest_inventory_for_station(owner_qs, inventory)
+        ),
+    }
+    return render(request, "inventory_detail.html", context)
 
 
 @login_required
@@ -112,6 +240,14 @@ def inventory_delete_view(request, pk):
         messages.error(
             request,
             "Seules les lignes issues d'une saisie groupée de pompes peuvent être annulées ici.",
+        )
+        return redirect("inventory:stock_livre")
+
+    owner_qs = _inventory_base_qs_for_user(request.user)
+    if not _is_latest_inventory_for_station(owner_qs, inventory_row):
+        messages.error(
+            request,
+            "Seule la dernière entrée enregistrée pour cette station peut être supprimée.",
         )
         return redirect("inventory:stock_livre")
 
