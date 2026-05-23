@@ -294,6 +294,7 @@ def station_detail_view(request, station_uuid):
         station_tanks_total = station_tanks.count()
 
         search_query = request.GET.get('search', '').strip()
+        tank_filter = request.GET.get('tank', '').strip()
         pumps_qs = (
             Pump.objects.filter(station=station)
             .select_related('station', 'station__city', 'tank')
@@ -302,6 +303,11 @@ def station_detail_view(request, station_uuid):
         )
         if search_query:
             pumps_qs = pumps_qs.filter(Q(name__icontains=search_query))
+        if tank_filter:
+            if station_tanks.filter(pk=tank_filter).exists():
+                pumps_qs = pumps_qs.filter(tank_id=tank_filter)
+            else:
+                tank_filter = ''
 
         station_pumps_total = pumps_qs.count()
         paginator = Paginator(pumps_qs, 15)
@@ -338,6 +344,7 @@ def station_detail_view(request, station_uuid):
             'station_tanks_total': station_tanks_total,
             'is_station_manager': is_station_manager,
             'search_query': search_query,
+            'tank_filter': tank_filter,
             'station_pumps_page': page_obj,
             'station_pumps_total': station_pumps_total,
             'station_wallets': station_wallets,
