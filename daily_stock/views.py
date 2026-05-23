@@ -13,6 +13,7 @@ from daily_stock.models import DailyStock, DailyStockTankLine
 from delivery.models import Delivery
 from sale.models import Sale
 from stations.models import Station, StationManager
+from tank.tank_visual import build_tank_visual_item
 from tank.models import Tank
 
 
@@ -330,13 +331,8 @@ def daily_sales_view(request):
     if date_to:
         qs = qs.filter(stock_date__lte=date_to)
 
-    stats = qs.aggregate(
-        total_gasoline=Sum("qty_gasoline"),
-        total_diesel=Sum("qty_diesel"),
-    )
     total_entries = qs.count()
-    total_gasoline = stats["total_gasoline"] or Decimal("0")
-    total_diesel = stats["total_diesel"] or Decimal("0")
+    last_entry = qs.order_by("-stock_date", "-id").first()
 
     sort_map = {
         "date_desc": ("-stock_date", "-id"),
@@ -372,8 +368,7 @@ def daily_sales_view(request):
         "date_to": date_to_raw,
         "sort": sort,
         "total_entries": total_entries,
-        "total_gasoline": total_gasoline,
-        "total_diesel": total_diesel,
+        "last_entry": last_entry,
         "can_create_daily_stock": request.user.role == "manager" and manager_station is not None,
         "can_delete_daily_stock": request.user.role == "admin",
         "latest_deletable_daily_stock_ids": latest_deletable_daily_stock_ids,
@@ -408,9 +403,26 @@ def daily_stock_detail_view(request, pk):
         )
         tank_lines.append(line)
 
+    tanks_visual = []
+    for line in tank_lines:
+        prev = line.previous_quantity or Decimal("0")
+        recorded = line.recorded_quantity or Decimal("0")
+        tanks_visual.append(
+            build_tank_visual_item(
+                name=line.tank.name,
+                product=line.tank.product,
+                quantity=recorded,
+                max_capacity=line.tank.max_capacity,
+                station_name=daily_stock.station.name,
+                detail_before=prev,
+                detail_after=recorded,
+            )
+        )
+
     context = {
         "daily_stock": daily_stock,
         "tank_lines": tank_lines,
+        "tanks_visual": tanks_visual,
         "can_delete_daily_stock": (
             request.user.role == "admin"
             and _is_latest_daily_stock_for_station(base_qs, daily_stock)

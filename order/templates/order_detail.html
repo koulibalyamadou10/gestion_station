@@ -131,4 +131,6 @@
     {% endfor %}
 </div>
 {% endif %}
+
+{% include "includes/tank_gauges_visual.html" with tanks_visual=tanks_visual visual_title="Schéma visuel des cuves" visual_subtitle=tanks_visual_subtitle %}
 {% endblock %}

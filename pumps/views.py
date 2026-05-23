@@ -433,6 +433,17 @@ def _redirect_after_pump_form(request):
     return redirect("pumps:pumps_list")
 
 
+def _redirect_after_pump_reset(request, pump_uuid):
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("pumps:pump_detail", pump_uuid=pump_uuid)
+
+
 @login_required
 def pumps_list_view(request):
     """
@@ -810,18 +821,22 @@ def update_pump_view(request, pump_uuid):
         messages.error(request, f'Erreur : {str(e)}')
         return redirect('pumps:pumps_list')
 
-def _verify_deletion_password(request):
+def _verify_action_password(request, action_label="cette action"):
     password = (request.POST.get("password") or "").strip()
     if not password:
         messages.error(
             request,
-            "Veuillez saisir votre mot de passe pour confirmer la suppression.",
+            f"Veuillez saisir votre mot de passe pour confirmer {action_label}.",
         )
         return False
     if not request.user.check_password(password):
         messages.error(request, "Mot de passe incorrect.")
         return False
     return True
+
+
+def _verify_deletion_password(request):
+    return _verify_action_password(request, "la suppression")
 
 
 @login_required
@@ -1532,11 +1547,14 @@ def reset_pump_view(request, pump_uuid):
 
         if request.user.role != "admin":
             messages.error(request, "Seul un administrateur peut réinitialiser une pompe.")
-            return redirect("pumps:pump_detail", pump_uuid=pump_uuid)
+            return _redirect_after_pump_reset(request, pump_uuid)
 
         if pump.station.owner != request.user:
             messages.error(request, "Vous n'avez pas la permission de réinitialiser cette pompe.")
-            return redirect("pumps:pumps_list")
+            return _redirect_after_pump_reset(request, pump_uuid)
+
+        if not _verify_action_password(request, "la réinitialisation"):
+            return _redirect_after_pump_reset(request, pump_uuid)
 
         ordered = list(
             PumpReading.objects.filter(pump=pump).order_by("-reading_date", "-created_at", "-id")
@@ -1568,4 +1586,4 @@ def reset_pump_view(request, pump_uuid):
     except Exception as e:
         messages.error(request, f"Erreur lors de la réinitialisation : {str(e)}")
 
-    return redirect("pumps:pump_detail", pump_uuid=pump_uuid)
+    return _redirect_after_pump_reset(request, pump_uuid)

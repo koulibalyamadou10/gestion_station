@@ -8,15 +8,14 @@
 <div class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-lg p-6 mb-6 text-white">
     <h2 class="text-lg font-bold flex items-center gap-2 mb-2">
         <i class="fas fa-balance-scale"></i>
-        Stock déclaré (gérant) vs stock calculé (système)
+        Relevé gérant vs stock calculé
     </h2>
-    <p class="text-sm text-slate-200 leading-relaxed max-w-4xl">
-        <strong>Relevé gérant</strong> (stock journalier) : jauge matinale des cuves (table <code class="text-slate-300">stock</code>).
-        <strong>Stock réel</strong> (système) : niveaux après saisie des index / ventes (table <code class="text-slate-300">stock_reel</code>).
-        Un écart brut est normal si des <strong>ventes</strong> ont été enregistrées entre deux relevés : on affiche les litres vendus
-        et un <strong>écart ajusté</strong> (déclaré − système − ventes sur la période) pour isoler les vrais écarts.
+    <p class="text-sm text-slate-200 leading-relaxed max-w-3xl">
+        Compare le stock saisi par le gérant le matin avec le stock calculé par l’application à partir des ventes.
+        Les différences peuvent venir des litres vendus entre deux relevés : le tableau indique aussi les ventes
+        et un écart corrigé pour repérer les vrais problèmes.
         {% if allowed_station_count > 1 %}
-        <span class="block mt-2 text-amber-100/95">Choisissez une <strong>station</strong> dans le filtre pour afficher le tableau de comparaison.</span>
+        <span class="block mt-2 text-amber-100/95">Choisissez une station dans le filtre pour afficher le tableau.</span>
         {% endif %}
     </p>
 </div>
