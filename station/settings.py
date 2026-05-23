@@ -30,9 +30,9 @@ SECRET_KEY = 'django-insecure-#6g0k7uotj2!o8x#suuzqm%zy4qnoc(fxh48-n1vxi*q48=6-w
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
-DEBUG = config('DEBUG', default=True, cast=bool)
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['station.ets-myd.com']
 
 
 # Application definition
