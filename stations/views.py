@@ -296,9 +296,9 @@ def station_detail_view(request, station_uuid):
         search_query = request.GET.get('search', '').strip()
         pumps_qs = (
             Pump.objects.filter(station=station)
-            .select_related('station', 'station__city')
+            .select_related('station', 'station__city', 'tank')
             .annotate(readings_count=Count('readings'))
-            .order_by('-created_at')
+            .order_by('tank__name', 'name')
         )
         if search_query:
             pumps_qs = pumps_qs.filter(Q(name__icontains=search_query))
