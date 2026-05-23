@@ -26,7 +26,7 @@ config = Config(RepositoryEnv(env_path))
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#6g0k7uotj2!o8x#suuzqm%zy4qnoc(fxh48-n1vxi*q48=6-w'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
