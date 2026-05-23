@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Sum
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -13,20 +13,57 @@ from sale.models import Sale
 from stations.models import Station, StationManager
 
 
+def _allowed_stations_for_user(user):
+    if user.role == "admin":
+        return Station.objects.filter(owner=user).order_by("name")
+    station_manager = StationManager.objects.filter(manager=user).first()
+    if not station_manager:
+        return Station.objects.none()
+    return Station.objects.filter(id=station_manager.station_id)
+
+
+def _group_sales_by_day_and_station(queryset):
+    """Regroupe les ventes par (date, station)."""
+    groups = {}
+    for sale in queryset:
+        key = (sale.sale_date, sale.station_id)
+        if key not in groups:
+            groups[key] = {
+                "sale_date": sale.sale_date,
+                "station_id": sale.station_id,
+                "station_name": sale.station.name,
+                "qty_gasoline": Decimal("0"),
+                "qty_diesel": Decimal("0"),
+                "total_amount": Decimal("0"),
+                "recorded_by_names": set(),
+            }
+        row = groups[key]
+        row["qty_gasoline"] += sale.qty_gasoline or Decimal("0")
+        row["qty_diesel"] += sale.qty_diesel or Decimal("0")
+        row["total_amount"] += sale.total_amount or Decimal("0")
+        name = sale.recorded_by.get_full_name() or sale.recorded_by.email or ""
+        if name:
+            row["recorded_by_names"].add(name)
+
+    result = []
+    for row in groups.values():
+        row["recorded_by_display"] = ", ".join(sorted(row["recorded_by_names"]))
+        del row["recorded_by_names"]
+        result.append(row)
+    result.sort(key=lambda r: (-r["sale_date"].toordinal(), r["station_name"].lower()))
+    return result
+
+
 @login_required
 def sale_list_view(request):
     if request.user.role not in ("admin", "manager"):
         messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
         return redirect("account:dashboard")
 
-    if request.user.role == "admin":
-        allowed_stations = Station.objects.filter(owner=request.user).order_by("name")
-    else:
-        station_manager = StationManager.objects.filter(manager=request.user).first()
-        if not station_manager:
-            messages.error(request, "Aucune station ne vous est assignee.")
-            return redirect("account:dashboard")
-        allowed_stations = Station.objects.filter(id=station_manager.station_id)
+    allowed_stations = _allowed_stations_for_user(request.user)
+    if request.user.role == "manager" and not allowed_stations.exists():
+        messages.error(request, "Aucune station ne vous est assignee.")
+        return redirect("account:dashboard")
 
     if request.method == "POST":
         station_id = request.POST.get("station_id", "").strip()
@@ -118,7 +155,8 @@ def sale_list_view(request):
 
     sales_queryset = sales_queryset.filter(sale_date__gte=date_from, sale_date__lte=date_to)
 
-    paginator = Paginator(sales_queryset, 10)
+    grouped_sales = _group_sales_by_day_and_station(sales_queryset)
+    paginator = Paginator(grouped_sales, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
 
     stats = sales_queryset.aggregate(
@@ -139,9 +177,50 @@ def sale_list_view(request):
         "date_to": date_to,
         "stations": allowed_stations,
         "pump_readings": pump_readings,
-        "total_sales": sales_queryset.count(),
+        "total_sales": len(grouped_sales),
         "total_amount": stats["total_amount"] or Decimal("0"),
         "total_gasoline": stats["total_gasoline"] or Decimal("0"),
         "total_diesel": stats["total_diesel"] or Decimal("0"),
     }
     return render(request, "sale_content.html", context)
+
+
+@login_required
+def sale_detail_view(request, station_id, sale_date):
+    if request.user.role not in ("admin", "manager"):
+        messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
+        return redirect("account:dashboard")
+
+    allowed_stations = _allowed_stations_for_user(request.user)
+    station = get_object_or_404(Station, id=station_id)
+    if not allowed_stations.filter(id=station.id).exists():
+        messages.error(request, "Station non autorisee.")
+        return redirect("sale:sale_list")
+
+    parsed_date = parse_date(sale_date)
+    if not parsed_date:
+        messages.error(request, "Date invalide.")
+        return redirect("sale:sale_list")
+
+    sales = (
+        Sale.objects.filter(station=station, sale_date=parsed_date)
+        .select_related("station", "pump_reading", "pump_reading__pump", "recorded_by")
+        .order_by("pump_reading__pump__name", "created_at")
+    )
+
+    totals = sales.aggregate(
+        total_amount=Sum("total_amount"),
+        total_gasoline=Sum("qty_gasoline"),
+        total_diesel=Sum("qty_diesel"),
+    )
+
+    context = {
+        "station": station,
+        "sale_date": parsed_date,
+        "sales": sales,
+        "total_amount": totals["total_amount"] or Decimal("0"),
+        "total_gasoline": totals["total_gasoline"] or Decimal("0"),
+        "total_diesel": totals["total_diesel"] or Decimal("0"),
+        "list_query": request.GET.urlencode(),
+    }
+    return render(request, "sale_detail.html", context)

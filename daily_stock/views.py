@@ -9,11 +9,11 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
-from daily_stock.models import DailyStock
+from daily_stock.models import DailyStock, DailyStockTankLine
 from delivery.models import Delivery
-from inventory.models import Inventory
 from sale.models import Sale
 from stations.models import Station, StationManager
+from tank.models import Tank
 
 
 def _daily_stock_scope_for_user(user):
@@ -35,6 +35,31 @@ def _daily_stock_scope_for_user(user):
     return None, None
 
 
+def _latest_daily_stock_ids_per_station(base_qs):
+    """PK de la dernière entrée par station (date de stock puis id décroissants)."""
+    latest_ids = set()
+    for station_id in base_qs.values_list("station_id", flat=True).distinct():
+        latest_pk = (
+            base_qs.filter(station_id=station_id)
+            .order_by("-stock_date", "-id")
+            .values_list("pk", flat=True)
+            .first()
+        )
+        if latest_pk is not None:
+            latest_ids.add(latest_pk)
+    return latest_ids
+
+
+def _is_latest_daily_stock_for_station(base_qs, daily_stock):
+    latest_pk = (
+        base_qs.filter(station_id=daily_stock.station_id)
+        .order_by("-stock_date", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+    return latest_pk == daily_stock.pk
+
+
 def _stock_detail_allowed_stations(user):
     if user.role == "admin":
         return Station.objects.filter(owner=user).order_by("name")
@@ -47,23 +72,19 @@ def _stock_detail_allowed_stations(user):
     return Station.objects.none()
 
 
-def _inventory_qty_at_period_start(station_id, date_from, station_fallback):
+def _daily_stock_at_period_start(station_id, date_from):
     """
-    Stock cuve au début de la période : dernier inventaire système avec
-    ``created_at`` au plus tard le jour ``date_from`` (inclus), sinon stocks cuve sur la station.
+    Premier relevé journalier (DailyStock) dont ``stock_date`` est au moins
+    ``date_from`` (inclus). Retourne None s'il n'y en a pas.
     """
-    last = (
-        Inventory.objects.filter(
-            station_id=station_id, created_at__date__lte=date_from
+    return (
+        DailyStock.objects.filter(
+            station_id=station_id,
+            stock_date__gte=date_from,
         )
-        .order_by("-created_at", "-id")
+        .order_by("stock_date", "id")
         .first()
     )
-    if last:
-        return last.qty_gasoline or Decimal("0"), last.qty_diesel or Decimal("0")
-    g = station_fallback.stock_gasoline or Decimal("0")
-    d = station_fallback.stock_diesel or Decimal("0")
-    return g, d
 
 
 def _day_sale_totals(station_id, d):
@@ -98,26 +119,33 @@ def _day_reception_net_totals(station_id, d):
     return g, dz
 
 
-def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
+def _build_cuve_ledger(station_id, date_from, date_to):
     """
-    Grand livre : Stock départ (Inventory à la date début), puis par jour
+    Grand livre : Stock départ (premier DailyStock >= date début), puis par jour
     Vente (Sale, agrégé) puis Réception (Delivery, livré − manquant, plusieurs livraisons sommées).
     Stock après Vente = stock précédent − sortie ; après Réception = stock précédent + entrée.
     """
-    open_g, open_d = _inventory_qty_at_period_start(station_id, date_from, station_obj)
+    first_daily = _daily_stock_at_period_start(station_id, date_from)
+    open_g = open_d = None
+    depart_date = date_from
+    if first_daily:
+        open_g = first_daily.qty_gasoline or Decimal("0")
+        open_d = first_daily.qty_diesel or Decimal("0")
+        depart_date = first_daily.stock_date
 
-    def build_one(opening: Decimal, vente_fn, recv_fn):
+    def build_one(opening, vente_fn, recv_fn):
         rows = []
-        rows.append(
-            {
-                "date": date_from,
-                "label": "Stock départ",
-                "entree": opening,
-                "sortie": None,
-                "stock": opening,
-            }
-        )
-        cur = opening
+        cur = opening if opening is not None else Decimal("0")
+        if opening is not None:
+            rows.append(
+                {
+                    "date": depart_date,
+                    "label": "Stock départ",
+                    "entree": opening,
+                    "sortie": None,
+                    "stock": opening,
+                }
+            )
         d = date_from
         while d <= date_to:
             vendu = vente_fn(d)
@@ -163,7 +191,9 @@ def _build_cuve_ledger(station_id, date_from, date_to, station_obj):
 def _ledger_period_stats(rows):
     total_entree = Decimal("0")
     total_sortie = Decimal("0")
-    for row in rows[1:]:
+    for row in rows:
+        if row["label"] == "Stock départ":
+            continue
         if row["label"] == "Réception" and row["entree"] is not None:
             total_entree += row["entree"]
         if row["label"] == "Vente" and row["sortie"] is not None:
@@ -179,8 +209,8 @@ def _ledger_period_stats(rows):
 @login_required
 def stock_detail_view(request):
     """
-    Détail mouvements cuves : stock départ (Inventory), sorties ventes (Sale),
-    entrées réceptions (Delivery net).
+    Détail mouvements cuves : stock départ (premier DailyStock >= date début),
+    sorties ventes (Sale), entrées réceptions (Delivery net).
     """
     if request.user.role not in ("admin", "manager", "super_admin"):
         messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
@@ -240,7 +270,7 @@ def stock_detail_view(request):
         selected_station = stations_qs.filter(pk=station_filter).first()
         if selected_station:
             rows_essence, rows_gazoil = _build_cuve_ledger(
-                selected_station.pk, date_from, date_to, selected_station
+                selected_station.pk, date_from, date_to
             )
             stats_e = _ledger_period_stats(rows_essence)
             stats_g = _ledger_period_stats(rows_gazoil)
@@ -320,11 +350,17 @@ def daily_sales_view(request):
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(request.GET.get("page"))
 
+    latest_deletable_daily_stock_ids = _latest_daily_stock_ids_per_station(base_qs)
+
     manager_station = None
+    station_tanks = []
     if request.user.role == "manager":
         sm = StationManager.objects.filter(manager=request.user).select_related("station").first()
         if sm:
             manager_station = sm.station
+            station_tanks = list(
+                Tank.objects.filter(station=manager_station).order_by("product", "name")
+            )
 
     context = {
         "daily_stocks": page_obj.object_list,
@@ -339,9 +375,48 @@ def daily_sales_view(request):
         "total_gasoline": total_gasoline,
         "total_diesel": total_diesel,
         "can_create_daily_stock": request.user.role == "manager" and manager_station is not None,
+        "can_delete_daily_stock": request.user.role == "admin",
+        "latest_deletable_daily_stock_ids": latest_deletable_daily_stock_ids,
         "manager_station": manager_station,
+        "station_tanks": station_tanks,
     }
     return render(request, "daily_stock.html", context)
+
+
+@login_required
+def daily_stock_detail_view(request, pk):
+    """Détail d'une entrée stock journalier et relevé par cuve."""
+    if request.user.role not in ("admin", "manager"):
+        messages.error(request, "Vous n'avez pas la permission d'accéder à cette page.")
+        return redirect("account:not_access")
+
+    base_qs, _ = _daily_stock_scope_for_user(request.user)
+    if base_qs is None:
+        messages.error(request, "Aucune station ne vous est assignée.")
+        return redirect("account:dashboard")
+
+    daily_stock = get_object_or_404(
+        base_qs.select_related("station", "recorded_by"),
+        pk=pk,
+    )
+    tank_lines = []
+    for line in daily_stock.tank_lines.select_related("tank").order_by(
+        "tank__product", "tank__name"
+    ):
+        line.quantity_delta = (line.recorded_quantity or Decimal("0")) - (
+            line.previous_quantity or Decimal("0")
+        )
+        tank_lines.append(line)
+
+    context = {
+        "daily_stock": daily_stock,
+        "tank_lines": tank_lines,
+        "can_delete_daily_stock": (
+            request.user.role == "admin"
+            and _is_latest_daily_stock_for_station(base_qs, daily_stock)
+        ),
+    }
+    return render(request, "daily_stock_detail.html", context)
 
 
 @login_required
@@ -367,18 +442,44 @@ def daily_stock_create_view(request):
         messages.error(request, "La date du stock est obligatoire et doit être valide.")
         return redirect("daily_stock:daily_sales")
 
-    try:
-        qty_gasoline = Decimal((request.POST.get("qty_gasoline") or "0").replace(",", ".").strip() or "0")
-        qty_diesel = Decimal((request.POST.get("qty_diesel") or "0").replace(",", ".").strip() or "0")
-    except (InvalidOperation, ValueError):
-        messages.error(request, "Les quantités doivent être numériques.")
-        return redirect("daily_stock:daily_sales")
-
-    if qty_gasoline < 0 or qty_diesel < 0:
-        messages.error(request, "Les quantités ne peuvent pas être négatives.")
-        return redirect("daily_stock:daily_sales")
-
     notes = (request.POST.get("notes") or "").strip() or None
+
+    tanks = list(Tank.objects.filter(station=station_manager.station).order_by("product", "name"))
+    if not tanks:
+        messages.error(
+            request,
+            "Aucune cuve configurée pour cette station. Demandez à l'administrateur d'en créer.",
+        )
+        return redirect("daily_stock:daily_sales")
+
+    tank_snapshots = []
+    qty_gasoline = Decimal("0")
+    qty_diesel = Decimal("0")
+
+    for tank in tanks:
+        raw = (
+            (request.POST.get(f"tank_{tank.id}") or "")
+            .replace("\u00a0", " ")
+            .replace(" ", "")
+            .replace(",", ".")
+            .strip()
+        )
+        if raw == "":
+            messages.error(request, f"Veuillez saisir la quantité pour la cuve « {tank.name} ».")
+            return redirect("daily_stock:daily_sales")
+        try:
+            qty = Decimal(raw)
+        except (InvalidOperation, ValueError):
+            messages.error(request, f"Quantité invalide pour la cuve « {tank.name} ».")
+            return redirect("daily_stock:daily_sales")
+
+        tank_snapshots.append(
+            (tank, tank.actual_quantity or Decimal("0"), qty),
+        )
+        if tank.product == Tank.PRODUCT_GASOLINE:
+            qty_gasoline += qty
+        else:
+            qty_diesel += qty
 
     try:
         with transaction.atomic():
@@ -392,14 +493,36 @@ def daily_stock_create_view(request):
                 )
                 return redirect("daily_stock:daily_sales")
 
-            DailyStock.objects.create(
-                station=station_manager.station,
+            station = Station.objects.select_for_update().get(
+                pk=station_manager.station_id
+            )
+            prev_station_g = station.stock_gasoline or Decimal("0")
+            prev_station_d = station.stock_diesel or Decimal("0")
+
+            daily_stock = DailyStock.objects.create(
+                station=station,
                 stock_date=stock_date,
                 recorded_by=request.user,
                 qty_gasoline=qty_gasoline,
                 qty_diesel=qty_diesel,
+                previous_stock_gasoline=prev_station_g,
+                previous_stock_diesel=prev_station_d,
                 notes=notes,
             )
+
+            for tank, prev_qty, recorded_qty in tank_snapshots:
+                tank.actual_quantity = recorded_qty
+                tank.save(update_fields=["actual_quantity", "updated_at"])
+                DailyStockTankLine.objects.create(
+                    daily_stock=daily_stock,
+                    tank=tank,
+                    previous_quantity=prev_qty,
+                    recorded_quantity=recorded_qty,
+                )
+
+            station.stock_gasoline = qty_gasoline
+            station.stock_diesel = qty_diesel
+            station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
     except IntegrityError:
         messages.error(
             request,
@@ -429,15 +552,63 @@ def daily_stock_delete_view(request, pk):
         return redirect("daily_stock:daily_sales")
 
     ds = get_object_or_404(
-        DailyStock.objects.select_related("station"),
+        DailyStock.objects.select_related("station").prefetch_related("tank_lines__tank"),
         pk=pk,
         station__owner=request.user,
     )
+
+    owner_qs = DailyStock.objects.filter(station__owner=request.user)
+    if not _is_latest_daily_stock_for_station(owner_qs, ds):
+        messages.error(
+            request,
+            "Seule la dernière entrée enregistrée pour cette station peut être supprimée.",
+        )
+        return redirect("daily_stock:daily_sales")
+
+    tank_lines = list(ds.tank_lines.all())
+    if not tank_lines:
+        messages.error(
+            request,
+            "Impossible de restaurer les cuves : cette entrée a été créée sans relevé détaillé. "
+            "Contactez un développeur si besoin.",
+        )
+        return redirect("daily_stock:daily_sales")
+
     station_name = ds.station.name
     d_str = ds.stock_date.strftime("%d/%m/%Y")
-    ds.delete()
+
+    try:
+        with transaction.atomic():
+            station = Station.objects.select_for_update().get(pk=ds.station_id)
+            for line in tank_lines:
+                tank = line.tank
+                tank.actual_quantity = line.previous_quantity
+                tank.save(update_fields=["actual_quantity", "updated_at"])
+
+            if (
+                ds.previous_stock_gasoline is not None
+                and ds.previous_stock_diesel is not None
+            ):
+                station.stock_gasoline = ds.previous_stock_gasoline
+                station.stock_diesel = ds.previous_stock_diesel
+            else:
+                restored_g = Decimal("0")
+                restored_d = Decimal("0")
+                for line in tank_lines:
+                    if line.tank.product == Tank.PRODUCT_GASOLINE:
+                        restored_g += line.previous_quantity
+                    else:
+                        restored_d += line.previous_quantity
+                station.stock_gasoline = restored_g
+                station.stock_diesel = restored_d
+            station.save(update_fields=["stock_gasoline", "stock_diesel", "updated_at"])
+            ds.delete()
+    except Exception as exc:
+        messages.error(request, f"Erreur lors de la suppression : {exc}")
+        return redirect("daily_stock:daily_sales")
+
     messages.success(
         request,
-        f"Entrée du {d_str} ({station_name}) supprimée. Le gérant peut en enregistrer une nouvelle.",
+        f"Entrée du {d_str} ({station_name}) supprimée. Stocks cuves et station restaurés.",
     )
     return redirect("daily_stock:daily_sales")

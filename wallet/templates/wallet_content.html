@@ -16,8 +16,11 @@
     </div>
 </div>
 
-<div class="flex justify-end mb-6">
-    <button id="openCreateWalletModal" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+<div class="flex flex-col sm:flex-row justify-end gap-3 mb-6">
+    <button type="button" id="openTransferWalletModal" class="bg-violet-600 text-white px-6 py-2 rounded-lg hover:bg-violet-700 transition-colors font-semibold">
+        <i class="fas fa-exchange-alt mr-2"></i>Transfert entre comptes
+    </button>
+    <button type="button" id="openCreateWalletModal" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
         <i class="fas fa-plus mr-2"></i>Creer un Compte
     </button>
 </div>
@@ -65,6 +68,21 @@
                         <td class="px-6 py-4 text-sm text-gray-600">{{ wallet.created_at|date:"d/m/Y H:i" }}</td>
                         <td class="px-6 py-4 text-sm">
                             <div class="flex items-center gap-3">
+                                <a
+                                    href="{% url 'wallet:wallet_detail' wallet.uuid %}"
+                                    class="text-blue-600 hover:text-blue-800 transition-colors"
+                                    title="Voir le detail"
+                                >
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button
+                                    type="button"
+                                    class="text-violet-600 hover:text-violet-800 transition-colors"
+                                    title="Transfert depuis ce compte"
+                                    onclick="openTransferWalletModal({{ wallet.id }})"
+                                >
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
                                 <button
                                     type="button"
                                     class="text-blue-600 hover:text-blue-800 transition-colors"
@@ -109,11 +127,58 @@
 </div>
 {% endif %}
 
+<!-- Modal transfert entre comptes -->
+<div id="transferWalletModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-exchange-alt text-violet-600"></i>
+                Transfert entre comptes
+            </h3>
+            <button type="button" id="closeTransferWalletModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+        </div>
+        <form method="POST" action="{% url 'wallet:transfer_wallet' %}" id="transferWalletForm" class="p-6 space-y-4">
+            {% csrf_token %}
+            <p class="text-xs text-gray-500">
+                Transfert au sein d'une meme station et de la meme devise. Le montant est retire du compte source et credite sur le compte destination.
+            </p>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte source <span class="text-red-500">*</span></label>
+                <select name="from_account_id" id="transferFromAccount" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 outline-none">
+                    <option value="">Selectionner le compte a debiter</option>
+                    {% for acc in transfer_accounts %}
+                    <option value="{{ acc.id }}" data-station-id="{{ acc.station_id }}" data-currency="{{ acc.currency }}" data-balance="{{ acc.balance }}">
+                        {{ acc.station.name }} — {{ acc.name }} ({{ acc.balance|money_fr }} {{ acc.currency }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <p id="transferSourceBalanceHint" class="text-xs text-gray-500 mt-1 hidden"></p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte destination <span class="text-red-500">*</span></label>
+                <select name="to_account_id" id="transferToAccount" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 outline-none">
+                    <option value="">Selectionner le compte a crediter</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Montant <span class="text-red-500">*</span></label>
+                <input type="text" name="amount" id="transferAmountInput" required inputmode="decimal" autocomplete="off" placeholder="Ex. 50 000" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 outline-none text-right tabular-nums">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelTransferWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 font-semibold">
+                    <i class="fas fa-check mr-2"></i>Confirmer le transfert
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal creation wallet -->
 <div id="createWalletModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-lg font-bold text-gray-800">Creer un wallet</h3>
+            <h3 class="text-lg font-bold text-gray-800">Creer un compte</h3>
             <button id="closeCreateWalletModal" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
         <form method="POST" action="{% url 'wallet:wallet_list' %}" class="p-6 space-y-4">
@@ -128,7 +193,7 @@
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Nom du wallet *</label>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Nom du compte *</label>
                 <input type="text" name="name" id="walletNameInput" required maxlength="150" autocomplete="off"
                        placeholder="Ex. MOBILE MONEY"
                        class="w-full px-4 py-2 border border-gray-300 rounded-lg uppercase font-medium">
@@ -144,7 +209,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelCreateWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+                <button type="submit" id="createWalletSubmitBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="createWalletSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createWalletSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -154,7 +222,7 @@
 <div id="editWalletModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-            <h3 class="text-lg font-bold text-gray-800">Modifier le wallet</h3>
+            <h3 class="text-lg font-bold text-gray-800">Modifier le compte</h3>
             <button id="closeEditWalletModal" type="button" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
         </div>
         <form id="editWalletForm" method="POST" action="{% url 'wallet:update_wallet' '00000000-0000-0000-0000-000000000000' %}" class="p-6 space-y-4">
@@ -171,7 +239,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelEditWalletModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Enregistrer</button>
+                <button type="submit" id="editWalletSubmitBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="editWalletSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="editWalletSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -186,11 +257,11 @@
         </div>
         <div class="p-6 space-y-4">
             <p class="text-sm text-gray-700">
-                Voulez-vous vraiment supprimer le wallet de
+                Voulez-vous vraiment supprimer le compte de
                 <span id="deleteWalletStationName" class="font-semibold text-gray-900"></span> ?
             </p>
             <div id="deleteWalletBlockedMessage" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-                Suppression impossible: le solde du wallet doit etre a 0.
+                Suppression impossible: le solde du compte doit etre a 0.
             </div>
             <div class="flex items-center justify-end space-x-3 pt-2">
                 <button type="button" id="cancelDeleteWallet" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
@@ -208,17 +279,93 @@
 </div>
 
 <script>
+    const transferWalletModal = document.getElementById('transferWalletModal');
+    const transferFromAccount = document.getElementById('transferFromAccount');
+    const transferToAccount = document.getElementById('transferToAccount');
+    const transferSourceBalanceHint = document.getElementById('transferSourceBalanceHint');
+    const transferAmountInput = document.getElementById('transferAmountInput');
+    const transferFromOptions = transferFromAccount
+        ? Array.from(transferFromAccount.querySelectorAll('option')).filter(function (o) { return o.value; })
+        : [];
+
+    function formatTransferBalanceHint(balance, currency) {
+        const n = parseFloat(String(balance || '0').replace(',', '.'));
+        if (!Number.isFinite(n)) return '';
+        const formatted = (window.NumberFormat && NumberFormat.formatAmount)
+            ? NumberFormat.formatAmount(n)
+            : String(n);
+        return 'Solde disponible : ' + formatted + ' ' + (currency || 'GNF');
+    }
+
+    function refreshTransferDestinationOptions() {
+        if (!transferFromAccount || !transferToAccount) return;
+        const fromId = transferFromAccount.value;
+        const fromOpt = transferFromAccount.selectedOptions[0];
+        const stationId = fromOpt?.dataset.stationId || '';
+        const currency = fromOpt?.dataset.currency || '';
+
+        transferToAccount.innerHTML = '<option value="">Selectionner le compte a crediter</option>';
+        if (!fromId) {
+            transferSourceBalanceHint.classList.add('hidden');
+            return;
+        }
+
+        transferSourceBalanceHint.textContent = formatTransferBalanceHint(
+            fromOpt.dataset.balance,
+            currency
+        );
+        transferSourceBalanceHint.classList.remove('hidden');
+
+        transferFromOptions.forEach(function (opt) {
+            if (opt.value === fromId) return;
+            if (opt.dataset.stationId !== stationId) return;
+            if (opt.dataset.currency !== currency) return;
+            const clone = opt.cloneNode(true);
+            transferToAccount.appendChild(clone);
+        });
+    }
+
+    function openTransferWalletModal(fromAccountId) {
+        if (!transferWalletModal) return;
+        transferFromAccount.value = fromAccountId ? String(fromAccountId) : '';
+        transferToAccount.value = '';
+        if (transferAmountInput) transferAmountInput.value = '';
+        refreshTransferDestinationOptions();
+        transferWalletModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        if (window.NumberFormat) NumberFormat.initNumberInputs(transferWalletModal);
+    }
+
+    function closeTransferWalletModal() {
+        if (!transferWalletModal) return;
+        transferWalletModal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.getElementById('openTransferWalletModal')?.addEventListener('click', function () {
+        openTransferWalletModal();
+    });
+    document.getElementById('closeTransferWalletModal')?.addEventListener('click', closeTransferWalletModal);
+    document.getElementById('cancelTransferWalletModal')?.addEventListener('click', closeTransferWalletModal);
+    transferFromAccount?.addEventListener('change', refreshTransferDestinationOptions);
+    transferWalletModal?.addEventListener('click', function (e) {
+        if (e.target === transferWalletModal) closeTransferWalletModal();
+    });
+    window.openTransferWalletModal = openTransferWalletModal;
+
     const openCreateWalletModalBtn = document.getElementById('openCreateWalletModal');
     const createWalletModal = document.getElementById('createWalletModal');
     const closeCreateWalletModalBtn = document.getElementById('closeCreateWalletModal');
     const cancelCreateWalletModalBtn = document.getElementById('cancelCreateWalletModal');
 
     function openCreateWalletModal() {
+        setCreateWalletSubmitting(false);
         createWalletModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
     function closeCreateWalletModal() {
+        setCreateWalletSubmitting(false);
         createWalletModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
@@ -234,6 +381,16 @@
     const walletBalanceDisplay = document.getElementById('walletBalanceDisplay');
     const walletBalanceRaw = document.getElementById('walletBalanceRaw');
     const createWalletForm = createWalletModal?.querySelector('form');
+    const createWalletSubmitBtn = document.getElementById('createWalletSubmitBtn');
+    const createWalletSubmitSpinner = document.getElementById('createWalletSubmitSpinner');
+    const createWalletSubmitLabel = document.getElementById('createWalletSubmitLabel');
+
+    function setCreateWalletSubmitting(isSubmitting) {
+        if (createWalletSubmitBtn) createWalletSubmitBtn.disabled = isSubmitting;
+        if (cancelCreateWalletModalBtn) cancelCreateWalletModalBtn.disabled = isSubmitting;
+        if (createWalletSubmitSpinner) createWalletSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (createWalletSubmitLabel) createWalletSubmitLabel.textContent = isSubmitting ? 'Enregistrement...' : 'Enregistrer';
+    }
 
     function normalizeAmount(value) {
         return (value || '').replace(/\s/g, '').replace(',', '.');
@@ -260,8 +417,13 @@
         walletBalanceDisplay.value = formatWithSpaces(walletBalanceDisplay.value);
         walletBalanceRaw.value = normalizeAmount(walletBalanceDisplay.value);
     });
-    createWalletForm?.addEventListener('submit', function() {
+    createWalletForm?.addEventListener('submit', function(e) {
+        if (createWalletSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
         walletBalanceRaw.value = normalizeAmount(walletBalanceDisplay?.value || '0') || '0';
+        setCreateWalletSubmitting(true);
     });
 
     const editWalletModal = document.getElementById('editWalletModal');
@@ -270,7 +432,17 @@
     const cancelEditWalletModalBtn = document.getElementById('cancelEditWalletModal');
     const editWalletStationLabel = document.getElementById('editWalletStationLabel');
     const editWalletNameInput = document.getElementById('editWalletNameInput');
+    const editWalletSubmitBtn = document.getElementById('editWalletSubmitBtn');
+    const editWalletSubmitSpinner = document.getElementById('editWalletSubmitSpinner');
+    const editWalletSubmitLabel = document.getElementById('editWalletSubmitLabel');
     const UPDATE_WALLET_URL_PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
+
+    function setEditWalletSubmitting(isSubmitting) {
+        if (editWalletSubmitBtn) editWalletSubmitBtn.disabled = isSubmitting;
+        if (cancelEditWalletModalBtn) cancelEditWalletModalBtn.disabled = isSubmitting;
+        if (editWalletSubmitSpinner) editWalletSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (editWalletSubmitLabel) editWalletSubmitLabel.textContent = isSubmitting ? 'Enregistrement...' : 'Enregistrer';
+    }
 
     function sanitizeEditWalletNameInput() {
         if (!editWalletNameInput) return;
@@ -284,17 +456,26 @@
         editWalletNameInput.value = (currentName || '').toUpperCase();
         const baseUrl = editWalletForm.action;
         editWalletForm.action = baseUrl.replace(UPDATE_WALLET_URL_PLACEHOLDER, walletUuid);
+        setEditWalletSubmitting(false);
         editWalletModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
     function closeEditWalletModal() {
+        setEditWalletSubmitting(false);
         editWalletModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
 
     editWalletNameInput?.addEventListener('input', sanitizeEditWalletNameInput);
     editWalletNameInput?.addEventListener('blur', sanitizeEditWalletNameInput);
+    editWalletForm?.addEventListener('submit', function(e) {
+        if (editWalletSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+        setEditWalletSubmitting(true);
+    });
     closeEditWalletModalBtn?.addEventListener('click', closeEditWalletModal);
     cancelEditWalletModalBtn?.addEventListener('click', closeEditWalletModal);
     editWalletModal?.addEventListener('click', function(e) {

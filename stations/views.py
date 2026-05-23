@@ -7,12 +7,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Count
 from django.http import JsonResponse
-from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from stations.models import Station
 from permissions_web import admin_required, super_admin_required
 from city.models import City
-from inventory.models import Inventory
-from daily_stock.models import DailyStock
 
 @login_required
 def stations_list_view(request):
@@ -146,7 +144,6 @@ def create_station_view(request):
         address = request.POST.get('address', '').strip()
         latitude = request.POST.get('latitude', '').strip()
         longitude = request.POST.get('longitude', '').strip()
-        stock_entry_date_raw = request.POST.get('stock_entry_date', '').strip()
         
         # Déterminer le propriétaire selon le rôle
         if request.user.role == 'super_admin':
@@ -170,43 +167,29 @@ def create_station_view(request):
         if not name or not city_id or not address:
             messages.error(request, 'Veuillez remplir tous les champs obligatoires.')
             return redirect('stations:stations_list')
-        if not stock_entry_date_raw:
-            messages.error(request, 'Veuillez renseigner la date d’entrée du stock.')
-            return redirect('stations:stations_list')
-        
-        if not latitude or not longitude:
-            messages.error(request, 'Veuillez sélectionner un emplacement sur la carte.')
-            return redirect('stations:stations_list')
-        
+
+        latitude_decimal = None
+        longitude_decimal = None
+        if latitude or longitude:
+            if not latitude or not longitude:
+                messages.error(
+                    request,
+                    'Si vous renseignez la carte, sélectionnez un point complet (latitude et longitude).',
+                )
+                return redirect('stations:stations_list')
+            try:
+                latitude_decimal = Decimal(latitude)
+                longitude_decimal = Decimal(longitude)
+            except (InvalidOperation, ValueError):
+                messages.error(request, 'Coordonnées de la carte invalides.')
+                return redirect('stations:stations_list')
+
         try:
-            # Convertir les coordonnées en Decimal
-            latitude_decimal = Decimal(latitude)
-            longitude_decimal = Decimal(longitude)
-            
             # Ville sélectionnée
             try:
                 city = City.objects.get(id=city_id)
             except City.DoesNotExist:
                 messages.error(request, 'La ville sélectionnée est invalide.')
-                return redirect('stations:stations_list')
-            try:
-                stock_entry_date = timezone.datetime.strptime(stock_entry_date_raw, '%Y-%m-%d').date()
-            except ValueError:
-                messages.error(request, 'Date d’entrée du stock invalide.')
-                return redirect('stations:stations_list')
-
-            try:
-                stock_gasoline = Decimal(
-                    (request.POST.get('stock_gasoline') or '0').replace(',', '.').strip() or '0'
-                )
-                stock_diesel = Decimal(
-                    (request.POST.get('stock_diesel') or '0').replace(',', '.').strip() or '0'
-                )
-            except InvalidOperation:
-                messages.error(request, 'Les stocks essence et gazoil doivent être des nombres valides.')
-                return redirect('stations:stations_list')
-            if stock_gasoline < 0 or stock_diesel < 0:
-                messages.error(request, 'Les stocks ne peuvent pas être négatifs.')
                 return redirect('stations:stations_list')
 
             # Créer la station
@@ -217,8 +200,6 @@ def create_station_view(request):
                 latitude=latitude_decimal,
                 longitude=longitude_decimal,
                 owner=owner,
-                stock_gasoline=stock_gasoline,
-                stock_diesel=stock_diesel,
             )
 
             # Gérant optionnel
@@ -240,29 +221,6 @@ def create_station_view(request):
                     messages.error(request, 'Le gérant sélectionné est invalide.')
                     return redirect('stations:stations_list')
                 StationManager.objects.create(station=station, manager=manager)
-
-            inv = Inventory.objects.create(
-                station=station,
-                qty_gasoline=stock_gasoline,
-                qty_diesel=stock_diesel,
-            )
-            entry_dt = timezone.make_aware(
-                timezone.datetime.combine(stock_entry_date, timezone.datetime.min.time()),
-                timezone.get_current_timezone(),
-            )
-            inv.created_at = entry_dt
-            inv.save(update_fields=['created_at'])
-
-            DailyStock.objects.update_or_create(
-                station=station,
-                stock_date=stock_entry_date,
-                defaults={
-                    'recorded_by': request.user,
-                    'qty_gasoline': stock_gasoline,
-                    'qty_diesel': stock_diesel,
-                    'notes': 'Stock initial à la création de la station',
-                },
-            )
 
             messages.success(request, f'La station "{station.name}" a été créée avec succès.')
             return redirect('stations:stations_list')
@@ -320,21 +278,36 @@ def station_detail_view(request, station_uuid):
                 ).order_by('first_name', 'last_name')
 
         from pumps.models import Pump, PumpReading
+        from tank.models import Tank
 
         can_manage_pumps = request.user.role == 'super_admin' or (
             request.user.role == 'admin' and station.owner_id == request.user.id
         )
+        can_manage_tanks = can_manage_pumps
         can_record_pump_readings = is_station_manager or can_manage_pumps
 
+        station_tanks = (
+            Tank.objects.filter(station=station)
+            .annotate(pumps_count=Count("pump"))
+            .order_by("name")
+        )
+        station_tanks_total = station_tanks.count()
+
         search_query = request.GET.get('search', '').strip()
+        tank_filter = request.GET.get('tank', '').strip()
         pumps_qs = (
             Pump.objects.filter(station=station)
-            .select_related('station', 'station__city')
+            .select_related('station', 'station__city', 'tank')
             .annotate(readings_count=Count('readings'))
-            .order_by('-created_at')
+            .order_by('tank__name', 'name')
         )
         if search_query:
             pumps_qs = pumps_qs.filter(Q(name__icontains=search_query))
+        if tank_filter:
+            if station_tanks.filter(pk=tank_filter).exists():
+                pumps_qs = pumps_qs.filter(tank_id=tank_filter)
+            else:
+                tank_filter = ''
 
         station_pumps_total = pumps_qs.count()
         paginator = Paginator(pumps_qs, 15)
@@ -365,9 +338,13 @@ def station_detail_view(request, station_uuid):
             'managers': managers,
             'all_cities': City.objects.order_by('name'),
             'can_manage_pumps': can_manage_pumps,
+            'can_manage_tanks': can_manage_tanks,
             'can_record_pump_readings': can_record_pump_readings,
+            'station_tanks': station_tanks,
+            'station_tanks_total': station_tanks_total,
             'is_station_manager': is_station_manager,
             'search_query': search_query,
+            'tank_filter': tank_filter,
             'station_pumps_page': page_obj,
             'station_pumps_total': station_pumps_total,
             'station_wallets': station_wallets,
@@ -474,6 +451,17 @@ def update_station_view(request, station_uuid):
     
     return redirect('stations:stations_list')
 
+def _redirect_after_failed_station_delete(request, station_uuid):
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("stations:stations_list")
+
+
 @login_required
 def delete_station_view(request, station_uuid):
     """
@@ -483,23 +471,33 @@ def delete_station_view(request, station_uuid):
     if request.user.role not in ['super_admin', 'admin']:
         messages.error(request, 'Vous n\'avez pas la permission de supprimer une station.')
         return redirect('stations:stations_list')
-    
+
+    station = get_object_or_404(Station, station_uuid=station_uuid)
+
     if request.method == 'POST':
+        password = (request.POST.get("password") or "").strip()
+        if not password:
+            messages.error(
+                request,
+                "Veuillez saisir votre mot de passe pour confirmer la suppression.",
+            )
+            return _redirect_after_failed_station_delete(request, station_uuid)
+        if not request.user.check_password(password):
+            messages.error(request, "Mot de passe incorrect.")
+            return _redirect_after_failed_station_delete(request, station_uuid)
+
         try:
-            station = get_object_or_404(Station, station_uuid=station_uuid)
-            
-            # Vérifier les permissions
             if request.user.role == 'admin' and station.owner != request.user:
                 messages.error(request, 'Vous n\'avez pas la permission de supprimer cette station.')
                 return redirect('stations:stations_list')
-            
+
             station_name = station.name
             station.delete()
-            
+
             messages.success(request, f'La station "{station_name}" a été supprimée avec succès.')
         except Exception as e:
             messages.error(request, f'Erreur lors de la suppression : {str(e)}')
-    
+
     return redirect('stations:stations_list')
 
 @login_required

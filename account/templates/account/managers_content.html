@@ -442,10 +442,12 @@
                 </button>
                 <button 
                     type="submit"
-                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+                    id="createManagerSubmitBtn"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                    <i class="fas fa-save mr-2"></i>
-                    Créer le gérant
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <i id="createManagerSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createManagerSubmitLabel">Créer le gérant</span>
                 </button>
             </div>
         </form>
@@ -576,19 +578,31 @@
     const cancelManagerBtn = document.getElementById('cancelManagerBtn');
     const createManagerForm = document.getElementById('createManagerForm');
     const managerPhoneNumberInput = document.getElementById('manager_phone_number');
+    const createManagerSubmitBtn = document.getElementById('createManagerSubmitBtn');
+    const createManagerSubmitSpinner = document.getElementById('createManagerSubmitSpinner');
+    const createManagerSubmitLabel = document.getElementById('createManagerSubmitLabel');
     const editManagerModal = document.getElementById('editManagerModal');
     const deleteManagerModal = document.getElementById('deleteManagerModal');
     const resetPasswordModal = document.getElementById('resetPasswordModal');
     const toggleManagerStatusModal = document.getElementById('toggleManagerStatusModal');
 
+    function setCreateManagerSubmitting(isSubmitting) {
+        if (createManagerSubmitBtn) createManagerSubmitBtn.disabled = isSubmitting;
+        if (cancelManagerBtn) cancelManagerBtn.disabled = isSubmitting;
+        if (createManagerSubmitSpinner) createManagerSubmitSpinner.classList.toggle('hidden', !isSubmitting);
+        if (createManagerSubmitLabel) createManagerSubmitLabel.textContent = isSubmitting ? 'Création...' : 'Créer le gérant';
+    }
+
     // Ouvrir le modal
     createManagerBtn.addEventListener('click', function() {
+        setCreateManagerSubmitting(false);
         createManagerModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     });
 
     // Fermer le modal
     function closeManagerModal() {
+        setCreateManagerSubmitting(false);
         createManagerModal.classList.add('hidden');
         document.body.style.overflow = 'auto';
         createManagerForm.reset();
@@ -712,6 +726,11 @@
     
     // Enlever les séparateurs avant la soumission
     createManagerForm.addEventListener('submit', function(e) {
+        if (createManagerSubmitBtn?.disabled) {
+            e.preventDefault();
+            return false;
+        }
+
         // Validation basique
         const email = document.querySelector('#createManagerForm input[name="email"]').value.trim();
         if (email && !email.includes('@')) {
@@ -731,6 +750,8 @@
             managerPhoneNumberInput.focus();
             return false;
         }
+
+        setCreateManagerSubmitting(true);
     });
     
 </script>

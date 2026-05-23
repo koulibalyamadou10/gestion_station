@@ -1,0 +1,92 @@
+# Station-Service — Règles projet (Django)
+
+Répondre en français sauf demande contraire. Modifications minimales et cohérentes avec le code existant.
+
+---
+
+## Nombres : saisie (formulaires)
+
+Tout champ où l’utilisateur tape un montant, une quantité (litres), un index, etc. doit respecter ces règles.
+
+### Interdits
+
+- Ne pas utiliser `type="number"` pour ces champs (pas de formatage milliers à la frappe).
+- Ne pas laisser taper des lettres : uniquement chiffres, espace (séparateur milliers), virgule ou point pour les décimales.
+
+### Champs HTML obligatoires
+
+```html
+<input
+  type="text"
+  inputmode="decimal"
+  autocomplete="off"
+  class="js-number-input … text-right tabular-nums"
+  placeholder="Ex. 15 000 ou 15 000,60"
+>
+```
+
+Classes selon le besoin (voir `assets/js/number-format.js`) :
+
+| Classe | Usage | Exemples à la saisie (blur) |
+|--------|--------|-----------------------------|
+| `js-number-input` | Montants / quantités flexibles (0 à 2 décimales) | `15 000`, `15 000,6`, `15 000,60` |
+| `js-decimal-input` | Quantités avec **toujours** 2 décimales au blur | `15 000,00`, `15 000,60` |
+| `js-integer-input` | Entiers uniquement (ex. n° pompe) | `15 000` |
+
+### JavaScript
+
+- Le script `{% static 'js/number-format.js' %}` est chargé dans `base_authenticated.html` ; il initialise automatiquement les champs au `DOMContentLoaded`.
+- Dans un **modal** ou contenu dynamique : appeler `NumberFormat.initAllNumberInputs(modalElement)` à l’ouverture.
+- À la **soumission** du formulaire : `NumberFormat.stripNumberInputsForSubmit(form)` pour envoyer une valeur « brute » au serveur (sans espaces, virgule → point).
+
+### Côté serveur (Python)
+
+Parser les POST/GET avec le même nettoyage que le front :
+
+```python
+raw.replace("\u00a0", " ").replace(" ", "").replace(",", ".")
+```
+
+Puis `Decimal(...)` avec gestion d’erreur. Ne jamais faire confiance au format affiché.
+
+---
+
+## Nombres : affichage (templates)
+
+Toujours formater les nombres affichés à l’utilisateur (listes, détails, totaux, tableaux). Ne pas afficher `15000` ou `15000.50` bruts.
+
+### Filtres Django (`{% load money_extras %}`)
+
+| Filtre | Usage |
+|--------|--------|
+| `{{ value\|qty_fr }}` | Quantités en litres, stocks, index, écarts |
+| `{{ value\|money_fr }}` | Prix unitaires, montants (sans suffixe GNF) |
+| `{{ value\|money_gnf }}` | Montants avec suffixe « GNF » |
+
+Format attendu (style fr-FR du projet) :
+
+- Milliers : **espace** → `15 000`, `1 250 000`
+- Décimales : **virgule** si nécessaire → `15 000,5`, `15 000,60`
+- Pas de `,00` affiché si la partie décimale est nulle → `15 000` et non `15 000,00`
+
+Exemples corrects : `15 000` · `15 000,5` · `15 000,60` · `240 000 GNF`
+
+### Préremplissage dans un champ de saisie
+
+Utiliser le JS du projet, pas la valeur brute :
+
+```javascript
+input.value = NumberFormat.formatAmount(valeur);      // js-number-input
+input.value = NumberFormat.formatDecimal(valeur);     // js-decimal-input
+```
+
+---
+
+## Récapitulatif pour l’agent
+
+1. **Nouveau champ numérique** → `type="text"` + `inputmode="decimal"` + `js-number-input` ou `js-decimal-input` + `stripNumberInputsForSubmit` au submit.
+2. **Nouvelle colonne / carte / total** → `qty_fr` ou `money_fr` / `money_gnf`, classe `tabular-nums` en CSS si alignement à droite.
+3. **Modal** → `initAllNumberInputs` après affichage du modal.
+4. **Vue Django** → parser espaces + virgule avant `Decimal`.
+
+Ne pas introduire de format anglais (virgule pour les milliers, point décimal à l’affichage) sauf dans le payload API interne après normalisation.

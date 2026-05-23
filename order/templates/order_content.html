@@ -158,6 +158,9 @@
                                     data-order-date="{{ order.order_date|date:'d/m/Y' }}"
                                     data-requested-qty-gasoline="{{ order.requested_qty_gasoline }}"
                                     data-requested-qty-diesel="{{ order.requested_qty_diesel }}"
+                                    data-truck-number="{{ order.truck_number|default:'' }}"
+                                    data-driver-name="{{ order.driver_name|default:'' }}"
+                                    data-driver-phone="{{ order.driver_phone|default:'' }}"
                                 >
                                     <i class="fas fa-check-circle"></i>
                                 </button>
@@ -188,11 +191,12 @@
                                         class="js-open-deliver-order p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
                                         title="Enregistrer la livraison"
                                         data-order-uuid="{{ order.order_uuid }}"
+                                        data-station-id="{{ order.station_id }}"
                                         data-qty-gasoline="{{ line.qty_gasoline }}"
                                         data-qty-diesel="{{ line.qty_diesel }}"
-                                        data-truck-number="{{ order.truck_number|default:'' }}"
-                                        data-driver-name="{{ order.driver_name|default:'' }}"
-                                        data-driver-phone="{{ order.driver_phone|default:'' }}"
+                                        data-truck-number="{{ line.truck_number|default:'' }}"
+                                        data-driver-name="{{ line.driver_name|default:'' }}"
+                                        data-driver-phone="{{ line.driver_phone|default:'' }}"
                                     >
                                         <i class="fas fa-truck"></i>
                                     </button>
@@ -270,7 +274,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
-                            <input type="number" name="requested_qty_gasoline" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                            <input type="text" name="requested_qty_gasoline" value="0" required inputmode="decimal" autocomplete="off" placeholder="0" class="js-number-input w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white text-right">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Essence)</label>
@@ -285,7 +289,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Quantité (L) <span class="text-red-500">*</span></label>
-                            <input type="number" name="requested_qty_diesel" min="0" step="0.01" value="0" required inputmode="decimal" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white">
+                            <input type="text" name="requested_qty_diesel" value="0" required inputmode="decimal" autocomplete="off" placeholder="0" class="js-number-input w-full px-3 py-2.5 border border-gray-300 rounded-lg tabular-nums bg-white text-right">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1.5">Prix à la pompe / (Gasoil)</label>
@@ -440,6 +444,24 @@
                     </div>
                 </div>
             </div>
+            <div class="space-y-3 rounded-lg border border-gray-200 bg-slate-50/80 px-4 py-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Transport</p>
+                <p class="text-xs text-gray-500">Renseigné par le gérant à la création — vous pouvez corriger avant confirmation.</p>
+                <div>
+                    <label for="confirm_truck_number" class="block text-sm font-semibold text-gray-700 mb-2">N° véhicule / camion</label>
+                    <input type="text" name="truck_number" id="confirm_truck_number" maxlength="50" autocomplete="off" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Ex. AB-123-CD">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="confirm_driver_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du chauffeur</label>
+                        <input type="text" name="driver_name" id="confirm_driver_name" maxlength="100" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Nom complet">
+                    </div>
+                    <div>
+                        <label for="confirm_driver_phone" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone chauffeur</label>
+                        <input type="tel" name="driver_phone" id="confirm_driver_phone" maxlength="100" autocomplete="tel" inputmode="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white" placeholder="Ex. +224 …">
+                    </div>
+                </div>
+            </div>
             <div class="space-y-3 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3">
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bon de commande</p>
                 <p class="text-xs text-gray-500">Facultatif — pièce jointe et/ou référence interne.</p>
@@ -478,7 +500,7 @@
         </div>
         <form id="deliverOrderForm" method="POST" action="{% url 'order:order_mark_delivered' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">
             {% csrf_token %}
-            <p class="text-xs text-gray-500">La commande passera en statut <strong>Livrée</strong>. Les quantités livrées prévues sont celles <strong>confirmées sur la commande</strong> (non modifiables). Saisissez les <strong>quantités manquantes</strong> le cas échéant : le stock sera augmenté du volume réellement reçu (prévu − manquant).</p>
+            <p class="text-xs text-gray-500">La commande passera en statut <strong>Livrée</strong>. Indiquez d’abord les <strong>quantités manquantes</strong>, puis répartissez le reste dans les cuves. Le stock station et les cuves seront mis à jour.</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
                     <p class="text-xs font-semibold text-gray-500 uppercase">Quantité livrée (essence)</p>
@@ -491,44 +513,101 @@
                     <p class="text-[11px] text-gray-500 mt-1">L</p>
                 </div>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div id="deliverStepMissing" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité manquante essence (L)</label>
-                    <input type="number" name="missing_qty_gasoline" id="deliver_missing_qty_gasoline" min="0" step="0.01" value="0" inputmode="decimal" class="w-full px-4 py-2 border border-gray-300 rounded-lg tabular-nums">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Étape 1 — Quantités manquantes</p>
+                    <p class="text-xs text-gray-500 mb-3">Saisissez ce qui n'a pas été livré par le camion (0 si rien ne manque).</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="deliver_missing_qty_gasoline" class="block text-sm font-semibold text-amber-800 mb-2">Manquant essence (L)</label>
+                            <input type="text" name="missing_qty_gasoline" id="deliver_missing_qty_gasoline" inputmode="decimal" autocomplete="off" required value="0" class="js-number-input w-full px-4 py-2 border border-amber-200 rounded-lg text-right tabular-nums bg-amber-50/50" placeholder="0">
+                        </div>
+                        <div>
+                            <label for="deliver_missing_qty_diesel" class="block text-sm font-semibold text-slate-800 mb-2">Manquant gazoil (L)</label>
+                            <input type="text" name="missing_qty_diesel" id="deliver_missing_qty_diesel" inputmode="decimal" autocomplete="off" required value="0" class="js-number-input w-full px-4 py-2 border border-slate-200 rounded-lg text-right tabular-nums bg-slate-50/50" placeholder="0">
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Quantité manquante gasoil (L)</label>
-                    <input type="number" name="missing_qty_diesel" id="deliver_missing_qty_diesel" min="0" step="0.01" value="0" inputmode="decimal" class="w-full px-4 py-2 border border-gray-300 rounded-lg tabular-nums">
-                </div>
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Date de livraison <span class="text-red-500">*</span></label>
-                <input type="date" name="delivery_date" id="deliver_delivery_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-            </div>
-            <div>
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transport (prérempli depuis la commande)</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">N° camion</label>
-                        <input type="text" name="truck_number" id="deliver_truck_number" maxlength="50" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
+                    <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-emerald-800 uppercase">À répartir — essence</p>
+                        <p class="text-lg font-bold text-emerald-900 tabular-nums"><span id="deliver_to_distribute_gasoline_display">0</span> L</p>
+                        <p class="text-[11px] text-emerald-700 mt-1">Livré − manquant</p>
                     </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Chauffeur</label>
-                        <input type="text" name="driver_name" id="deliver_driver_name" maxlength="100" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">Téléphone chauffeur</label>
-                        <input type="tel" name="driver_phone" id="deliver_driver_phone" maxlength="100" inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
+                    <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-emerald-800 uppercase">À répartir — gazoil</p>
+                        <p class="text-lg font-bold text-emerald-900 tabular-nums"><span id="deliver_to_distribute_diesel_display">0</span> L</p>
+                        <p class="text-[11px] text-emerald-700 mt-1">Livré − manquant</p>
                     </div>
                 </div>
+                <p id="deliverMissingError" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></p>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="cancelDeliverOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Fermer</button>
+                    <button type="button" id="deliverGoToTanksBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Continuer — répartir dans les cuves</button>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Réf. / bon de livraison</label>
-                <input type="text" name="delivery_notes" id="deliver_delivery_notes" maxlength="255" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Optionnel">
-            </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button type="button" id="cancelDeliverOrderModal" class="px-4 py-2 border border-gray-300 rounded-lg">Fermer</button>
-                <button type="button" id="deliverOrderOpenConfirmBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Valider la livraison</button>
+
+            <div id="deliverStepTanks" class="space-y-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-emerald-800 uppercase">À répartir — essence</p>
+                        <p class="text-lg font-bold text-emerald-900 tabular-nums"><span id="deliver_to_distribute_gasoline_display_step2">0</span> L</p>
+                    </div>
+                    <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-emerald-800 uppercase">À répartir — gazoil</p>
+                        <p class="text-lg font-bold text-emerald-900 tabular-nums"><span id="deliver_to_distribute_diesel_display_step2">0</span> L</p>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">Étape 2 — Répartition par cuve <span class="text-red-500">*</span></p>
+                    <p class="text-xs text-gray-500 mb-3">Saisissez la quantité reçue dans chaque cuve. Le niveau actuel + la quantité saisie ne doit pas dépasser la capacité maximale de la cuve.</p>
+                    <div id="deliverTanksContainer" class="space-y-3 max-h-56 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50 text-sm text-gray-500">
+                        Sélectionnez une commande pour afficher les cuves.
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-amber-800 uppercase">Saisi essence (cuves)</p>
+                        <p class="text-lg font-bold text-amber-900 tabular-nums"><span id="deliver_received_gasoline_display">0</span> L</p>
+                        <p class="text-[11px] text-amber-700 mt-1">Reste à saisir : <span id="deliver_remaining_gasoline_display" class="font-semibold">0</span> L</p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-slate-800 uppercase">Saisi gazoil (cuves)</p>
+                        <p class="text-lg font-bold text-slate-900 tabular-nums"><span id="deliver_received_diesel_display">0</span> L</p>
+                        <p class="text-[11px] text-slate-700 mt-1">Reste à saisir : <span id="deliver_remaining_diesel_display" class="font-semibold">0</span> L</p>
+                    </div>
+                </div>
+                <p id="deliverCapacityError" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></p>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date de livraison <span class="text-red-500">*</span></label>
+                    <input type="date" name="delivery_date" id="deliver_delivery_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transport (prérempli depuis la commande)</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">N° camion</label>
+                            <input type="text" name="truck_number" id="deliver_truck_number" maxlength="50" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Chauffeur</label>
+                            <input type="text" name="driver_name" id="deliver_driver_name" maxlength="100" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Téléphone chauffeur</label>
+                            <input type="tel" name="driver_phone" id="deliver_driver_phone" maxlength="100" inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Modifiez si besoin">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Réf. / bon de livraison</label>
+                    <input type="text" name="delivery_notes" id="deliver_delivery_notes" maxlength="255" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Optionnel">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="deliverBackToMissingBtn" class="px-4 py-2 border border-gray-300 rounded-lg">Retour</button>
+                    <button type="button" id="deliverOrderOpenConfirmBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">Valider la livraison</button>
+                </div>
             </div>
         </form>
     </div>
@@ -540,7 +619,10 @@
         <p class="text-sm text-gray-700 mt-3">Êtes-vous sûr de vouloir enregistrer cette livraison ? Le statut passera à <strong>Livrée</strong> et le stock sera mis à jour.</p>
         <div class="flex justify-end gap-2 mt-6">
             <button type="button" id="deliverConfirmModalCancel" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Non, revenir</button>
-            <button type="button" id="deliverConfirmModalOk" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Oui, confirmer</button>
+            <button type="button" id="deliverConfirmModalOk" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                <i id="deliverConfirmModalOkSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deliverConfirmModalOkLabel">Oui, confirmer</span>
+            </button>
         </div>
     </div>
 </div>
@@ -568,7 +650,8 @@
 {% if can_create_order or can_edit_order_quantities %}
 <script>
     function decimalValue(input) {
-        const parsed = parseFloat((input?.value || '0').toString().replace(',', '.'));
+        const raw = (input?.value || '0').toString().replace(/\s/g, '').replace(/\u00a0/g, '').replace(',', '.');
+        const parsed = parseFloat(raw);
         return Number.isNaN(parsed) ? 0 : parsed;
     }
 
@@ -590,6 +673,14 @@
     function openOrderModal() {
         createOrderModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
+        if (createQtyGasoline) createQtyGasoline.value = '0';
+        if (createQtyDiesel) createQtyDiesel.value = '0';
+        if (window.NumberFormat) {
+            NumberFormat.initNumberInputs(createOrderModal);
+            if (createQtyGasoline) createQtyGasoline.value = NumberFormat.formatAmount(0);
+            if (createQtyDiesel) createQtyDiesel.value = NumberFormat.formatAmount(0);
+        }
+        refreshCreateTotal();
     }
 
     function closeOrderModal() {
@@ -746,7 +837,7 @@
         lockBody(false);
     }
 
-    function openConfirmOrderModal(orderUuid, stationName, orderDate, requestedGasoline, requestedDiesel) {
+    function openConfirmOrderModal(orderUuid, stationName, orderDate, requestedGasoline, requestedDiesel, truckNumber, driverName, driverPhone) {
         if (!confirmOrderModal || !confirmOrderForm) return;
         confirmOrderForm.action = orderConfirmUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
         if (confirmOrderStation) confirmOrderStation.textContent = stationName || '';
@@ -757,6 +848,12 @@
         const cqD = document.getElementById('confirm_qty_diesel');
         if (cqG) cqG.value = requestedGasoline != null && requestedGasoline !== '' ? String(requestedGasoline) : '0';
         if (cqD) cqD.value = requestedDiesel != null && requestedDiesel !== '' ? String(requestedDiesel) : '0';
+        const truckEl = document.getElementById('confirm_truck_number');
+        const driverEl = document.getElementById('confirm_driver_name');
+        const phoneEl = document.getElementById('confirm_driver_phone');
+        if (truckEl) truckEl.value = truckNumber != null ? String(truckNumber) : '';
+        if (driverEl) driverEl.value = driverName != null ? String(driverName) : '';
+        if (phoneEl) phoneEl.value = driverPhone != null ? String(driverPhone) : '';
         const poFile = document.getElementById('purchase_order_file');
         const poRef = document.getElementById('purchase_order_reference');
         clearPurchaseOrderPreview();
@@ -790,7 +887,10 @@
                 btn.dataset.station || '',
                 btn.dataset.orderDate || '',
                 btn.dataset.requestedQtyGasoline,
-                btn.dataset.requestedQtyDiesel
+                btn.dataset.requestedQtyDiesel,
+                btn.dataset.truckNumber,
+                btn.dataset.driverName,
+                btn.dataset.driverPhone
             );
         });
     });
@@ -811,6 +911,7 @@
 </script>
 {% endif %}
 
+{{ tanks_by_station|json_script:"order-station-tanks" }}
 {% if can_deliver_order or can_cancel_confirmed_order %}
 <script>
 (function() {
@@ -819,10 +920,26 @@
     const orderMarkDeliveredUrlTemplate = '{% url 'order:order_mark_delivered' '00000000-0000-4000-8000-000000000001' %}';
     const deliverOrderModal = document.getElementById('deliverOrderModal');
     const deliverOrderForm = document.getElementById('deliverOrderForm');
+    const deliverStepMissing = document.getElementById('deliverStepMissing');
+    const deliverStepTanks = document.getElementById('deliverStepTanks');
     const deliverQtyGasolineDisplay = document.getElementById('deliver_qty_gasoline_display');
     const deliverQtyDieselDisplay = document.getElementById('deliver_qty_diesel_display');
-    const deliverMissingGasoline = document.getElementById('deliver_missing_qty_gasoline');
-    const deliverMissingDiesel = document.getElementById('deliver_missing_qty_diesel');
+    const deliverMissingQtyGasoline = document.getElementById('deliver_missing_qty_gasoline');
+    const deliverMissingQtyDiesel = document.getElementById('deliver_missing_qty_diesel');
+    const deliverToDistributeGasolineDisplay = document.getElementById('deliver_to_distribute_gasoline_display');
+    const deliverToDistributeDieselDisplay = document.getElementById('deliver_to_distribute_diesel_display');
+    const deliverToDistributeGasolineDisplayStep2 = document.getElementById('deliver_to_distribute_gasoline_display_step2');
+    const deliverToDistributeDieselDisplayStep2 = document.getElementById('deliver_to_distribute_diesel_display_step2');
+    const deliverTanksContainer = document.getElementById('deliverTanksContainer');
+    const deliverReceivedGasolineDisplay = document.getElementById('deliver_received_gasoline_display');
+    const deliverReceivedDieselDisplay = document.getElementById('deliver_received_diesel_display');
+    const deliverRemainingGasolineDisplay = document.getElementById('deliver_remaining_gasoline_display');
+    const deliverRemainingDieselDisplay = document.getElementById('deliver_remaining_diesel_display');
+    const deliverMissingError = document.getElementById('deliverMissingError');
+    const deliverCapacityError = document.getElementById('deliverCapacityError');
+    const deliverOpenConfirmBtn = document.getElementById('deliverOrderOpenConfirmBtn');
+    const tanksByStationEl = document.getElementById('order-station-tanks');
+    const tanksByStation = tanksByStationEl ? JSON.parse(tanksByStationEl.textContent) : {};
     const deliverDeliveryDate = document.getElementById('deliver_delivery_date');
     const deliverTruckNumber = document.getElementById('deliver_truck_number');
     const deliverDriverName = document.getElementById('deliver_driver_name');
@@ -832,27 +949,202 @@
     const deliverConfirmModalSummary = document.getElementById('deliverConfirmModalSummary');
 
     function parseQty(raw) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.parseAmountInput(raw);
+        }
         const s = String(raw ?? '0').replace(/\s/g, '').replace(',', '.');
         const n = parseFloat(s);
         return Number.isNaN(n) ? 0 : n;
     }
 
     function formatQtyFr(n) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.formatAmount(n);
+        }
         return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(n);
     }
 
-    function openDeliverOrderModal(orderUuid, qtyGasoline, qtyDiesel, truckNumber, driverName, driverPhone) {
+    function showDeliverStep(step) {
+        if (deliverStepMissing) deliverStepMissing.classList.toggle('hidden', step !== 1);
+        if (deliverStepTanks) deliverStepTanks.classList.toggle('hidden', step !== 2);
+    }
+
+    function updateMissingCalculations() {
+        const plannedG = parseQty(deliverOrderForm?.dataset.plannedGasoline);
+        const plannedD = parseQty(deliverOrderForm?.dataset.plannedDiesel);
+        const missG = parseQty(deliverMissingQtyGasoline?.value);
+        const missD = parseQty(deliverMissingQtyDiesel?.value);
+        const toDistG = Math.max(0, plannedG - missG);
+        const toDistD = Math.max(0, plannedD - missD);
+        deliverOrderForm.dataset.toDistributeGasoline = String(toDistG);
+        deliverOrderForm.dataset.toDistributeDiesel = String(toDistD);
+        if (deliverToDistributeGasolineDisplay) deliverToDistributeGasolineDisplay.textContent = formatQtyFr(toDistG);
+        if (deliverToDistributeDieselDisplay) deliverToDistributeDieselDisplay.textContent = formatQtyFr(toDistD);
+        if (deliverToDistributeGasolineDisplayStep2) deliverToDistributeGasolineDisplayStep2.textContent = formatQtyFr(toDistG);
+        if (deliverToDistributeDieselDisplayStep2) deliverToDistributeDieselDisplayStep2.textContent = formatQtyFr(toDistD);
+        return { plannedG, plannedD, missG, missD, toDistG, toDistD };
+    }
+
+    function validateMissingStep() {
+        const calc = updateMissingCalculations();
+        if (deliverMissingError) deliverMissingError.classList.add('hidden');
+        if (calc.missG < 0 || calc.missD < 0) {
+            if (deliverMissingError) {
+                deliverMissingError.textContent = 'Les quantités manquantes ne peuvent pas être négatives.';
+                deliverMissingError.classList.remove('hidden');
+            }
+            return false;
+        }
+        if (calc.missG > calc.plannedG) {
+            if (deliverMissingError) {
+                deliverMissingError.textContent = 'Le manquant essence dépasse la quantité livrée prévue.';
+                deliverMissingError.classList.remove('hidden');
+            }
+            return false;
+        }
+        if (calc.missD > calc.plannedD) {
+            if (deliverMissingError) {
+                deliverMissingError.textContent = 'Le manquant gazoil dépasse la quantité livrée prévue.';
+                deliverMissingError.classList.remove('hidden');
+            }
+            return false;
+        }
+        if (calc.plannedG <= 0 && calc.plannedD <= 0) {
+            alert('Aucune quantité livrée prévue sur cette commande.');
+            return false;
+        }
+        return true;
+    }
+
+    function renderDeliverTanks(stationId) {
+        if (!deliverTanksContainer) return;
+        const tanks = tanksByStation[String(stationId)] || [];
+        if (!tanks.length) {
+            deliverTanksContainer.innerHTML = '<p class="text-amber-800"><i class="fas fa-exclamation-triangle mr-1"></i>Aucune cuve sur cette station. Créez des cuves dans la fiche station.</p>';
+            return;
+        }
+        const groups = { gasoline: [], diesel: [] };
+        tanks.forEach(function(t) {
+            (t.product === 'gasoline' ? groups.gasoline : groups.diesel).push(t);
+        });
+        let html = '';
+        [['gasoline', 'Essence', 'amber'], ['diesel', 'Gazoil', 'slate']].forEach(function(g) {
+            const list = groups[g[0]];
+            if (!list.length) return;
+            html += '<p class="text-xs font-bold uppercase text-' + g[2] + '-700 mb-2">' + g[1] + '</p>';
+            list.forEach(function(tank) {
+                const actual = parseQty(tank.actual_quantity);
+                const maxCap = tank.max_capacity != null ? parseQty(tank.max_capacity) : null;
+                const available = maxCap != null ? Math.max(0, maxCap - actual) : null;
+                html += '<div class="rounded-lg border border-gray-200 bg-white px-3 py-2 mb-2">';
+                html += '<div class="flex items-start gap-3">';
+                html += '<div class="flex-1 min-w-0">';
+                html += '<p class="font-semibold text-gray-900">' + tank.name + '</p>';
+                html += '<p class="text-xs text-gray-500 mt-0.5">Actuel : <span class="font-medium tabular-nums">' + formatQtyFr(actual) + ' L</span>';
+                if (maxCap != null) {
+                    html += ' · Max : <span class="font-medium tabular-nums">' + formatQtyFr(maxCap) + ' L</span>';
+                    html += ' · Dispo : <span class="font-medium tabular-nums text-emerald-700">' + formatQtyFr(available) + ' L</span>';
+                }
+                html += '</p>';
+                html += '<p class="deliver-tank-capacity-msg hidden text-xs text-red-600 mt-1"></p>';
+                html += '</div>';
+                html += '<div class="w-32 shrink-0">';
+                html += '<input type="text" name="tank_' + tank.id + '" inputmode="decimal" autocomplete="off" required value="0"';
+                html += ' class="deliver-tank-qty js-number-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"';
+                html += ' data-product="' + tank.product + '" data-tank-name="' + tank.name + '"';
+                html += ' data-actual-qty="' + actual + '"';
+                if (maxCap != null) html += ' data-max-capacity="' + maxCap + '"';
+                html += ' placeholder="0">';
+                html += '</div></div></div>';
+            });
+        });
+        deliverTanksContainer.innerHTML = html.replace(/<\/?motion\.div/g, function(m) { return m.replace('motion.div', 'div'); });
+        deliverTanksContainer.querySelectorAll('.deliver-tank-qty').forEach(function(inp) {
+            inp.addEventListener('input', updateDeliverCalculations);
+            inp.addEventListener('blur', updateDeliverCalculations);
+        });
+        updateDeliverCalculations();
+    }
+
+    function checkTankCapacities() {
+        const errors = [];
+        document.querySelectorAll('.deliver-tank-qty').forEach(function(inp) {
+            const row = inp.closest('.rounded-lg');
+            const msgEl = row ? row.querySelector('.deliver-tank-capacity-msg') : null;
+            const maxCapRaw = inp.dataset.maxCapacity;
+            inp.classList.remove('border-red-500', 'bg-red-50');
+            if (msgEl) {
+                msgEl.classList.add('hidden');
+                msgEl.textContent = '';
+            }
+            if (maxCapRaw === undefined || maxCapRaw === '') return;
+            const maxCap = parseQty(maxCapRaw);
+            const actual = parseQty(inp.dataset.actualQty);
+            const qty = parseQty(inp.value);
+            if (actual + qty > maxCap + 0.0001) {
+                const available = Math.max(0, maxCap - actual);
+                const err = 'Dépasse la capacité max (' + formatQtyFr(maxCap) + ' L). Maximum saisissable : ' + formatQtyFr(available) + ' L.';
+                errors.push('Cuve « ' + (inp.dataset.tankName || '') + ' » : ' + err);
+                inp.classList.add('border-red-500', 'bg-red-50');
+                if (msgEl) {
+                    msgEl.textContent = err;
+                    msgEl.classList.remove('hidden');
+                }
+            }
+        });
+        if (deliverCapacityError) {
+            if (errors.length) {
+                deliverCapacityError.textContent = errors.join(' ');
+                deliverCapacityError.classList.remove('hidden');
+            } else {
+                deliverCapacityError.classList.add('hidden');
+            }
+        }
+        if (deliverOpenConfirmBtn) {
+            deliverOpenConfirmBtn.disabled = errors.length > 0;
+        }
+        return errors.length === 0;
+    }
+
+    function updateDeliverCalculations() {
+        const toDistG = parseQty(deliverOrderForm?.dataset.toDistributeGasoline);
+        const toDistD = parseQty(deliverOrderForm?.dataset.toDistributeDiesel);
+        let recvG = 0, recvD = 0;
+        document.querySelectorAll('.deliver-tank-qty').forEach(function(inp) {
+            const v = parseQty(inp.value);
+            if (inp.dataset.product === 'gasoline') recvG += v;
+            else recvD += v;
+        });
+        const remainG = Math.max(0, toDistG - recvG);
+        const remainD = Math.max(0, toDistD - recvD);
+        if (deliverReceivedGasolineDisplay) deliverReceivedGasolineDisplay.textContent = formatQtyFr(recvG);
+        if (deliverReceivedDieselDisplay) deliverReceivedDieselDisplay.textContent = formatQtyFr(recvD);
+        if (deliverRemainingGasolineDisplay) deliverRemainingGasolineDisplay.textContent = formatQtyFr(remainG);
+        if (deliverRemainingDieselDisplay) deliverRemainingDieselDisplay.textContent = formatQtyFr(remainD);
+        checkTankCapacities();
+        return { toDistG, toDistD, recvG, recvD, remainG, remainD };
+    }
+
+    function openDeliverOrderModal(orderUuid, stationId, qtyGasoline, qtyDiesel, truckNumber, driverName, driverPhone) {
         if (!deliverOrderModal || !deliverOrderForm) return;
         deliverOrderForm.action = orderMarkDeliveredUrlTemplate.replace(orderUrlPlaceholderUuid, orderUuid);
+        deliverOrderForm.dataset.stationId = String(stationId);
         const g = parseQty(qtyGasoline);
         const d = parseQty(qtyDiesel);
-        /* Aligné sur OrderSupplier : valeurs brutes pour la validation (évite parseFloat("1 000") === 1) */
         deliverOrderForm.dataset.plannedGasoline = String(g);
         deliverOrderForm.dataset.plannedDiesel = String(d);
         if (deliverQtyGasolineDisplay) deliverQtyGasolineDisplay.textContent = formatQtyFr(g);
         if (deliverQtyDieselDisplay) deliverQtyDieselDisplay.textContent = formatQtyFr(d);
-        if (deliverMissingGasoline) deliverMissingGasoline.value = '0';
-        if (deliverMissingDiesel) deliverMissingDiesel.value = '0';
+        if (deliverMissingQtyGasoline) {
+            deliverMissingQtyGasoline.value = window.NumberFormat ? window.NumberFormat.formatAmount(0) : '0';
+        }
+        if (deliverMissingQtyDiesel) {
+            deliverMissingQtyDiesel.value = window.NumberFormat ? window.NumberFormat.formatAmount(0) : '0';
+        }
+        if (deliverMissingError) deliverMissingError.classList.add('hidden');
+        if (deliverCapacityError) deliverCapacityError.classList.add('hidden');
+        showDeliverStep(1);
+        updateMissingCalculations();
         if (deliverDeliveryDate) {
             deliverDeliveryDate.value = new Date().toISOString().slice(0, 10);
         }
@@ -865,14 +1157,66 @@
         document.body.style.overflow = 'hidden';
     }
 
+    deliverMissingQtyGasoline?.addEventListener('input', updateMissingCalculations);
+    deliverMissingQtyDiesel?.addEventListener('input', updateMissingCalculations);
+    deliverMissingQtyGasoline?.addEventListener('blur', updateMissingCalculations);
+    deliverMissingQtyDiesel?.addEventListener('blur', updateMissingCalculations);
+
+    document.getElementById('deliverGoToTanksBtn')?.addEventListener('click', function() {
+        if (!validateMissingStep()) return;
+        renderDeliverTanks(deliverOrderForm?.dataset.stationId);
+        const tankInputs = document.querySelectorAll('.deliver-tank-qty');
+        if (!tankInputs.length) {
+            alert('Aucune cuve disponible pour cette station.');
+            return;
+        }
+        showDeliverStep(2);
+        updateDeliverCalculations();
+    });
+
+    document.getElementById('deliverBackToMissingBtn')?.addEventListener('click', function() {
+        showDeliverStep(1);
+    });
+
+    function resetDeliverConfirmButton() {
+        const okBtn = document.getElementById('deliverConfirmModalOk');
+        const cancelBtn = document.getElementById('deliverConfirmModalCancel');
+        const spinner = document.getElementById('deliverConfirmModalOkSpinner');
+        const label = document.getElementById('deliverConfirmModalOkLabel');
+        if (okBtn) {
+            okBtn.disabled = false;
+            okBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+        }
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (label) label.textContent = 'Oui, confirmer';
+    }
+
+    function setDeliverConfirmLoading(loading) {
+        const okBtn = document.getElementById('deliverConfirmModalOk');
+        const cancelBtn = document.getElementById('deliverConfirmModalCancel');
+        const spinner = document.getElementById('deliverConfirmModalOkSpinner');
+        const label = document.getElementById('deliverConfirmModalOkLabel');
+        if (okBtn) {
+            okBtn.disabled = loading;
+            okBtn.classList.toggle('opacity-70', loading);
+            okBtn.classList.toggle('cursor-not-allowed', loading);
+        }
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (spinner) spinner.classList.toggle('hidden', !loading);
+        if (label) label.textContent = loading ? 'Enregistrement…' : 'Oui, confirmer';
+    }
+
     function closeDeliverConfirmModalFn() {
         deliverOrderConfirmModal?.classList.add('hidden');
+        resetDeliverConfirmButton();
     }
 
     function closeDeliverOrderModalFn() {
         deliverOrderConfirmModal?.classList.add('hidden');
         deliverOrderModal?.classList.add('hidden');
         document.body.style.overflow = 'auto';
+        resetDeliverConfirmButton();
     }
 
     deliverOrderForm?.addEventListener('submit', function(e) {
@@ -880,29 +1224,29 @@
     });
 
     document.getElementById('deliverOrderOpenConfirmBtn')?.addEventListener('click', function() {
-        const plannedG = parseQty(deliverOrderForm?.dataset.plannedGasoline);
-        const plannedD = parseQty(deliverOrderForm?.dataset.plannedDiesel);
-        const missG = parseQty(deliverMissingGasoline?.value);
-        const missD = parseQty(deliverMissingDiesel?.value);
-        if (missG < 0 || missD < 0) {
-            alert('Les quantités manquantes ne peuvent pas être négatives.');
+        const tankInputs = document.querySelectorAll('.deliver-tank-qty');
+        if (!tankInputs.length) {
+            alert('Aucune cuve disponible pour cette station.');
             return;
         }
-        if (missG > plannedG || missD > plannedD) {
-            alert('Les quantités manquantes ne peuvent pas dépasser les quantités livrées prévues.');
+        const missingCalc = updateMissingCalculations();
+        const calc = updateDeliverCalculations();
+        if (!checkTankCapacities()) {
             return;
         }
-        if (plannedG <= 0 && plannedD <= 0) {
-            alert('Aucune quantité livrée prévue sur cette commande.');
+        if (Math.abs(calc.recvG - calc.toDistG) > 0.0001) {
+            alert('La somme saisie en cuves essence doit correspondre à la quantité à répartir (' + formatQtyFr(calc.toDistG) + ' L).');
             return;
         }
-        const recvG = plannedG - missG;
-        const recvD = plannedD - missD;
+        if (Math.abs(calc.recvD - calc.toDistD) > 0.0001) {
+            alert('La somme saisie en cuves gazoil doit correspondre à la quantité à répartir (' + formatQtyFr(calc.toDistD) + ' L).');
+            return;
+        }
         if (deliverConfirmModalSummary) {
             deliverConfirmModalSummary.innerHTML =
-                'Prévu : essence <strong>' + formatQtyFr(plannedG) + ' L</strong>, gasoil <strong>' + formatQtyFr(plannedD) + ' L</strong>.<br>' +
-                'Manquant : essence <strong>' + formatQtyFr(missG) + ' L</strong>, gasoil <strong>' + formatQtyFr(missD) + ' L</strong>.<br>' +
-                'Réception nette (stock) : essence <strong>' + formatQtyFr(recvG) + ' L</strong>, gasoil <strong>' + formatQtyFr(recvD) + ' L</strong>.';
+                'Prévu : essence <strong>' + formatQtyFr(missingCalc.plannedG) + ' L</strong>, gazoil <strong>' + formatQtyFr(missingCalc.plannedD) + ' L</strong>.<br>' +
+                'Manquant : essence <strong>' + formatQtyFr(missingCalc.missG) + ' L</strong>, gazoil <strong>' + formatQtyFr(missingCalc.missD) + ' L</strong>.<br>' +
+                'Réparti (cuves) : essence <strong>' + formatQtyFr(calc.recvG) + ' L</strong>, gazoil <strong>' + formatQtyFr(calc.recvD) + ' L</strong>.';
         }
         deliverOrderConfirmModal?.classList.remove('hidden');
     });
@@ -913,6 +1257,10 @@
     });
 
     document.getElementById('deliverConfirmModalOk')?.addEventListener('click', function() {
+        setDeliverConfirmLoading(true);
+        if (window.NumberFormat && deliverOrderForm) {
+            window.NumberFormat.stripNumberInputsForSubmit(deliverOrderForm);
+        }
         if (deliverOrderForm) deliverOrderForm.submit();
     });
 
@@ -926,6 +1274,7 @@
         btn.addEventListener('click', function() {
             openDeliverOrderModal(
                 btn.dataset.orderUuid,
+                btn.dataset.stationId,
                 btn.dataset.qtyGasoline,
                 btn.dataset.qtyDiesel,
                 btn.dataset.truckNumber,

@@ -11,12 +11,10 @@
         Stock déclaré (gérant) vs stock calculé (système)
     </h2>
     <p class="text-sm text-slate-200 leading-relaxed max-w-4xl">
-        <strong>Relevé gérant</strong> (stock journalier) : chaque jour, le gérant saisit <strong>une entrée</strong> par station
-        (quantités essence et gazoil déclarées).
-        <strong>Inventaire système</strong> : le système conserve l’historique des niveaux de cuves après les opérations
-        (livraisons, ventes aux pompes, etc.).
-        Pour chaque date du relevé, on compare au <strong>dernier niveau système enregistré le même jour</strong> ;
-        s’il n’y en a pas ce jour-là, on affiche le <strong>dernier état connu</strong> jusqu’à cette date.
+        <strong>Relevé gérant</strong> (stock journalier) : jauge matinale des cuves (table <code class="text-slate-300">stock</code>).
+        <strong>Stock réel</strong> (système) : niveaux après saisie des index / ventes (table <code class="text-slate-300">stock_reel</code>).
+        Un écart brut est normal si des <strong>ventes</strong> ont été enregistrées entre deux relevés : on affiche les litres vendus
+        et un <strong>écart ajusté</strong> (déclaré − système − ventes sur la période) pour isoler les vrais écarts.
         {% if allowed_station_count > 1 %}
         <span class="block mt-2 text-amber-100/95">Choisissez une <strong>station</strong> dans le filtre pour afficher le tableau de comparaison.</span>
         {% endif %}
@@ -67,9 +65,9 @@
             Comparaison par relevé ({{ daily_stock_count|qty_fr }} ligne{{ daily_stock_count|pluralize }})
         </h3>
         <p class="text-xs text-gray-500 mt-1">
-            <strong>Écart (L)</strong> = litres <strong>déclarés</strong> au relevé du jour
-            <strong>−</strong> litres <strong>système</strong> (même jour, même station). Affiché avec signe
-            <strong>+</strong> ou <strong>−</strong> selon le cas.
+            <strong>Écart brut</strong> = déclaré − système.
+            <strong>Ventes</strong> = somme des ventes (index pompes) sur la période indiquée.
+            <strong>Écart ajusté</strong> = écart brut − ventes (proche de 0 si l’écart venait surtout des ventes).
         </p>
     </div>
     <div class="overflow-x-auto">
@@ -77,12 +75,16 @@
             <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
                 <tr>
                     <th class="px-4 py-3 text-left">Date</th>
-                    <th class="px-4 py-3 text-right">Décl. essence (L)</th>
-                    <th class="px-4 py-3 text-right">Syst. essence (L)</th>
-                    <th class="px-4 py-3 text-right">Écart ess.</th>
-                    <th class="px-4 py-3 text-right">Décl. gazoil (L)</th>
-                    <th class="px-4 py-3 text-right">Syst. gazoil (L)</th>
-                    <th class="px-4 py-3 text-right">Écart gaz.</th>
+                    <th class="px-4 py-3 text-right">Décl. ess.</th>
+                    <th class="px-4 py-3 text-right">Syst. ess.</th>
+                    <th class="px-4 py-3 text-right">Ventes ess.</th>
+                    <th class="px-4 py-3 text-right">Écart brut</th>
+                    <th class="px-4 py-3 text-right">Écart ajusté</th>
+                    <th class="px-4 py-3 text-right">Décl. gaz.</th>
+                    <th class="px-4 py-3 text-right">Syst. gaz.</th>
+                    <th class="px-4 py-3 text-right">Ventes gaz.</th>
+                    <th class="px-4 py-3 text-right">Écart brut</th>
+                    <th class="px-4 py-3 text-right">Écart ajusté</th>
                     <th class="px-4 py-3 text-center">Système</th>
                 </tr>
             </thead>
@@ -90,16 +92,24 @@
                 {% for row in comparison_rows %}
                 {% with ds=row.daily %}
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 whitespace-nowrap font-medium">{{ ds.stock_date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-medium" title="Ventes du {{ row.sales_from|date:'d/m/Y' }} au {{ row.sales_to|date:'d/m/Y' }}">{{ ds.stock_date|date:"d/m/Y" }}</td>
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_gasoline|qty_fr }}</td>
                     <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_gasoline|qty_fr }}</td>
-                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_gasoline == 0 %}text-gray-600{% elif row.delta_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                    <td class="px-4 py-3 text-right text-violet-700 tabular-nums" title="Ventes essence sur la période">{{ row.sales_gasoline|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right tabular-nums text-slate-500" title="Déclaré − système">
                         {% if row.delta_gasoline > 0 %}+{% endif %}{{ row.delta_gasoline|qty_fr }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_adjusted_gasoline == 0 %}text-gray-600{% elif row.delta_adjusted_gasoline > 0 %}text-amber-700{% else %}text-blue-700{% endif %}" title="Écart brut − ventes essence">
+                        {% if row.delta_adjusted_gasoline > 0 %}+{% endif %}{{ row.delta_adjusted_gasoline|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-right tabular-nums">{{ ds.qty_diesel|qty_fr }}</td>
                     <td class="px-4 py-3 text-right text-slate-700 tabular-nums" title="{% if row.system_source == 'same_day' %}Dernier niveau système enregistré le jour du relevé{% elif row.system_source == 'cumulative' %}Pas de mise à jour ce jour — dernier niveau connu à cette date{% else %}Aucun niveau système enregistré jusqu’à cette date{% endif %}">{{ row.system_diesel|qty_fr }}</td>
-                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_diesel == 0 %}text-gray-600{% elif row.delta_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                    <td class="px-4 py-3 text-right text-violet-700 tabular-nums" title="Ventes gazoil sur la période">{{ row.sales_diesel|qty_fr }}</td>
+                    <td class="px-4 py-3 text-right tabular-nums text-slate-500" title="Déclaré − système">
                         {% if row.delta_diesel > 0 %}+{% endif %}{{ row.delta_diesel|qty_fr }}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold tabular-nums {% if row.delta_adjusted_diesel == 0 %}text-gray-600{% elif row.delta_adjusted_diesel > 0 %}text-amber-700{% else %}text-blue-700{% endif %}" title="Écart brut − ventes gazoil">
+                        {% if row.delta_adjusted_diesel > 0 %}+{% endif %}{{ row.delta_adjusted_diesel|qty_fr }}
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         {% if row.system_source == 'same_day' %}
@@ -140,10 +150,10 @@
 <div class="bg-slate-50 rounded-xl border border-slate-200 p-6 text-sm text-slate-700">
     <h4 class="font-bold text-slate-800 mb-2"><i class="fas fa-lightbulb text-amber-500 mr-2"></i>Lecture des écarts</h4>
     <ul class="list-disc list-inside space-y-1 text-slate-600">
-        <li><strong>Jour J</strong> : le système a enregistré au moins une mise à jour d’inventaire le <strong>même jour</strong> que le relevé gérant — les colonnes « Syst. » reprennent le dernier niveau de ce jour.</li>
-        <li><strong>Cumul</strong> : aucune mise à jour inventaire ce jour-là ; on affiche le <strong>dernier niveau connu</strong> jusqu’à cette date.</li>
-        <li>Écart = litres déclarés (relevé) − litres système ; proche de 0 : alignement entre les deux.</li>
-        <li>Écart important : vérifier la saisie, les pertes éventuelles, ou des opérations non enregistrées dans l’application.</li>
+        <li><strong>Jour J / Cumul</strong> : source du stock système (mise à jour inventaire le jour du relevé, ou dernier état connu).</li>
+        <li><strong>Ventes</strong> : litres issus des ventes (saisie index pompes), du lendemain du précédent relevé gérant jusqu’au jour du relevé (1<sup>er</sup> relevé : ventes du jour seulement).</li>
+        <li><strong>Écart ajusté</strong> = déclaré − système − ventes. Proche de <strong>0</strong> : l’écart brut s’explique surtout par les ventes enregistrées.</li>
+        <li><strong>Écart ajusté</strong> encore élevé : écart de jauge, perte, livraison non saisie, index manquant, etc.</li>
     </ul>
 </div>
 {% endblock %}

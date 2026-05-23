@@ -11,7 +11,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+
 from decouple import Config, RepositoryEnv
+from django.urls import reverse_lazy
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +29,8 @@ config = Config(RepositoryEnv(env_path))
 SECRET_KEY = 'django-insecure-#6g0k7uotj2!o8x#suuzqm%zy4qnoc(fxh48-n1vxi*q48=6-w'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+# En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = ['*']
 
@@ -46,6 +49,7 @@ INSTALLED_APPS = [
     'position',
     'account',
     'stations',
+    'tank',
     'pumps',
     'employee',
     'supplier',
@@ -82,6 +86,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.media',
             ],
         },
     },
@@ -140,13 +145,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_DIRS = [BASE_DIR / 'assets']
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # models user
 AUTH_USER_MODEL = 'account.CustomUser'
+
+# Auth redirects (évite le défaut Django /accounts/login/)
+LOGIN_URL = reverse_lazy('account:login')
+LOGIN_REDIRECT_URL = reverse_lazy('account:dashboard')
+LOGOUT_REDIRECT_URL = reverse_lazy('account:login')
 
 # Email settings
 EMAIL_BACKEND = config('EMAIL_BACKEND')

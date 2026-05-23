@@ -64,44 +64,50 @@
         <table class="w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date stock</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté essence</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Qté gazoil</th>
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date stock</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Notes</th>
                     <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Enregistré par</th>
-                    {% if can_delete_daily_stock %}
-                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                    {% endif %}
+                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase min-w-[6rem]">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% if daily_stocks %}
                     {% for ds in daily_stocks %}
                     <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ ds.stock_date|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ ds.station.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_gasoline|qty_fr }}</td>
                         <td class="px-6 py-4 text-sm text-gray-900">{{ ds.qty_diesel|qty_fr }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ ds.stock_date|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ ds.notes|default:'' }}">{{ ds.notes|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-700">{{ ds.recorded_by.get_full_name|default:ds.recorded_by.email }}</td>
-                        {% if can_delete_daily_stock %}
                         <td class="px-6 py-4 text-sm text-gray-600">
-                            <button type="button"
-                                    class="open-delete-daily-stock inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
-                                    title="Supprimer"
-                                    aria-label="Supprimer"
-                                    data-url="{% url 'daily_stock:daily_stock_delete' ds.pk %}"
-                                    data-label="{{ ds.station.name|escape }} — {{ ds.stock_date|date:'d/m/Y' }}">
-                                <i class="fas fa-trash-alt text-sm"></i>
-                            </button>
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="{% url 'daily_stock:daily_stock_detail' ds.pk %}"
+                                   class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 bg-white text-blue-600 hover:bg-blue-50"
+                                   title="Voir le détail"
+                                   aria-label="Voir le détail">
+                                    <i class="fas fa-eye text-sm"></i>
+                                </a>
+                                {% if can_delete_daily_stock and ds.pk in latest_deletable_daily_stock_ids %}
+                                <button type="button"
+                                        class="open-delete-daily-stock inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                        title="Supprimer"
+                                        aria-label="Supprimer"
+                                        data-url="{% url 'daily_stock:daily_stock_delete' ds.pk %}"
+                                        data-label="{{ ds.station.name|escape }} — {{ ds.stock_date|date:'d/m/Y' }}">
+                                    <i class="fas fa-trash-alt text-sm"></i>
+                                </button>
+                                {% endif %}
+                            </div>
                         </td>
-                        {% endif %}
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="{% if can_delete_daily_stock %}7{% else %}6{% endif %}" class="px-6 py-10 text-center text-gray-500">Aucune entrée de stock journalier.</td>
+                        <td colspan="7" class="px-6 py-10 text-center text-gray-500">Aucune entrée de stock journalier.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -141,7 +147,7 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="POST" action="{% url 'daily_stock:daily_stock_create' %}" class="p-6 space-y-4">
+        <form id="dailyStockCreateForm" method="POST" action="{% url 'daily_stock:daily_stock_create' %}" class="p-6 space-y-4">
             {% csrf_token %}
             {% if manager_station %}
             <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
@@ -154,15 +160,61 @@
                 <input type="date" name="stock_date" id="daily_stock_date" required value="{% now 'Y-m-d' %}" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white">
                 <p class="text-xs text-gray-500 mt-1">Choisissez la date du relevé. Une seule entrée est possible par date pour cette station.</p>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté essence</label>
-                    <input type="number" name="qty_gasoline" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Relevé des cuves <span class="text-red-500">*</span></label>
+                {% if station_tanks %}
+                <p class="text-xs text-gray-500 mb-3">Saisissez le niveau actuel (L) de chaque cuve. Les totaux essence et gazoil seront calculés automatiquement.</p>
+                <div class="space-y-4 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    {% regroup station_tanks by product as tanks_by_product %}
+                    {% for group in tanks_by_product %}
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-wide mb-2 {% if group.grouper == 'gasoline' %}text-amber-700{% else %}text-slate-700{% endif %}">
+                            {% if group.grouper == 'gasoline' %}<i class="fas fa-gas-pump mr-1"></i>Essence{% else %}<i class="fas fa-oil-can mr-1"></i>Gazoil{% endif %}
+                        </p>
+                        <div class="space-y-2">
+                            {% for tank in group.list %}
+                            <div class="flex items-center gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-gray-900 truncate">{{ tank.name }}</p>
+                                    {% if tank.description %}
+                                    <p class="text-xs text-gray-500 truncate">{{ tank.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="w-32 shrink-0">
+                                    <input
+                                        type="text"
+                                        name="tank_{{ tank.id }}"
+                                        inputmode="decimal"
+                                        autocomplete="off"
+                                        required
+                                        value="0"
+                                        class="tank-qty-input js-number-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums"
+                                        data-product="{{ tank.product }}"
+                                        placeholder="0"
+                                    >
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Qté gazoil</label>
-                    <input type="number" name="qty_diesel" min="0" step="0.01" value="0" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                        <span class="text-xs text-amber-800 font-semibold uppercase">Total essence</span>
+                        <p class="font-bold text-amber-900 tabular-nums"><span id="dailyStockTotalEssence">0</span> L</p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+                        <span class="text-xs text-slate-800 font-semibold uppercase">Total gazoil</span>
+                        <p class="font-bold text-slate-900 tabular-nums"><span id="dailyStockTotalGazoil">0</span> L</p>
+                    </div>
                 </div>
+                {% else %}
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    Aucune cuve sur cette station. Créez des cuves dans la fiche station avant d'enregistrer un stock journalier.
+                </div>
+                {% endif %}
             </div>
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
@@ -170,7 +222,10 @@
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" id="cancelDailyStockModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">Enregistrer</button>
+                <button type="submit" id="dailyStockSubmitBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                    <i id="dailyStockSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="dailyStockSubmitLabel">Enregistrer</span>
+                </button>
             </div>
         </form>
     </div>
@@ -181,12 +236,101 @@
     const openBtn = document.getElementById('openDailyStockModal');
     const closeBtn = document.getElementById('closeDailyStockModal');
     const cancelBtn = document.getElementById('cancelDailyStockModal');
-    function openM() { modal?.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
-    function closeM() { modal?.classList.add('hidden'); document.body.style.overflow = ''; }
+    const dailyStockForm = document.getElementById('dailyStockCreateForm');
+    const submitBtn = document.getElementById('dailyStockSubmitBtn');
+    const submitSpinner = document.getElementById('dailyStockSubmitSpinner');
+    const submitLabel = document.getElementById('dailyStockSubmitLabel');
+
+    function hasTankInputs() {
+        return document.querySelectorAll('.tank-qty-input').length > 0;
+    }
+
+    function resetDailyStockSubmit() {
+        if (!submitBtn) return;
+        const enabled = hasTankInputs();
+        submitBtn.disabled = !enabled;
+        submitBtn.classList.remove('opacity-70');
+        submitBtn.classList.toggle('opacity-50', !enabled);
+        submitBtn.classList.toggle('cursor-not-allowed', !enabled);
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitSpinner) submitSpinner.classList.add('hidden');
+        if (submitLabel) submitLabel.textContent = 'Enregistrer';
+    }
+
+    function setDailyStockSubmitLoading(loading) {
+        if (!submitBtn) return;
+        submitBtn.disabled = loading || !hasTankInputs();
+        submitBtn.classList.toggle('opacity-70', loading);
+        submitBtn.classList.toggle('opacity-50', !loading && !hasTankInputs());
+        submitBtn.classList.toggle('cursor-not-allowed', loading || !hasTankInputs());
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+        if (submitLabel) submitLabel.textContent = loading ? 'Enregistrement…' : 'Enregistrer';
+    }
+
+    function openM() {
+        modal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+            inp.value = window.NumberFormat ? window.NumberFormat.formatAmount(0) : '0';
+        });
+        updateTankTotals();
+        resetDailyStockSubmit();
+    }
+    function closeM() {
+        modal?.classList.add('hidden');
+        document.body.style.overflow = '';
+        resetDailyStockSubmit();
+    }
     openBtn?.addEventListener('click', openM);
     closeBtn?.addEventListener('click', closeM);
     cancelBtn?.addEventListener('click', closeM);
     modal?.addEventListener('click', function(e) { if (e.target === modal) closeM(); });
+
+    function parseTankInputValue(inp) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.parseAmountInput(inp.value);
+        }
+        return parseFloat(String(inp.value).replace(/\s/g, '').replace(',', '.')) || 0;
+    }
+
+    function formatQty(n) {
+        if (window.NumberFormat) {
+            return window.NumberFormat.formatAmount(n);
+        }
+        const v = Math.round(n * 100) / 100;
+        return v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function updateTankTotals() {
+        const elE = document.getElementById('dailyStockTotalEssence');
+        const elG = document.getElementById('dailyStockTotalGazoil');
+        if (!elE || !elG) return;
+        let sumE = 0, sumG = 0;
+        document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+            const v = parseTankInputValue(inp);
+            if (inp.dataset.product === 'gasoline') sumE += v;
+            else sumG += v;
+        });
+        elE.textContent = formatQty(sumE);
+        elG.textContent = formatQty(sumG);
+    }
+
+    document.querySelectorAll('.tank-qty-input').forEach(function(inp) {
+        inp.addEventListener('input', updateTankTotals);
+        inp.addEventListener('blur', updateTankTotals);
+    });
+    updateTankTotals();
+
+    resetDailyStockSubmit();
+
+    dailyStockForm?.addEventListener('submit', function() {
+        if (submitBtn?.disabled) return;
+        if (window.NumberFormat) {
+            window.NumberFormat.stripNumberInputsForSubmit(dailyStockForm);
+        }
+        setDailyStockSubmitLoading(true);
+    });
 })();
 </script>
 {% endif %}
@@ -196,11 +340,14 @@
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
         <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-trash-alt mr-2 text-red-600"></i>Supprimer cette entrée ?</h3>
         <p id="deleteDailyStockSummary" class="text-sm text-gray-700 mt-3 leading-relaxed"></p>
-        <p class="text-xs text-gray-500 mt-2">Le gérant pourra enregistrer à nouveau une entrée pour cette date et cette station.</p>
+        <p class="text-xs text-gray-500 mt-2">Les quantités des cuves et le stock station seront remis à leur état d’avant ce relevé. Le gérant pourra enregistrer à nouveau une entrée pour cette date.</p>
         <form id="deleteDailyStockForm" method="POST" action="" class="mt-6 flex justify-end gap-2">
             {% csrf_token %}
             <button type="button" id="cancelDeleteDailyStockModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Supprimer</button>
+            <button type="submit" id="deleteDailyStockSubmitBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 min-w-[9.5rem]">
+                <i id="deleteDailyStockSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deleteDailyStockSubmitLabel">Supprimer</span>
+            </button>
         </form>
     </div>
 </div>
@@ -210,10 +357,28 @@
     const form = document.getElementById('deleteDailyStockForm');
     const summary = document.getElementById('deleteDailyStockSummary');
     const cancelBtn = document.getElementById('cancelDeleteDailyStockModal');
+    const submitBtn = document.getElementById('deleteDailyStockSubmitBtn');
+    const submitSpinner = document.getElementById('deleteDailyStockSubmitSpinner');
+    const submitLabel = document.getElementById('deleteDailyStockSubmitLabel');
+
+    function resetDeleteSubmit() {
+        if (submitBtn) submitBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (submitSpinner) submitSpinner.classList.add('hidden');
+        if (submitLabel) submitLabel.textContent = 'Supprimer';
+    }
+
+    function setDeleteSubmitLoading(loading) {
+        if (submitBtn) submitBtn.disabled = loading;
+        if (cancelBtn) cancelBtn.disabled = loading;
+        if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+        if (submitLabel) submitLabel.textContent = loading ? 'Suppression…' : 'Supprimer';
+    }
 
     function closeM() {
         modal?.classList.add('hidden');
         document.body.style.overflow = '';
+        resetDeleteSubmit();
     }
 
     document.querySelectorAll('.open-delete-daily-stock').forEach(function(btn) {
@@ -229,6 +394,10 @@
     cancelBtn?.addEventListener('click', closeM);
     modal?.addEventListener('click', function(e) {
         if (e.target === modal) closeM();
+    });
+
+    form?.addEventListener('submit', function() {
+        setDeleteSubmitLoading(true);
     });
 })();
 </script>

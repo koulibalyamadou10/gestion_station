@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Q, Sum, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -53,14 +54,36 @@ def _resolve_manager_username(post, first_name, last_name, email, errors):
     base = slugify(local) or slugify(f"{first_name}-{last_name}") or "gerant"
     return _allocate_unique_username(base)
 
+
+def _login_next_param(request):
+    """Valeur brute du paramètre ``next`` (GET ou POST)."""
+    return (request.POST.get("next") or request.GET.get("next") or "").strip()
+
+
+def _login_redirect_target(request, default="account:dashboard"):
+    """
+    URL de redirection après connexion : ``?next=…`` si sûr, sinon tableau de bord.
+    """
+    next_url = _login_next_param(request)
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return next_url
+    return default
+
+
 @csrf_protect
 def login_view(request):
     """
     Vue pour gérer la connexion des utilisateurs
     """
     if request.user.is_authenticated:
-        return redirect('account:dashboard')
-    
+        return redirect(_login_redirect_target(request))
+
+    next_value = _login_next_param(request)
+
     if request.method == 'POST':
         password = request.POST.get('password')
         login_mode = (request.POST.get('login_mode') or 'email').strip()
@@ -69,11 +92,11 @@ def login_view(request):
             raw_username = (request.POST.get('username') or '').strip()
             if not raw_username or not password:
                 messages.error(request, 'Veuillez remplir tous les champs.')
-                return render(request, 'account/login.html')
+                return render(request, 'account/login.html', {'next': next_value})
             user_row = CustomUser.objects.filter(username__iexact=raw_username).first()
             if user_row is None:
                 messages.error(request, 'Nom d’utilisateur ou mot de passe incorrect.')
-                return render(request, 'account/login.html')
+                return render(request, 'account/login.html', {'next': next_value})
             # Sans email, authenticate(username=…) ne peut pas fonctionner (USERNAME_FIELD = email).
             if user_row.email:
                 user = authenticate(request, username=user_row.email, password=password)
@@ -83,21 +106,21 @@ def login_view(request):
             email = (request.POST.get('email') or '').strip()
             if not email or not password:
                 messages.error(request, 'Veuillez remplir tous les champs.')
-                return render(request, 'account/login.html')
+                return render(request, 'account/login.html', {'next': next_value})
             user = authenticate(request, username=email, password=password)
 
         if user is not None:
             if user.is_active:
                 login(request, user)
                 messages.success(request, f'Bienvenue {user.get_full_name()} !')
-                next_url = request.GET.get('next', 'account:dashboard')
-                return redirect(next_url)
+                return redirect(_login_redirect_target(request))
             else:
                 messages.error(request, 'Votre compte est désactivé.')
         else:
             messages.error(request, 'Identifiant ou mot de passe incorrect.')
     
-    return render(request, 'account/login.html')
+    return render(request, 'account/login.html', {'next': next_value})
+
 
 def _stations_scope_for_dashboard(user):
     """Stations visibles selon le rôle (admin = ses stations, super_admin = tout, manager = une station)."""
@@ -114,14 +137,25 @@ def _stations_scope_for_dashboard(user):
     return Station.objects.none()
 
 
-def _build_dashboard_context(user):
+def _build_dashboard_context(user, station_filter_id=None):
     """Statistiques et données de graphiques pour le tableau de bord."""
     from sale.models import Sale
     from order.models import Order
     from wallet.models import Account
+    from tank.models import Tank
 
-    stations_qs = _stations_scope_for_dashboard(user)
-    station_ids = list(stations_qs.values_list("id", flat=True))
+    stations_qs = _stations_scope_for_dashboard(user).order_by("name")
+    stations_list = list(stations_qs)
+    station_ids = [s.id for s in stations_list]
+
+    selected_station = None
+    if stations_list:
+        if station_filter_id:
+            selected_station = next(
+                (s for s in stations_list if s.id == station_filter_id), None
+            )
+        if not selected_station:
+            selected_station = stations_list[0]
     today = timezone.now().date()
     month_start = today - timedelta(days=29)
     week_start = today - timedelta(days=6)
@@ -210,6 +244,30 @@ def _build_dashboard_context(user):
     if dashboard_is_manager and stations_qs.exists():
         manager_station_name = stations_qs.first().name
 
+    tanks_visual = []
+    if selected_station:
+        tanks_qs = (
+            Tank.objects.filter(station_id=selected_station.pk)
+            .select_related("station")
+            .order_by("name")
+        )
+        for tank in tanks_qs:
+            max_capacity = tank.max_capacity
+            current_qty = tank.actual_quantity or Decimal("0")
+            usage_percent = None
+            if max_capacity is not None and max_capacity > 0:
+                usage_percent = float(min((current_qty / max_capacity) * Decimal("100"), Decimal("100")))
+            tanks_visual.append(
+                {
+                    "name": tank.name,
+                    "station_name": tank.station.name,
+                    "product": tank.product,
+                    "actual_quantity": current_qty,
+                    "max_capacity": max_capacity,
+                    "usage_percent": usage_percent,
+                }
+            )
+
     return {
         "stations_count": stations_count,
         "total_liters_month": total_liters_month,
@@ -233,6 +291,11 @@ def _build_dashboard_context(user):
         "dashboard_charts_full": dashboard_charts_full,
         "dashboard_charts_manager_sales_only": dashboard_charts_manager_sales_only,
         "manager_station_name": manager_station_name,
+        "tanks_visual": tanks_visual,
+        "dashboard_stations": stations_list,
+        "selected_station": selected_station,
+        "selected_station_id": selected_station.pk if selected_station else None,
+        "show_tank_station_filter": len(stations_list) > 1 and not dashboard_is_manager,
     }
 
 
@@ -241,8 +304,13 @@ def dashboard_view(request):
     """
     Vue pour le tableau de bord après connexion
     """
+    station_filter_raw = (request.GET.get("station") or "").strip()
+    station_filter_id = None
+    if station_filter_raw.isdigit():
+        station_filter_id = int(station_filter_raw)
+
     ctx = {"user": request.user}
-    ctx.update(_build_dashboard_context(request.user))
+    ctx.update(_build_dashboard_context(request.user, station_filter_id=station_filter_id))
     return render(request, "dashboard/dashboard.html", ctx)
 
 @csrf_protect

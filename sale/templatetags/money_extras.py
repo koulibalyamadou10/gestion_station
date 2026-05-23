@@ -25,8 +25,9 @@ def _group_thousands(whole: str) -> str:
 @register.filter(name="money_fr")
 def money_fr(value):
     """
-    Affiche un nombre avec séparateurs de milliers (espaces) et décimales après une virgule.
-    Ex. 2400000.00 -> "2 400 000,00"
+    Montant : séparateurs de milliers (espaces), virgule décimale si besoin.
+    Pas de décimales affichées si elles sont nulles (,00).
+    Ex. 240000 -> "240 000" ; 15000.5 -> "15 000,5"
     """
     if value is None or value == "":
         return "—"
@@ -36,10 +37,15 @@ def money_fr(value):
         return value
     neg = d < 0
     d = abs(d)
-    s = format(d.quantize(Decimal("0.01")), "f")
-    whole, frac = s.split(".", 1)
-    whole_fmt = _group_thousands(whole)
-    out = f"{whole_fmt},{frac}"
+    d = d.quantize(Decimal("0.01"))
+    if d == d.to_integral_value():
+        whole_fmt = _group_thousands(str(int(d)))
+        out = whole_fmt
+    else:
+        s = format(d, "f")
+        whole, frac = s.split(".", 1)
+        whole_fmt = _group_thousands(whole)
+        out = f"{whole_fmt},{frac}"
     return f"-{out}" if neg else out
 
 

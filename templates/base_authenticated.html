@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,6 +7,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     
     <title>{% block title %}Tableau de bord - Système de Gestion de Station-Service{% endblock %}</title>
+    <link rel="icon" href="/media/favicon.ico" type="image/x-icon">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -69,21 +71,48 @@
                         </button> -->
                         
                         <!-- User Menu -->
-                        <div class="flex items-center space-x-3">
-                            <div class="text-right hidden sm:block">
-                                <p class="text-sm font-semibold text-gray-800">{{ user.get_full_name|default:user.email }}</p>
-                                <p class="text-xs text-gray-500">
-                                    {% if user.role == 'admin' %}
-                                        Administrateur
-                                    {% elif user.role == 'manager' %}
-                                        Gérant
-                                    {% else %}
-                                        {{ user.get_role_display }}
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                                <i class="fas fa-user text-white"></i>
+                        <div class="relative" id="topbarUserMenu">
+                            <button type="button" id="topbarUserMenuBtn" class="flex items-center space-x-3 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1" aria-expanded="false" aria-haspopup="true" aria-controls="topbarUserMenuDropdown">
+                                <div class="text-right hidden sm:block">
+                                    <p class="text-sm font-semibold text-gray-800">{{ user.get_full_name|default:user.email }}</p>
+                                    <p class="text-xs text-gray-500">
+                                        {% if user.role == 'admin' %}
+                                            Administrateur
+                                        {% elif user.role == 'manager' %}
+                                            Gérant
+                                        {% elif user.role == 'super_admin' %}
+                                            Super administrateur
+                                        {% else %}
+                                            {{ user.get_role_display }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                                <i class="fas fa-chevron-down text-xs text-gray-400 hidden sm:block"></i>
+                            </button>
+                            <div id="topbarUserMenuDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-20">
+                                <div class="px-4 py-3 border-b border-gray-100 sm:hidden">
+                                    <p class="text-sm font-semibold text-gray-800 truncate">{{ user.get_full_name|default:user.email }}</p>
+                                    <p class="text-xs text-gray-500 mt-0.5">
+                                        {% if user.role == 'admin' %}Administrateur
+                                        {% elif user.role == 'manager' %}Gérant
+                                        {% elif user.role == 'super_admin' %}Super administrateur
+                                        {% else %}{{ user.get_role_display }}{% endif %}
+                                    </p>
+                                </div>
+                                <a href="{% url 'account:profile' %}" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                                    <i class="fas fa-user-circle w-4 text-gray-400"></i>
+                                    Mon profil
+                                </a>
+                                <form method="POST" action="{% url 'account:logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left">
+                                        <i class="fas fa-sign-out-alt w-4"></i>
+                                        Se déconnecter
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -110,7 +139,39 @@
                 }, 500);
             });
         }, 5000);
+
+        (function() {
+            const menu = document.getElementById('topbarUserMenu');
+            const btn = document.getElementById('topbarUserMenuBtn');
+            const dropdown = document.getElementById('topbarUserMenuDropdown');
+            if (!menu || !btn || !dropdown) return;
+
+            function closeMenu() {
+                dropdown.classList.add('hidden');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+
+            function openMenu() {
+                dropdown.classList.remove('hidden');
+                btn.setAttribute('aria-expanded', 'true');
+            }
+
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (dropdown.classList.contains('hidden')) openMenu();
+                else closeMenu();
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!menu.contains(e.target)) closeMenu();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeMenu();
+            });
+        })();
     </script>
+    <script src="{% static 'js/number-format.js' %}"></script>
     
     {% block extra_js %}{% endblock %}
 </body>
