@@ -220,6 +220,10 @@ def order_list_view(request):
                 "name": t.name,
                 "product": t.product,
                 "description": t.description or "",
+                "actual_quantity": str(t.actual_quantity or Decimal("0")),
+                "max_capacity": (
+                    str(t.max_capacity) if t.max_capacity is not None else None
+                ),
             }
             for t in Tank.objects.filter(station=manager_station).order_by("product", "name")
         ]
@@ -502,6 +506,36 @@ def order_mark_delivered_view(request, order_uuid):
         )
         return redirect("order:order_list")
 
+    try:
+        missing_qty_gasoline = _clean_decimal(
+            request.POST.get("missing_qty_gasoline", "0")
+        )
+        missing_qty_diesel = _clean_decimal(
+            request.POST.get("missing_qty_diesel", "0")
+        )
+    except (InvalidOperation, ValueError):
+        messages.error(request, "Quantité manquante invalide.")
+        return redirect("order:order_list")
+
+    if missing_qty_gasoline < 0 or missing_qty_diesel < 0:
+        messages.error(request, "Les quantités manquantes ne peuvent pas être négatives.")
+        return redirect("order:order_list")
+    if missing_qty_gasoline > delivered_qty_gasoline:
+        messages.error(
+            request,
+            "Le manquant essence ne peut pas dépasser la quantité livrée prévue.",
+        )
+        return redirect("order:order_list")
+    if missing_qty_diesel > delivered_qty_diesel:
+        messages.error(
+            request,
+            "Le manquant gazoil ne peut pas dépasser la quantité livrée prévue.",
+        )
+        return redirect("order:order_list")
+
+    expected_received_gasoline = delivered_qty_gasoline - missing_qty_gasoline
+    expected_received_diesel = delivered_qty_diesel - missing_qty_diesel
+
     station_tanks = list(
         Tank.objects.filter(station=order.station).order_by("product", "name")
     )
@@ -539,27 +573,37 @@ def order_mark_delivered_view(request, order_uuid):
             )
             return redirect("order:order_list")
 
+        if tank.max_capacity is not None:
+            current_qty = tank.actual_quantity or Decimal("0")
+            if current_qty + qty > tank.max_capacity:
+                messages.error(
+                    request,
+                    f"La cuve « {tank.name} » dépasserait sa capacité maximale "
+                    f"({tank.max_capacity} L). Niveau actuel : {current_qty} L, "
+                    f"quantité saisie : {qty} L.",
+                )
+                return redirect("order:order_list")
+
         order_tank_rows.append((tank, qty))
         if tank.product == Tank.PRODUCT_GASOLINE:
             received_qty_gasoline += qty
         else:
             received_qty_diesel += qty
 
-    if received_qty_gasoline > delivered_qty_gasoline:
+    if received_qty_gasoline != expected_received_gasoline:
         messages.error(
             request,
-            "La somme reçue en cuves essence dépasse la quantité livrée prévue.",
+            "La somme saisie en cuves essence doit correspondre à la quantité à répartir "
+            f"({expected_received_gasoline} L).",
         )
         return redirect("order:order_list")
-    if received_qty_diesel > delivered_qty_diesel:
+    if received_qty_diesel != expected_received_diesel:
         messages.error(
             request,
-            "La somme reçue en cuves gazoil dépasse la quantité livrée prévue.",
+            "La somme saisie en cuves gazoil doit correspondre à la quantité à répartir "
+            f"({expected_received_diesel} L).",
         )
         return redirect("order:order_list")
-
-    missing_qty_gasoline = delivered_qty_gasoline - received_qty_gasoline
-    missing_qty_diesel = delivered_qty_diesel - received_qty_diesel
 
     delivery_date = parse_date((request.POST.get("delivery_date") or "").strip())
     if not delivery_date:
