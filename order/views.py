@@ -16,6 +16,7 @@ from order.models import Order, OrderSupplier, OrderTank
 from stations.models import Station, StationManager
 from supplier.models import Supplier
 from tank.models import Tank
+from tank.tank_visual import build_tank_visual_item
 
 
 def _clean_decimal(raw_value: str, default: str = "0") -> Decimal:
@@ -244,7 +245,10 @@ def order_detail_view(request, order_uuid):
         return redirect("account:dashboard")
 
     order = get_object_or_404(
-        scoped_qs.select_related("station").prefetch_related("order_suppliers"),
+        scoped_qs.select_related("station").prefetch_related(
+            "order_suppliers",
+            "order_tanks__tank",
+        ),
         order_uuid=order_uuid,
     )
     order_supplier = order.order_suppliers.first()
@@ -285,14 +289,57 @@ def order_detail_view(request, order_uuid):
         qty_to_deliver_gasoline = None
         qty_to_deliver_diesel = None
 
+    order_tanks = list(
+        order.order_tanks.select_related("tank").order_by("tank__product", "tank__name")
+    )
+    tanks_visual = []
+    tanks_visual_subtitle = ""
+    if order_tanks:
+        tanks_visual_subtitle = (
+            "Volume reçu par cuve lors de la livraison (par rapport à la capacité max.)"
+        )
+        for order_tank in order_tanks:
+            tank = order_tank.tank
+            qty = order_tank.product_qty or Decimal("0")
+            tanks_visual.append(
+                build_tank_visual_item(
+                    name=tank.name,
+                    product=order_tank.product or tank.product,
+                    quantity=qty,
+                    max_capacity=tank.max_capacity,
+                    station_name=order.station.name,
+                    gauge_quantity=qty,
+                    usage_label="du volume reçu (vs capacité max.)",
+                )
+            )
+    else:
+        station_tanks = Tank.objects.filter(station=order.station).order_by(
+            "product", "name"
+        )
+        if station_tanks.exists():
+            tanks_visual_subtitle = "Niveaux actuels des cuves de la station"
+            for tank in station_tanks:
+                tanks_visual.append(
+                    build_tank_visual_item(
+                        name=tank.name,
+                        product=tank.product,
+                        quantity=tank.actual_quantity,
+                        max_capacity=tank.max_capacity,
+                        station_name=order.station.name,
+                    )
+                )
+
     context = {
         "order": order,
         "order_supplier": order_supplier,
+        "order_tanks": order_tanks,
         "deliveries": deliveries,
         "qty_to_deliver_gasoline": qty_to_deliver_gasoline,
         "qty_to_deliver_diesel": qty_to_deliver_diesel,
         "manager_station": manager_station,
         "total_estimated": total_estimated,
+        "tanks_visual": tanks_visual,
+        "tanks_visual_subtitle": tanks_visual_subtitle,
         "can_edit_order": request.user.role in ("admin", "manager")
         and order.status == Order.STATUS_PENDING,
     }
