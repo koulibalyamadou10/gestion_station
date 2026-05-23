@@ -14,11 +14,36 @@
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 max-w-sm">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8">
     <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
         <p class="text-sm text-gray-600">Entrées enregistrées</p>
         <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_entries }}</p>
+        <p class="text-xs text-gray-500 mt-1">Sur la période filtrée</p>
     </div>
+    {% if last_entry %}
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
+        <p class="text-sm text-gray-600">Dernier relevé</p>
+        <p class="text-xl font-bold text-gray-800 mt-2">{{ last_entry.stock_date|date:"d/m/Y" }}</p>
+        <p class="text-xs text-gray-500 mt-1">Enregistré le {{ last_entry.created_at|date:"d/m/Y H:i" }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500">
+        <p class="text-sm text-gray-600">Station</p>
+        <p class="text-lg font-bold text-gray-800 mt-2 truncate" title="{{ last_entry.station.name }}">{{ last_entry.station.name }}</p>
+        <p class="text-xs text-gray-500 mt-1">{{ last_entry.recorded_by.get_full_name|default:last_entry.recorded_by.email }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-500">
+        <p class="text-sm text-gray-600">Essence (dernier relevé)</p>
+        <p class="text-2xl font-bold text-gray-800 mt-2 tabular-nums">{{ last_entry.qty_gasoline|qty_fr }} L</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-slate-500">
+        <p class="text-sm text-gray-600">Gazoil (dernier relevé)</p>
+        <p class="text-2xl font-bold text-gray-800 mt-2 tabular-nums">{{ last_entry.qty_diesel|qty_fr }} L</p>
+    </div>
+    {% else %}
+    <div class="sm:col-span-2 lg:col-span-3 bg-slate-50 rounded-xl border border-slate-200 p-6 flex items-center">
+        <p class="text-sm text-slate-600"><i class="fas fa-info-circle mr-2 text-slate-400"></i>Aucun relevé sur la période ou les filtres sélectionnés.</p>
+    </div>
+    {% endif %}
 </div>
 
 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
