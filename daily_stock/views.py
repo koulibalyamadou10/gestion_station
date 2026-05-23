@@ -13,6 +13,7 @@ from daily_stock.models import DailyStock, DailyStockTankLine
 from delivery.models import Delivery
 from sale.models import Sale
 from stations.models import Station, StationManager
+from tank.tank_visual import build_tank_visual_item
 from tank.models import Tank
 
 
@@ -408,9 +409,26 @@ def daily_stock_detail_view(request, pk):
         )
         tank_lines.append(line)
 
+    tanks_visual = []
+    for line in tank_lines:
+        prev = line.previous_quantity or Decimal("0")
+        recorded = line.recorded_quantity or Decimal("0")
+        tanks_visual.append(
+            build_tank_visual_item(
+                name=line.tank.name,
+                product=line.tank.product,
+                quantity=recorded,
+                max_capacity=line.tank.max_capacity,
+                station_name=daily_stock.station.name,
+                detail_before=prev,
+                detail_after=recorded,
+            )
+        )
+
     context = {
         "daily_stock": daily_stock,
         "tank_lines": tank_lines,
+        "tanks_visual": tanks_visual,
         "can_delete_daily_stock": (
             request.user.role == "admin"
             and _is_latest_daily_stock_for_station(base_qs, daily_stock)

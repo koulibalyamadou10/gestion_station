@@ -85,6 +85,8 @@
     </div>
 </div>
 
+{% include "includes/tank_gauges_visual.html" with tanks_visual=tanks_visual visual_title="Schéma visuel des cuves" visual_subtitle=tanks_visual_subtitle %}
+
 {% if reading_batch %}
 <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
     <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center">

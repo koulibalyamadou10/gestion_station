@@ -15,6 +15,8 @@ from pumps.models import PumpReadingBatch
 from pumps.views import _quantity_sold_for_reading, reverse_bulk_pump_reading_inventory
 from sale.models import Sale
 from stations.models import Station
+from tank.models import Tank
+from tank.tank_visual import build_tank_visual_item
 
 
 def _inventory_base_qs_for_user(user):
@@ -199,6 +201,48 @@ def inventory_detail_view(request, pk):
 
     owner_qs = _inventory_base_qs_for_user(request.user)
 
+    tanks_visual = []
+    tanks_visual_subtitle = ""
+    if pump_readings:
+        tank_sold = {}
+        for reading in pump_readings:
+            tank = reading.pump.tank
+            if tank.pk not in tank_sold:
+                tank_sold[tank.pk] = {"tank": tank, "sold": Decimal("0")}
+            tank_sold[tank.pk]["sold"] += reading.quantity_sold or Decimal("0")
+
+        tanks_visual_subtitle = "Volume vendu par cuve lors de cette saisie groupée (par rapport à la capacité max.)"
+        for data in sorted(tank_sold.values(), key=lambda x: (x["tank"].product, x["tank"].name)):
+            tank = data["tank"]
+            sold = data["sold"]
+            tanks_visual.append(
+                build_tank_visual_item(
+                    name=tank.name,
+                    product=tank.product,
+                    quantity=sold,
+                    max_capacity=tank.max_capacity,
+                    station_name=inventory.station.name,
+                    gauge_quantity=sold,
+                    detail_label="Volume prélevé lors de cette opération",
+                    usage_label="du volume vendu (vs capacité max.)",
+                )
+            )
+    else:
+        station_tanks = Tank.objects.filter(station=inventory.station).order_by("product", "name")
+        if station_tanks.exists():
+            tanks_visual_subtitle = "Niveaux actuels des cuves de la station"
+            for tank in station_tanks:
+                qty = tank.actual_quantity or Decimal("0")
+                tanks_visual.append(
+                    build_tank_visual_item(
+                        name=tank.name,
+                        product=tank.product,
+                        quantity=qty,
+                        max_capacity=tank.max_capacity,
+                        station_name=inventory.station.name,
+                    )
+                )
+
     context = {
         "inventory": inventory,
         "reading_batch": reading_batch,
@@ -208,6 +252,8 @@ def inventory_detail_view(request, pk):
         "total_sale_amount": total_sale_amount,
         "total_sale_gasoline": total_sale_gasoline,
         "total_sale_diesel": total_sale_diesel,
+        "tanks_visual": tanks_visual,
+        "tanks_visual_subtitle": tanks_visual_subtitle,
         "can_delete_inventory": (
             inventory.source == Inventory.SOURCE_BULK_READING
             and reading_batch is not None
