@@ -155,6 +155,18 @@
         </button>
     </div>
 </form>
+
+<div class="fixed bottom-4 left-4 right-4 z-40 md:hidden pointer-events-none">
+    <div class="mx-auto max-w-md pointer-events-auto">
+        <button
+            type="button"
+            id="addReadingRowBtnMobile"
+            class="w-full bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg hover:bg-blue-700 text-sm font-semibold"
+        >
+            <i class="fas fa-plus mr-2"></i>Ajouter une pompe
+        </button>
+    </div>
+</div>
 {% endif %}
 
 <div id="noRemainingPumpModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
@@ -205,6 +217,7 @@
 
     const readingRowsContainer = document.getElementById('readingRowsContainer');
     const addReadingRowBtn = document.getElementById('addReadingRowBtn');
+    const addReadingRowBtnMobile = document.getElementById('addReadingRowBtnMobile');
     const emptyRowsHint = document.getElementById('emptyRowsHint');
     const readingsJsonInput = document.getElementById('readingsJsonInput');
     const batchTotalAmount = document.getElementById('batchTotalAmount');
@@ -543,6 +556,26 @@
         });
         refreshAllPumpPreviousDisplays();
         syncReadingsJson();
+        updateAddButtonsAvailability();
+    }
+
+    function updateAddButtonsAvailability() {
+        const canAdd = buildPumpOptions(null).length > 0;
+        if (addReadingRowBtn) {
+            addReadingRowBtn.disabled = !canAdd;
+            addReadingRowBtn.classList.toggle('opacity-60', !canAdd);
+            addReadingRowBtn.classList.toggle('cursor-not-allowed', !canAdd);
+        }
+        if (addReadingRowBtnMobile) {
+            addReadingRowBtnMobile.disabled = !canAdd;
+            addReadingRowBtnMobile.classList.toggle('opacity-60', !canAdd);
+            addReadingRowBtnMobile.classList.toggle('cursor-not-allowed', !canAdd);
+        }
+        readingRowsContainer.querySelectorAll('.add-next-reading-row').forEach((btn) => {
+            btn.disabled = !canAdd;
+            btn.classList.toggle('opacity-60', !canAdd);
+            btn.classList.toggle('cursor-not-allowed', !canAdd);
+        });
     }
 
     function syncReadingsJson() {
@@ -622,6 +655,11 @@
             <div class="md:col-span-2 flex items-center justify-between md:block md:text-right min-w-0">
                 <span class="text-xs text-gray-500 block">Ligne</span>
                 <span class="reading-line-amount text-sm font-bold text-gray-900 block whitespace-nowrap">0</span>
+            </div>
+            <div class="md:hidden pt-1">
+                <button type="button" class="add-next-reading-row w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold">
+                    <i class="fas fa-arrow-down mr-2"></i>Suivant
+                </button>
             </div>
         `;
         readingRowsContainer.appendChild(row);
@@ -711,7 +749,7 @@
         syncWalletAllocations();
     }
 
-    addReadingRowBtn?.addEventListener('click', () => {
+    function tryAddReadingRowFromAction() {
         if (!PUMPS_DATA.length) return;
         if (buildPumpOptions(null).length === 0) {
             const selectedIso = getSelectedReadingDate();
@@ -723,9 +761,26 @@
             openInfoModal(hasSentForSelected
                 ? `Aucune pompe restante à saisir pour la date ${sel}.`
                 : 'Toutes les pompes disponibles sont déjà ajoutées.');
-            return;
+            return false;
         }
         addReadingRow();
+        updateAddButtonsAvailability();
+        return true;
+    }
+
+    addReadingRowBtn?.addEventListener('click', () => {
+        tryAddReadingRowFromAction();
+    });
+
+    addReadingRowBtnMobile?.addEventListener('click', () => {
+        const added = tryAddReadingRowFromAction();
+        if (added) {
+            const rows = readingRowsContainer.querySelectorAll('.reading-row');
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
     });
 
     addWalletAllocationBtn?.addEventListener('click', () => {
@@ -755,6 +810,21 @@
             const row = e.target.closest('.reading-row');
             if (row) updateRowPreviousDisplay(row);
             refreshAllPumpSelects();
+        }
+    });
+
+    readingRowsContainer?.addEventListener('click', function(e) {
+        const btn = e.target.closest('.add-next-reading-row');
+        if (!btn) return;
+        const added = tryAddReadingRowFromAction();
+        if (added) {
+            const rows = readingRowsContainer.querySelectorAll('.reading-row');
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const pumpSelect = lastRow.querySelector('.reading-pump-select');
+                pumpSelect?.focus();
+            }
         }
     });
 
@@ -836,6 +906,7 @@
             refreshNoPumpReason();
             renderWalletSection();
         }
+        updateAddButtonsAvailability();
     }
 
     readingDateInput?.addEventListener('change', function() {
