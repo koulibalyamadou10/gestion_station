@@ -9,14 +9,27 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from stations.models import Station
+from stations.models import StationManager
 from wallet.models import Account, AccountHistory, normalize_account_name
 
 
+def _station_scope_for_wallet_user(user):
+    if user.role == "admin":
+        return Station.objects.filter(owner=user).order_by("name")
+    if user.role == "manager":
+        station_ids = StationManager.objects.filter(manager=user).values_list("station_id", flat=True)
+        return Station.objects.filter(id__in=station_ids).order_by("name")
+    if user.role == "super_admin":
+        return Station.objects.all().order_by("name")
+    return Station.objects.none()
+
+
 def _wallet_account_for_user(user, uuid):
+    station_scope = _station_scope_for_wallet_user(user)
     return get_object_or_404(
         Account.objects.select_related("station"),
         uuid=uuid,
-        station__owner=user,
+        station__in=station_scope,
     )
 
 
@@ -30,10 +43,18 @@ def wallet_list_view(request):
     #     messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
     #     return redirect("account:not_access")
 
-    station_scope = Station.objects.filter(owner=request.user).order_by("name")
+    if request.user.role not in ("admin", "manager", "super_admin"):
+        messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
+        return redirect("account:not_access")
+
+    station_scope = _station_scope_for_wallet_user(request.user)
     wallets_queryset = Account.objects.select_related("station").filter(station__in=station_scope).order_by("-created_at")
 
     if request.method == "POST":
+        if request.user.role == "manager":
+            messages.error(request, "Vous n'avez pas la permission de creer un compte.")
+            return redirect("account:not_access")
+
         station_id = request.POST.get("station_id", "").strip()
         name_raw = request.POST.get("name", "")
         balance_raw = request.POST.get("balance", "0").strip() or "0"
@@ -249,7 +270,11 @@ def transfer_wallet_view(request):
     #     messages.error(request, "Vous n'avez pas la permission d'effectuer un transfert.")
     #     return redirect("account:not_access")
 
-    station_scope = Station.objects.filter(owner=request.user)
+    if request.user.role not in ("admin", "manager", "super_admin"):
+        messages.error(request, "Vous n'avez pas la permission d'effectuer un transfert.")
+        return redirect("account:not_access")
+
+    station_scope = _station_scope_for_wallet_user(request.user)
     from_account_id = request.POST.get("from_account_id", "").strip()
     to_account_id = request.POST.get("to_account_id", "").strip()
     amount_raw = _parse_wallet_amount(request.POST.get("amount", ""))
