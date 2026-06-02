@@ -927,8 +927,8 @@ def create_reading_view(request, pump_uuid):
                 )
                 previous_current = latest_before.current_index if latest_before else Decimal("0")
 
-                if current_index_decimal <= previous_current:
-                    messages.error(request, 'L\'index actuel doit être supérieur à l\'index de la dernière lecture.')
+                if current_index_decimal < previous_current:
+                    messages.error(request, "L'index actuel ne peut pas être inférieur à l'index de la dernière lecture.")
                     return redirect('pumps:pumps_list')
                 
                 # Validation 2: une seule lecture/jour/pompe
@@ -1336,10 +1336,10 @@ def bulk_pump_reading_view(request):
                 prev_for_date.current_index if prev_for_date else Decimal("0")
             )
 
-            if current_index_decimal <= initial_index_decimal:
+            if current_index_decimal < initial_index_decimal:
                 messages.error(
                     request,
-                    f'L\'index actuel doit être supérieur à l\'index précédent pour "{pump.name}".',
+                    f'L\'index actuel ne peut pas être inférieur à l\'index précédent pour "{pump.name}".',
                 )
                 return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
