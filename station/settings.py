@@ -32,8 +32,7 @@ SECRET_KEY = config('SECRET_KEY')
 # En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# ALLOWED_HOSTS = ['station.ets-myd.com']
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['station.ets-myd.com', '51.91.156.6']
 
 
 # Application definition

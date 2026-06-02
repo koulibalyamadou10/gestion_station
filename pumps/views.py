@@ -1437,26 +1437,26 @@ def bulk_pump_reading_view(request):
                     )
                     sale = _create_sale_from_reading(reading, request.user)
 
-                inventory_row = None
                 if batch_stock_changed:
                     _sync_station_stock_from_tanks_locked(station_locked)
-                    inventory_row = Inventory.objects.create(
-                        station_id=station_locked.pk,
-                        qty_gasoline=station_locked.stock_gasoline,
-                        qty_diesel=station_locked.stock_diesel,
-                        source=Inventory.SOURCE_BULK_READING,
-                        reading_date=today,
-                        previous_stock_gasoline=prev_station_g,
-                        previous_stock_diesel=prev_station_d,
-                        created_at=timezone.make_aware(
-                            timezone.datetime.combine(
-                                today, timezone.datetime.min.time()
-                            ),
-                            timezone.get_current_timezone(),
+
+                inventory_row = Inventory.objects.create(
+                    station_id=station_locked.pk,
+                    qty_gasoline=station_locked.stock_gasoline,
+                    qty_diesel=station_locked.stock_diesel,
+                    source=Inventory.SOURCE_BULK_READING,
+                    reading_date=today,
+                    previous_stock_gasoline=prev_station_g,
+                    previous_stock_diesel=prev_station_d,
+                    created_at=timezone.make_aware(
+                        timezone.datetime.combine(
+                            today, timezone.datetime.min.time()
                         ),
-                    )
-                    reading_batch.inventory = inventory_row
-                    reading_batch.save(update_fields=["inventory"])
+                        timezone.get_current_timezone(),
+                    ),
+                )
+                reading_batch.inventory = inventory_row
+                reading_batch.save(update_fields=["inventory"])
 
                 for wallet_uuid, amount in allocations_by_uuid.items():
                     if amount <= 0:
