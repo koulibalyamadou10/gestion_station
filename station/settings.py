@@ -32,7 +32,8 @@ SECRET_KEY = config('SECRET_KEY')
 # En local : DEBUG=True pour que l'admin et les fichiers statiques se chargent avec runserver.
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['station.ets-myd.com']
+# ALLOWED_HOSTS = ['station.ets-myd.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -159,6 +160,9 @@ AUTH_USER_MODEL = 'account.CustomUser'
 LOGIN_URL = reverse_lazy('account:login')
 LOGIN_REDIRECT_URL = reverse_lazy('account:dashboard')
 LOGOUT_REDIRECT_URL = reverse_lazy('account:login')
+
+# Sessions: fermeture de la session à la fermeture du navigateur.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Email settings
 EMAIL_BACKEND = config('EMAIL_BACKEND')

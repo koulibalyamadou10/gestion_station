@@ -245,9 +245,9 @@ def transfer_wallet_view(request):
     if request.method != "POST":
         return redirect("wallet:wallet_list")
 
-    if request.user.role != "admin":
-        messages.error(request, "Vous n'avez pas la permission d'effectuer un transfert.")
-        return redirect("account:not_access")
+    # if request.user.role != "admin":
+    #     messages.error(request, "Vous n'avez pas la permission d'effectuer un transfert.")
+    #     return redirect("account:not_access")
 
     station_scope = Station.objects.filter(owner=request.user)
     from_account_id = request.POST.get("from_account_id", "").strip()
