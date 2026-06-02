@@ -26,9 +26,9 @@ def _parse_wallet_amount(raw):
 
 @login_required
 def wallet_list_view(request):
-    if request.user.role != "admin":
-        messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
-        return redirect("account:not_access")
+    # if request.user.role != "admin":
+    #     messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
+    #     return redirect("account:not_access")
 
     station_scope = Station.objects.filter(owner=request.user).order_by("name")
     wallets_queryset = Account.objects.select_related("station").filter(station__in=station_scope).order_by("-created_at")
@@ -133,9 +133,9 @@ def wallet_list_view(request):
 
 @login_required
 def wallet_detail_view(request, uuid):
-    if request.user.role != "admin":
-        messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
-        return redirect("account:not_access")
+    # if request.user.role != "admin":
+    #     messages.error(request, "Vous n'avez pas la permission d'acceder a cette page.")
+    #     return redirect("account:not_access")
 
     wallet = _wallet_account_for_user(request.user, uuid)
 

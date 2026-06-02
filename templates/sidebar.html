@@ -1,4 +1,4 @@
-<!-- Sidebar : Tableau de bord | Activités / Paramétrages (gérant : Activités uniquement, sans Paramétrages) -->
+<!-- Sidebar : Tableau de bord | Activités / Paramétrages (gérant : Paramétrages > Comptes uniquement) -->
 <style>
     #sidebarNav {
         scrollbar-width: none; /* Firefox */
@@ -106,7 +106,7 @@
             </div>
         </div>
 
-        {% if user.role != 'manager' %}
+        {% if user.role == 'admin' or user.role == 'super_admin' or user.role == 'manager' %}
         <div class="space-y-1">
             <button type="button" id="parametragesMenuBtn" class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left {% if ns == 'sale' or ns == 'expense' or ns == 'deposit' or urln == 'bulk_pump_reading' or ns == 'pumps' or ns == 'order' or ns == 'daily_stock' or ns == 'inventory' %}{% elif ns == 'wallet' or ns == 'supplier' or ns == 'employee' or ns == 'position' or ns == 'stations' or ns == 'city' or ns == 'product_price' or urln == 'users_list' or urln == 'managers_list' %}bg-gray-800{% elif user.role == 'super_admin' %}bg-gray-800{% endif %}">
                 <span class="flex items-center space-x-3">
@@ -140,7 +140,7 @@
                 </div>
                 {% endif %}
 
-                {% if user.role == 'admin' %}
+                {% if user.role == 'admin' or user.role == 'manager' %}
                 <div class="space-y-1">
                     <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'wallet:wallet_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'wallet' %}bg-blue-600{% endif %}">
@@ -148,6 +148,9 @@
                         <span>Comptes</span>
                     </a>
                 </div>
+                {% endif %}
+
+                {% if user.role == 'admin' %}
                 <div class="space-y-1">
                     <div class="mx-3 my-2 border-t border-gray-600/70" aria-hidden="true"></div>
                     <a href="{% url 'product_price:product_price_list' %}" class="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm {% if ns == 'product_price' %}bg-blue-600{% endif %}">
