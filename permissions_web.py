@@ -64,11 +64,11 @@ def role_required(*required_roles):
     """
     def decorator(view_func):
         @wraps(view_func)
-        @login_required(login_url='login')
+        @login_required(login_url='account:login')
         def wrapper(request, *args, **kwargs):
             # Vérifier si l'utilisateur est authentifié
             if not request.user.is_authenticated:
-                return redirect('login')
+                return redirect('account:login')
             
             # Les super_admins ont accès à tout
             if hasattr(request.user, 'role') and request.user.role == 'super_admin':
@@ -96,10 +96,10 @@ def super_admin_required(view_func):
             ...
     """
     @wraps(view_func)
-    @login_required(login_url='login')
+    @login_required(login_url='account:login')
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('account:login')
         
         if not hasattr(request.user, 'role') or request.user.role != 'super_admin':
             return redirect('account:not_access')
@@ -118,10 +118,10 @@ def admin_required(view_func):
             ...
     """
     @wraps(view_func)
-    @login_required(login_url='login')
+    @login_required(login_url='account:login')
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('account:login')
         
         user_role = getattr(request.user, 'role', None)
         if user_role not in ['admin']:
@@ -164,14 +164,14 @@ def admin_or_manager_required(view_func):
             ...
     """
     @wraps(view_func)
-    @login_required(login_url='login')
+    @login_required(login_url='account:login')
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('account:login')
         
         user_role = getattr(request.user, 'role', None)
         if user_role not in ['admin', 'manager']:
-            return redirect('not_access')
+            return redirect('account:not_access')
         
         return view_func(request, *args, **kwargs)
     return wrapper
