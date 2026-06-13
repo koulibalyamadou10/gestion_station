@@ -56,6 +56,7 @@ urlpatterns = [
     path('daily-stock/', include('daily_stock.urls')),
     path('inventory/', include('inventory.urls')),
     path('product-prices/', include('product_price.urls')),
+    path('credits/', include('credit.urls')),
 ]
 
 if settings.DEBUG:

@@ -15,6 +15,7 @@ from pumps.models import Pump, PumpReading, PumpReadingBatch, PumpReset
 from sale.models import Sale
 from employee.models import Employee
 from inventory.models import Inventory, InventoryWalletAllocation
+from credit.models import Credit
 from stations.models import Station, StationManager
 from wallet.models import Account
 from product_price.utils import get_product_price_for_date
@@ -30,6 +31,7 @@ def _stash_bulk_pump_reading_draft(request, station):
         "reading_date": request.POST.get("reading_date", "").strip(),
         "readings_json": request.POST.get("readings_json", "").strip(),
         "wallet_allocations": request.POST.get("wallet_allocations", "").strip(),
+        "credits_json": request.POST.get("credits_json", "").strip(),
     }
 
 
@@ -308,6 +310,8 @@ def reverse_bulk_pump_reading_inventory(inventory):
             wallet.balance = (wallet.balance or Decimal("0")) - alloc.amount
             wallet.save(update_fields=["balance", "updated_at"])
 
+        Credit.objects.filter(inventory=inventory).delete()
+
         reading_ids = [r.pk for r in readings]
         sales = list(
             Sale.objects.filter(pump_reading_id__in=reading_ids).select_related("pump_reading__pump")
@@ -364,13 +368,67 @@ def _compute_sale_total_for_pump_reading(
     return (qty_gasoline * unit_price_essence) + (qty_diesel * unit_price_diesel)
 
 
+def _parse_credits_json(request, credits_json):
+    """
+    Retourne (list[{amount, motif}], None) ou (None, True) si erreur.
+    """
+    credits = []
+    if not credits_json:
+        return credits, None
+    try:
+        parsed = json.loads(credits_json)
+    except json.JSONDecodeError:
+        messages.error(request, "Données de crédits invalides.")
+        return None, True
+    if not isinstance(parsed, list):
+        messages.error(request, "Données de crédits invalides.")
+        return None, True
+
+    for idx, item in enumerate(parsed):
+        if not isinstance(item, dict):
+            messages.error(request, "Données de crédits invalides.")
+            return None, True
+        amount_raw = (
+            str(item.get("amount", ""))
+            .replace("\u00a0", " ")
+            .replace(" ", "")
+            .replace(",", ".")
+            .strip()
+        )
+        if not amount_raw:
+            continue
+        try:
+            amount = Decimal(amount_raw).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError):
+            messages.error(request, f"Montant crédit invalide (ligne {idx + 1}).")
+            return None, True
+        if amount <= 0:
+            messages.error(request, "Les montants crédit doivent être strictement positifs.")
+            return None, True
+        motif = (item.get("motif") or "").strip()
+        credits.append({"amount": amount, "motif": motif})
+    return credits, None
+
+
+def _credit_quantity_from_amount(amount, total_batch, total_liters):
+    """Litres équivalents proportionnels au montant crédit."""
+    if amount <= 0 or total_batch <= 0 or total_liters <= 0:
+        return Decimal("0")
+    return (amount * total_liters / total_batch).quantize(Decimal("0.01"))
+
+
 def _parse_and_validate_wallet_allocations(
-    request, allocations_json, station_wallets, total_expected
+    request, allocations_json, station_wallets, total_expected, credits_sum=None
 ):
     """
     Retourne (dict wallet_uuid -> Decimal, None) ou (None, True) si erreur (messages déjà posés).
     total_expected : Decimal
+    credits_sum : montant déjà couvert par des crédits (Decimal, défaut 0)
     """
+    if credits_sum is None:
+        credits_sum = Decimal("0")
+    credits_sum = credits_sum.quantize(Decimal("0.01"))
+    total_expected = total_expected.quantize(Decimal("0.01"))
     allocations = []
     if allocations_json:
         try:
@@ -397,11 +455,22 @@ def _parse_and_validate_wallet_allocations(
             return None, True
         allocations_by_uuid[wallet_uuid] = allocations_by_uuid.get(wallet_uuid, Decimal("0")) + amount
 
-    if not allocations_by_uuid and len(station_wallets) == 1:
-        allocations_by_uuid[str(station_wallets[0].uuid)] = total_expected
+    wallet_target = (total_expected - credits_sum).quantize(Decimal("0.01"))
+    if wallet_target < 0:
+        messages.error(
+            request,
+            "La somme des crédits ne peut pas dépasser le montant total des ventes.",
+        )
+        return None, True
 
-    if not allocations_by_uuid:
-        messages.error(request, "Veuillez répartir le montant dans au moins un compte.")
+    if not allocations_by_uuid and wallet_target > 0 and len(station_wallets) == 1:
+        allocations_by_uuid[str(station_wallets[0].uuid)] = wallet_target
+
+    if wallet_target > 0 and not allocations_by_uuid:
+        messages.error(
+            request,
+            "Répartissez le montant restant dans au moins un compte (après déduction des crédits).",
+        )
         return None, True
 
     valid_wallets_map = {str(w.uuid): w for w in station_wallets}
@@ -411,10 +480,18 @@ def _parse_and_validate_wallet_allocations(
             return None, True
 
     allocated_sum = sum(allocations_by_uuid.values(), Decimal("0"))
-    if allocated_sum.quantize(Decimal("0.01")) != total_expected.quantize(Decimal("0.01")):
+    combined = (allocated_sum + credits_sum).quantize(Decimal("0.01"))
+    if combined != total_expected:
         messages.error(
             request,
-            "La somme répartie dans les comptes doit être égale au montant total des ventes.",
+            "La somme des comptes et des crédits doit être égale au montant total des ventes.",
+        )
+        return None, True
+
+    if allocated_sum.quantize(Decimal("0.01")) != wallet_target:
+        messages.error(
+            request,
+            "La somme répartie dans les comptes doit correspondre au montant total moins les crédits.",
         )
         return None, True
 
@@ -1208,6 +1285,7 @@ def bulk_pump_reading_view(request):
 
         readings_json = request.POST.get("readings_json", "").strip()
         allocations_json = request.POST.get("wallet_allocations", "").strip()
+        credits_json = request.POST.get("credits_json", "").strip()
         today = selected_reading_date
 
         try:
@@ -1369,14 +1447,23 @@ def bulk_pump_reading_view(request):
             )
 
         total_batch = Decimal("0")
+        total_liters = Decimal("0")
         for row in prepared:
+            qty = row["current_index"] - row["previous_current"]
+            if qty > 0:
+                total_liters += qty
             total_batch += _compute_sale_total_for_pump_reading(
                 row["pump"], row["previous_current"], row["current_index"], today
             )
 
+        credits_list, credits_err = _parse_credits_json(request, credits_json)
+        if credits_err:
+            return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
+        credits_sum = sum((c["amount"] for c in credits_list), Decimal("0"))
+
         if total_batch > 0:
             allocations_by_uuid, err_resp = _parse_and_validate_wallet_allocations(
-                request, allocations_json, station_wallets_list, total_batch
+                request, allocations_json, station_wallets_list, total_batch, credits_sum=credits_sum
             )
             if err_resp is not None:
                 return _redirect_bulk_pump_reading_after_error(
@@ -1384,6 +1471,14 @@ def bulk_pump_reading_view(request):
                 )
         else:
             allocations_by_uuid = {}
+            if credits_list:
+                messages.error(
+                    request,
+                    "Impossible d'enregistrer des crédits sans montant de vente.",
+                )
+                return _redirect_bulk_pump_reading_after_error(
+                    request, station, bulk_station_uuid_for_form
+                )
 
         try:
             with transaction.atomic():
@@ -1472,6 +1567,18 @@ def bulk_pump_reading_view(request):
                             account=w,
                             amount=amount,
                         )
+
+                for credit_item in credits_list:
+                    Credit.objects.create(
+                        amount=credit_item["amount"],
+                        quantity=_credit_quantity_from_amount(
+                            credit_item["amount"], total_batch, total_liters
+                        ),
+                        date=today,
+                        motif=credit_item["motif"] or None,
+                        inventory=inventory_row,
+                        recorded_by=request.user,
+                    )
         except ValueError as exc:
             messages.error(request, str(exc))
             return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
@@ -1479,10 +1586,15 @@ def bulk_pump_reading_view(request):
             messages.error(request, f"Erreur lors de l'enregistrement : {exc}")
             return _redirect_bulk_pump_reading_after_error(request, station, bulk_station_uuid_for_form)
 
-        messages.success(
-            request,
-            f"{len(prepared)} lecture(s) enregistrée(s) et montants répartis sur les comptes.",
-        )
+        credit_count = len(credits_list)
+        success_parts = [f"{len(prepared)} lecture(s) enregistrée(s)"]
+        if allocations_by_uuid:
+            success_parts.append("montants répartis sur les comptes")
+        if credit_count:
+            success_parts.append(
+                f"{credit_count} crédit{'s' if credit_count > 1 else ''} enregistré{'s' if credit_count > 1 else ''}"
+            )
+        messages.success(request, " et ".join(success_parts) + ".")
         return redirect("daily_stock:daily_sales")
 
     product_price_row = get_product_price_for_date(selected_reading_date)
@@ -1523,10 +1635,15 @@ def bulk_pump_reading_view(request):
                 wallets = json.loads(draft.get("wallet_allocations") or "[]")
             except json.JSONDecodeError:
                 wallets = []
+            try:
+                credits = json.loads(draft.get("credits_json") or "[]")
+            except json.JSONDecodeError:
+                credits = []
             bulk_restore_payload = {
                 "reading_date": draft.get("reading_date") or "",
                 "readings": readings if isinstance(readings, list) else [],
                 "wallet_allocations": wallets if isinstance(wallets, list) else [],
+                "credits": credits if isinstance(credits, list) else [],
             }
 
     context["bulk_restore_payload"] = bulk_restore_payload

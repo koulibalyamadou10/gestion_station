@@ -1,0 +1,340 @@
+{% extends 'base_authenticated.html' %}
+{% load money_extras %}
+
+{% block title %}Crédits{% endblock %}
+{% block page_title %}Crédits{% if manager_station %} — {{ manager_station.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-500">
+        <p class="text-sm text-gray-600">Nombre de crédits</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_credits }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+        <p class="text-sm text-gray-600">Montant total (filtres)</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2 tabular-nums">{{ sum_amount|money_gnf }}</p>
+    </div>
+</div>
+
+<div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+    <i class="fas fa-info-circle mr-2"></i>
+    Les crédits sont enregistrés lors de la <strong>saisie groupée des index</strong> (Envoi Index).
+</div>
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <form method="GET" class="grid grid-cols-1 {% if show_station_filter %}md:grid-cols-4{% else %}md:grid-cols-3{% endif %} gap-4">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="Motif, enregistré par…"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        {% if show_station_filter %}
+        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="">Toutes les stations</option>
+            {% for s in stations %}
+                <option value="{{ s.id }}" {% if station_filter == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <input type="date" name="credit_date" value="{{ date_filter }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Filtrer par date">
+        <div class="flex gap-2">
+            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Filtrer</button>
+            <a href="{% url 'credit:credit_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 whitespace-nowrap">Réinitialiser</a>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                    {% if show_station_column %}
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
+                    {% endif %}
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Montant</th>
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Remboursé</th>
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Quantité</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Motif</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Statut</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Enregistré par</th>
+                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase min-w-[5rem]">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% if credits %}
+                    {% for c in credits %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ c.date|date:"d/m/Y" }}</td>
+                        {% if show_station_column %}
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ c.inventory.station.name }}</td>
+                        {% endif %}
+                        <td class="px-6 py-4 text-sm font-semibold text-gray-900 text-right tabular-nums">{{ c.amount|money_gnf }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-700 text-right tabular-nums">{{ c.refunded_total|money_gnf }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-800 text-right tabular-nums">{{ c.quantity|qty_fr }} L</td>
+                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ c.motif|default:'' }}">{{ c.motif|default:"—" }}</td>
+                        <td class="px-6 py-4 text-sm">
+                            {% if c.refunded_total >= c.amount %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-semibold">Payé</span>
+                            {% elif c.refunded_total > 0 %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800 font-semibold">Partiel</span>
+                            {% else %}
+                                <span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 font-semibold">Non payé</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ c.recorded_by.get_full_name|default:c.recorded_by.email }}</td>
+                        <td class="px-6 py-4 text-sm text-center">
+                            <div class="flex items-center justify-center gap-1">
+                            {% if c.uuid %}
+                            <a href="{% url 'credit:credit_detail' c.uuid %}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Voir le détail">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% endif %}
+                            {% if can_refund and c.uuid and c.refunded_total < c.amount %}
+                            <button
+                                type="button"
+                                class="js-open-refund-modal inline-flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                title="Enregistrer un remboursement"
+                                data-credit-uuid="{{ c.uuid }}"
+                                data-station-id="{{ c.inventory.station_id }}"
+                                data-station-name="{{ c.inventory.station.name|escape }}"
+                                data-credit-amount="{{ c.amount }}"
+                                data-refunded-total="{{ c.refunded_total }}"
+                                data-motif="{{ c.motif|default:''|escape }}"
+                                data-credit-date="{{ c.date|date:'d/m/Y' }}"
+                            >
+                                <i class="fas fa-hand-holding-usd"></i>
+                            </button>
+                            {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{% if show_station_column %}9{% else %}8{% endif %}" class="px-6 py-10 text-center text-gray-500">
+                            Aucun crédit trouvé.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="mt-6 flex items-center justify-between">
+    <p class="text-sm text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_station_filter and station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&credit_date={{ date_filter }}{% endif %}">Précédent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_station_filter and station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&credit_date={{ date_filter }}{% endif %}">Suivant</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if can_refund %}
+<div id="refundCreditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
+            <h3 class="text-lg font-bold text-gray-800">
+                <i class="fas fa-hand-holding-usd mr-2 text-emerald-600"></i>Remboursement crédit
+            </h3>
+            <button type="button" id="closeRefundCreditModal" class="text-gray-400 hover:text-gray-600" aria-label="Fermer">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <form id="refundCreditForm" method="POST" action="{% url 'credit:credit_refund' '00000000-0000-4000-8000-000000000001' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm space-y-1">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Crédit</p>
+                <p id="refundModalStation" class="font-bold text-gray-900"></p>
+                <p class="text-xs text-gray-600">Date crédit : <span id="refundModalCreditDate" class="font-medium"></span></p>
+                <p class="text-xs text-gray-600">Motif : <span id="refundModalMotif" class="font-medium"></span></p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-200 mt-2">
+                    <div>
+                        <p class="text-[10px] uppercase text-gray-500">Montant crédit</p>
+                        <p id="refundModalCreditAmount" class="font-semibold tabular-nums text-gray-900"></p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase text-gray-500">Déjà remboursé</p>
+                        <p id="refundModalRefundedTotal" class="font-semibold tabular-nums text-gray-700"></p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] uppercase text-emerald-700">Reste à rembourser</p>
+                        <p id="refundModalRemaining" class="font-bold tabular-nums text-emerald-800"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label for="refund_account_id" class="block text-sm font-semibold text-gray-700 mb-2">Compte à créditer <span class="text-red-500">*</span></label>
+                <select name="account_id" id="refund_account_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sélectionner un compte</option>
+                    {% for a in accounts %}
+                    <option value="{{ a.id }}" data-station-id="{{ a.station_id }}">
+                        {% if show_station_column %}{{ a.station.name }} — {% endif %}{{ a.name }} ({{ a.balance|money_gnf }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Le montant remboursé sera ajouté au solde du compte.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="refund_amount" class="block text-sm font-semibold text-gray-700 mb-2">Montant remboursé (GNF) <span class="text-red-500">*</span></label>
+                    <input type="text" name="amount" id="refund_amount" required inputmode="decimal" autocomplete="off" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg text-right tabular-nums" placeholder="Ex. 50 000">
+                </div>
+                <div>
+                    <label for="refund_date" class="block text-sm font-semibold text-gray-700 mb-2">Date remboursement <span class="text-red-500">*</span></label>
+                    <input type="date" name="refund_date" id="refund_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="refund_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du client <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" id="refund_name" maxlength="255" required autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Nom complet">
+                </div>
+                <div>
+                    <label for="refund_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone <span class="text-red-500">*</span></label>
+                    <input type="tel" name="phone_number" id="refund_phone_number" maxlength="255" required inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex. +224 …">
+                </div>
+            </div>
+
+            <p class="text-xs text-gray-500">Remboursement partiel autorisé — vous pouvez enregistrer plusieurs remboursements jusqu'à solde du crédit.</p>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button type="button" id="cancelRefundCreditModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold">Enregistrer le remboursement</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if can_refund %}
+<script>
+(function() {
+    const refundModal = document.getElementById('refundCreditModal');
+    const refundForm = document.getElementById('refundCreditForm');
+    const refundAccountSelect = document.getElementById('refund_account_id');
+    const refundAmountInput = document.getElementById('refund_amount');
+    const refundDateInput = document.getElementById('refund_date');
+    const refundNameInput = document.getElementById('refund_name');
+    const refundPhoneInput = document.getElementById('refund_phone_number');
+    const placeholderUuid = '00000000-0000-4000-8000-000000000001';
+    const refundUrlTemplate = '{% url "credit:credit_refund" "00000000-0000-4000-8000-000000000001" %}';
+    const NF = window.NumberFormat;
+
+    let currentRemaining = 0;
+
+    function formatMoneyFr(value) {
+        if (NF) return NF.formatAmount(value);
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '0';
+        return n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function parseMoney(value) {
+        if (NF) return NF.parseAmountInput(value);
+        const s = String(value ?? '0').replace(/\s/g, '').replace(',', '.');
+        const n = parseFloat(s);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function filterAccountsForStation(stationId) {
+        if (!refundAccountSelect) return;
+        const sid = String(stationId || '');
+        let firstVisible = '';
+        Array.from(refundAccountSelect.options).forEach(function(opt, idx) {
+            if (idx === 0) {
+                opt.hidden = false;
+                return;
+            }
+            const match = String(opt.dataset.stationId || '') === sid;
+            opt.hidden = !match;
+            if (match && !firstVisible) firstVisible = opt.value;
+        });
+        refundAccountSelect.value = firstVisible || '';
+    }
+
+    function openRefundModal(btn) {
+        if (!refundModal || !refundForm || !btn) return;
+        const creditUuid = btn.dataset.creditUuid || '';
+        const stationId = btn.dataset.stationId || '';
+        const creditAmount = parseMoney(btn.dataset.creditAmount);
+        const refundedTotal = parseMoney(btn.dataset.refundedTotal);
+        currentRemaining = Math.max(0, creditAmount - refundedTotal);
+
+        refundForm.action = refundUrlTemplate.replace(placeholderUuid, creditUuid);
+
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text || '—';
+        };
+        setText('refundModalStation', btn.dataset.stationName || '');
+        setText('refundModalCreditDate', btn.dataset.creditDate || '');
+        setText('refundModalMotif', btn.dataset.motif || '—');
+        setText('refundModalCreditAmount', formatMoneyFr(creditAmount) + ' GNF');
+        setText('refundModalRefundedTotal', formatMoneyFr(refundedTotal) + ' GNF');
+        setText('refundModalRemaining', formatMoneyFr(currentRemaining) + ' GNF');
+
+        filterAccountsForStation(stationId);
+
+        if (refundAmountInput) {
+            refundAmountInput.value = NF ? NF.formatAmount(currentRemaining) : formatMoneyFr(currentRemaining);
+        }
+        if (refundDateInput) {
+            refundDateInput.value = new Date().toISOString().slice(0, 10);
+        }
+        if (refundNameInput) refundNameInput.value = '';
+        if (refundPhoneInput) refundPhoneInput.value = '';
+
+        if (NF && refundModal) {
+            NF.initNumberInputs(refundModal);
+        }
+
+        refundModal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        refundAmountInput?.focus();
+    }
+
+    function closeRefundModal() {
+        refundModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.querySelectorAll('.js-open-refund-modal').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            openRefundModal(btn);
+        });
+    });
+
+    document.getElementById('closeRefundCreditModal')?.addEventListener('click', closeRefundModal);
+    document.getElementById('cancelRefundCreditModal')?.addEventListener('click', closeRefundModal);
+    refundModal?.addEventListener('click', function(e) {
+        if (e.target === refundModal) closeRefundModal();
+    });
+
+    refundForm?.addEventListener('submit', function(e) {
+        const amount = parseMoney(refundAmountInput?.value);
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('Le montant doit être strictement positif.');
+            return;
+        }
+        if (amount > currentRemaining + 0.0001) {
+            e.preventDefault();
+            alert('Le montant ne peut pas dépasser le reste à rembourser (' + formatMoneyFr(currentRemaining) + ' GNF).');
+            return;
+        }
+        if (NF) NF.stripNumberInputsForSubmit(refundForm);
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
