@@ -88,43 +88,32 @@
                         {% endif %}
                         <td class="px-4 py-3 align-top">
                             {% if line %}
-                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5 space-y-2 w-max max-w-[16rem]">
-                                <div class="space-y-1">
-                                    <div class="text-[10px] font-bold uppercase tracking-wide text-amber-900">
-                                        <span class="inline-block rounded bg-amber-100 px-2 py-0.5">Essence</span>
-                                    </div>
-                                    <div class="text-xs text-gray-800 tabular-nums pl-0.5 leading-relaxed">
-                                        <span class="font-semibold">{{ line.qty_gasoline|floatformat:2 }}</span> L
-                                        <span class="text-gray-300 mx-1.5">|</span>
-                                        <span class="text-gray-600">{{ line.unit_price_gasoline|money_fr }}</span>
-                                        <span class="text-gray-500 text-[10px] ml-0.5">GNF/L</span>
-                                    </div>
-                                </div>
-                                <div class="space-y-1 border-t border-gray-200/80 pt-2">
-                                    <div class="text-[10px] font-bold uppercase tracking-wide text-slate-900">
-                                        <span class="inline-block rounded bg-slate-200 px-2 py-0.5">Gazoil</span>
-                                    </div>
-                                    <div class="text-xs text-gray-800 tabular-nums pl-0.5 leading-relaxed">
-                                        <span class="font-semibold">{{ line.qty_diesel|floatformat:2 }}</span> L
-                                        <span class="text-gray-300 mx-1.5">|</span>
-                                        <span class="text-gray-600">{{ line.unit_price_diesel|money_fr }}</span>
-                                        <span class="text-gray-500 text-[10px] ml-0.5">GNF/L</span>
-                                    </div>
-                                </div>
-                                <p class="text-[11px] font-semibold text-blue-700 tabular-nums border-t border-gray-200 pt-2 mt-0.5">
-                                    Total&nbsp;: {{ order.estimated_line_total|money_fr }}&nbsp;GNF
-                                </p>
+                            {% with qty_g=line.qty_gasoline qty_d=line.qty_diesel %}
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums leading-relaxed w-max whitespace-nowrap">
+                                <span class="{% if qty_g %}font-semibold text-amber-900{% else %}text-gray-400{% endif %}">
+                                    Essence&nbsp;: <span class="{% if qty_g %}text-amber-900{% else %}text-gray-400{% endif %}">{{ qty_g|qty_fr }} L</span>
+                                </span>
+                                <span class="text-gray-300" aria-hidden="true">|</span>
+                                <span class="{% if qty_d %}font-semibold text-slate-900{% else %}text-gray-400{% endif %}">
+                                    Gazoil&nbsp;: <span class="{% if qty_d %}text-slate-900{% else %}text-gray-400{% endif %}">{{ qty_d|qty_fr }} L</span>
+                                </span>
                             </div>
+                            {% endwith %}
                             {% else %}
-                            <div class="rounded-lg border border-dashed border-amber-200 bg-amber-50/50 p-2.5 space-y-2 w-max max-w-[16rem]">
-                                <p class="text-[10px] font-bold uppercase text-amber-900">Demandé</p>
-                                <div class="text-xs text-gray-800 tabular-nums">
-                                    <span class="text-gray-500">Ess.</span> <span class="font-semibold">{{ order.requested_qty_gasoline|floatformat:2 }}</span> L
-                                    <span class="text-gray-300 mx-1">·</span>
-                                    <span class="text-gray-500">Gaz.</span> <span class="font-semibold">{{ order.requested_qty_diesel|floatformat:2 }}</span> L
+                            {% with qty_g=order.requested_qty_gasoline qty_d=order.requested_qty_diesel %}
+                            <div class="rounded-lg border border-dashed border-amber-200 bg-amber-50/50 p-2.5 w-max max-w-none">
+                                <p class="text-[10px] font-bold uppercase text-amber-900 mb-1.5">Demandé</p>
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums leading-relaxed whitespace-nowrap">
+                                    <span class="{% if qty_g %}font-semibold text-amber-900{% else %}text-gray-400{% endif %}">
+                                        Essence&nbsp;: <span class="{% if qty_g %}text-amber-900{% else %}text-gray-400{% endif %}">{{ qty_g|qty_fr }} L</span>
+                                    </span>
+                                    <span class="text-gray-300" aria-hidden="true">|</span>
+                                    <span class="{% if qty_d %}font-semibold text-slate-900{% else %}text-gray-400{% endif %}">
+                                        Gazoil&nbsp;: <span class="{% if qty_d %}text-slate-900{% else %}text-gray-400{% endif %}">{{ qty_d|qty_fr }} L</span>
+                                    </span>
                                 </div>
-                                <p class="text-[11px] text-gray-600">Total estimé&nbsp;: {{ order.estimated_line_total|money_fr }}&nbsp;GNF</p>
                             </div>
+                            {% endwith %}
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-sm align-top">
