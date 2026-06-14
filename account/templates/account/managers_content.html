@@ -106,13 +106,16 @@
             <i class="fas fa-list mr-2 text-blue-600"></i>
             Liste des Gérants ({{ managers.count }})
         </h3>
-        <button 
-            id="createManagerBtn"
-            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
-        >
-            <i class="fas fa-user-plus mr-2"></i>
-            Créer un gérant
-        </button>
+        <div class="flex items-center gap-3">
+            <button 
+                id="createManagerBtn"
+                type="button"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+            >
+                <i class="fas fa-user-plus mr-2"></i>
+                Créer un gérant
+            </button>
+        </div>
     </div>
 
     <div class="overflow-x-auto">

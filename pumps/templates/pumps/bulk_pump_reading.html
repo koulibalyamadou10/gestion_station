@@ -39,6 +39,7 @@
     {% endif %}
     <input type="hidden" name="readings_json" id="readingsJsonInput" value="[]">
     <input type="hidden" name="wallet_allocations" id="walletAllocationsInput" value="[]">
+    <input type="hidden" name="credits_json" id="creditsJsonInput" value="[]">
 
     <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div id="missingDaysAlert" class="hidden mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -131,6 +132,23 @@
         </div>
     </div>
 
+    <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 max-h-[40vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-800">
+                <i class="fas fa-hand-holding-usd mr-2 text-amber-600"></i>Crédits (ventes à crédit)
+            </h3>
+            <button type="button" id="addCreditRowBtn" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md">
+                + Ajouter un crédit
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">Optionnel — montants vendus à crédit (le reste ira sur les comptes).</p>
+        <div id="creditsContainer" class="space-y-2"></div>
+        <p id="emptyCreditsHint" class="text-sm text-gray-500 mt-2">Aucun crédit saisi.</p>
+        <div class="mt-3 text-xs text-gray-600">
+            Total crédits : <span id="creditsTotalAmount" class="font-semibold">0</span> GNF
+        </div>
+    </div>
+
     <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-100 max-h-[50vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-3">
             <h3 class="text-lg font-semibold text-gray-800">
@@ -143,8 +161,9 @@
         <div id="walletAllocationsContainer" class="space-y-2"></div>
         <p id="noWalletMessage" class="hidden text-sm text-red-600 mt-2">Aucun compte configuré pour cette station.</p>
         <div class="mt-3 text-xs text-gray-600">
-            Reste à répartir : <span id="walletRemainingAmount" class="font-semibold">0</span> GNF
+            Reste à répartir (comptes) : <span id="walletRemainingAmount" class="font-semibold">0</span> GNF
         </div>
+        <p class="text-[11px] text-gray-500 mt-1">Comptes + crédits = montant total des ventes.</p>
     </div>
 
     <div class="flex justify-end gap-3">
@@ -200,7 +219,9 @@
 {% else %}
 <script type="application/json" id="bulk-restore-data">null</script>
 {% endif %}
+{% endblock %}
 
+{% block extra_js %}
 <script>
 (function() {
     const PUMPS_DATA = JSON.parse(document.getElementById('pumps-data')?.textContent || '[]');
@@ -226,6 +247,11 @@
     const walletRemainingAmount = document.getElementById('walletRemainingAmount');
     const addWalletAllocationBtn = document.getElementById('addWalletAllocationBtn');
     const noWalletMessage = document.getElementById('noWalletMessage');
+    const creditsContainer = document.getElementById('creditsContainer');
+    const creditsJsonInput = document.getElementById('creditsJsonInput');
+    const creditsTotalAmount = document.getElementById('creditsTotalAmount');
+    const emptyCreditsHint = document.getElementById('emptyCreditsHint');
+    const addCreditRowBtn = document.getElementById('addCreditRowBtn');
     const bulkForm = document.getElementById('bulkReadingForm');
     const salesSummaryBody = document.getElementById('salesSummaryBody');
     const salesSummaryTotalAmount = document.getElementById('salesSummaryTotalAmount');
@@ -304,8 +330,19 @@
 
     function attachWalletAmountFormatting(inputEl, onUpdate) {
         if (!inputEl) return;
-        if (NF) {
-            NF.attachLiveNumberFormatting(inputEl, onUpdate, 'amount');
+        const nf = window.NumberFormat;
+        delete inputEl.dataset.numberFormatAttached;
+        if (nf) {
+            nf.attachLiveNumberFormatting(inputEl, onUpdate, 'amount');
+        }
+    }
+
+    function attachCreditAmountFormatting(inputEl) {
+        if (!inputEl) return;
+        const nf = window.NumberFormat;
+        delete inputEl.dataset.numberFormatAttached;
+        if (nf) {
+            nf.attachLiveNumberFormatting(inputEl, syncCreditsJson, 'amount');
         }
     }
 
@@ -390,6 +427,16 @@
             });
         } else {
             renderWalletSection();
+        }
+
+        creditsContainer.innerHTML = '';
+        const credits = Array.isArray(SERVER_RESTORE.credits) ? SERVER_RESTORE.credits : [];
+        if (credits.length) {
+            credits.forEach((item) => {
+                createCreditRow(item.amount != null ? item.amount : '', item.motif || '');
+            });
+        } else {
+            syncCreditsJson();
         }
 
         refreshAllPumpSelects();
@@ -605,11 +652,48 @@
         batchTotalAmount.textContent = formatAmount(total);
         if (salesSummaryTotalAmount) salesSummaryTotalAmount.textContent = formatAmount(total);
         renderSalesSummary(summaryRows);
-        if (STATION_WALLETS.length === 1) {
-            const wInput = walletAllocationsContainer.querySelector('.wallet-amount');
-            if (wInput) wInput.value = formatAmount(total);
-        }
+        autoFillSingleWalletIfNeeded(total);
         syncWalletAllocations();
+    }
+
+    function getCreditsTotal() {
+        let sum = 0;
+        creditsContainer?.querySelectorAll('.credit-row').forEach((row) => {
+            sum += parseAmountInput(row.querySelector('.credit-amount')?.value || '0');
+        });
+        return sum;
+    }
+
+    function syncCreditsJson() {
+        const credits = [];
+        creditsContainer?.querySelectorAll('.credit-row').forEach((row) => {
+            const amount = parseAmountInput(row.querySelector('.credit-amount')?.value || '0');
+            const motif = (row.querySelector('.credit-motif')?.value || '').trim();
+            if (amount > 0) {
+                credits.push({
+                    amount: amount.toFixed(2),
+                    motif: motif,
+                });
+            }
+        });
+        if (creditsJsonInput) creditsJsonInput.value = JSON.stringify(credits);
+        if (creditsTotalAmount) creditsTotalAmount.textContent = formatAmount(getCreditsTotal());
+        const creditRowCount = creditsContainer?.querySelectorAll('.credit-row').length || 0;
+        if (emptyCreditsHint) {
+            emptyCreditsHint.classList.toggle('hidden', credits.length > 0 || creditRowCount > 0);
+        }
+        autoFillSingleWalletIfNeeded(parseAmountInput(batchTotalAmount?.textContent || '0'));
+        syncWalletAllocations();
+    }
+
+    function autoFillSingleWalletIfNeeded(batchTotal) {
+        if (!STATION_WALLETS.length || STATION_WALLETS.length !== 1) return;
+        const creditsSum = getCreditsTotal();
+        const walletTarget = Math.max(0, batchTotal - creditsSum);
+        const wInput = walletAllocationsContainer?.querySelector('.wallet-amount');
+        if (wInput && walletTarget >= 0) {
+            wInput.value = formatAmount(walletTarget);
+        }
     }
 
     function renderSalesSummary(rows) {
@@ -699,7 +783,40 @@
         });
         walletAllocationsInput.value = JSON.stringify(allocations);
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
-        walletRemainingAmount.textContent = formatAmount(batchTotal - allocatedSum);
+        const creditsSum = getCreditsTotal();
+        walletRemainingAmount.textContent = formatAmount(batchTotal - allocatedSum - creditsSum);
+    }
+
+    function createCreditRow(defaultAmount = '', defaultMotif = '') {
+        const row = document.createElement('div');
+        row.className = 'credit-row grid grid-cols-12 gap-2 items-start';
+        row.innerHTML = `
+            <div class="col-span-4">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">Montant (GNF)</label>
+                <input type="text" inputmode="decimal" autocomplete="off" class="credit-amount js-number-input w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-right tabular-nums" placeholder="Ex. 20 000 000">
+            </div>
+            <div class="col-span-7">
+                <label class="block text-[10px] font-semibold text-gray-500 mb-1">Motif / client (optionnel)</label>
+                <input type="text" maxlength="255" autocomplete="off" class="credit-motif w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Ex. Client X, n° bon…">
+            </div>
+            <div class="col-span-1 flex justify-center pt-6">
+                <button type="button" class="remove-credit-row text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
+            </div>
+        `;
+        creditsContainer.appendChild(row);
+        const amountInput = row.querySelector('.credit-amount');
+        const motifInput = row.querySelector('.credit-motif');
+        if (defaultMotif && motifInput) motifInput.value = String(defaultMotif);
+        attachCreditAmountFormatting(amountInput);
+        if (defaultAmount !== null && defaultAmount !== undefined && String(defaultAmount) !== '') {
+            const n = parseAmountInput(defaultAmount);
+            amountInput.value = formatAmount(n);
+        }
+        row.querySelector('.remove-credit-row').addEventListener('click', () => {
+            row.remove();
+            syncCreditsJson();
+        });
+        syncCreditsJson();
     }
 
     function createWalletRow(defaultUuid = '', defaultAmount = '') {
@@ -741,8 +858,10 @@
             return;
         }
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
+        const creditsSum = getCreditsTotal();
+        const walletTarget = Math.max(0, batchTotal - creditsSum);
         if (STATION_WALLETS.length === 1) {
-            createWalletRow(STATION_WALLETS[0].uuid, batchTotal);
+            createWalletRow(STATION_WALLETS[0].uuid, walletTarget);
         } else {
             createWalletRow('', '');
         }
@@ -786,6 +905,10 @@
     addWalletAllocationBtn?.addEventListener('click', () => {
         createWalletRow('', '');
         syncWalletAllocations();
+    });
+
+    addCreditRowBtn?.addEventListener('click', () => {
+        createCreditRow('', '');
     });
 
     function lockBulkSubmit() {
@@ -834,6 +957,7 @@
             return;
         }
         syncReadingsJson();
+        syncCreditsJson();
         const readings = JSON.parse(readingsJsonInput.value || '[]');
         const requiredPumpUuids = PUMPS_DATA
             .filter((p) => !pumpBlockedForSelectedDate(p))
@@ -874,15 +998,29 @@
         }
         const batchTotal = parseAmountInput(batchTotalAmount.textContent);
         const allocations = JSON.parse(walletAllocationsInput.value || '[]');
+        const credits = JSON.parse(creditsJsonInput?.value || '[]');
         const allocatedSum = allocations.reduce((acc, x) => acc + parseFloat(x.amount || 0), 0);
-        if (batchTotal > 0 && !allocations.length) {
+        const creditsSum = credits.reduce((acc, x) => acc + parseFloat(x.amount || 0), 0);
+        const walletTarget = batchTotal - creditsSum;
+
+        if (creditsSum > batchTotal + 0.01) {
             e.preventDefault();
-            alert('Répartissez le montant sur au moins un compte.');
+            alert('La somme des crédits ne peut pas dépasser le montant total des ventes.');
             return;
         }
-        if (Math.abs(allocatedSum - batchTotal) > 0.01) {
+        if (batchTotal > 0 && walletTarget > 0.01 && !allocations.length) {
             e.preventDefault();
-            alert('La somme des comptes doit être égale au montant total.');
+            alert('Répartissez le montant restant sur au moins un compte (après déduction des crédits).');
+            return;
+        }
+        if (Math.abs(allocatedSum + creditsSum - batchTotal) > 0.01) {
+            e.preventDefault();
+            alert('La somme des comptes et des crédits doit être égale au montant total.');
+            return;
+        }
+        if (walletTarget > 0.01 && Math.abs(allocatedSum - walletTarget) > 0.01) {
+            e.preventDefault();
+            alert('La somme des comptes doit correspondre au montant total moins les crédits.');
             return;
         }
         if (NF) {
@@ -905,6 +1043,7 @@
             }
             refreshNoPumpReason();
             renderWalletSection();
+            syncCreditsJson();
         }
         updateAddButtonsAvailability();
     }

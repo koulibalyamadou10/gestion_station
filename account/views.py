@@ -423,6 +423,83 @@ def generate_password(length=12):
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
+def _create_admin_from_post(request, *, notify_by_email=False):
+    """
+    Crée un administrateur (rôle admin) à partir d'une requête POST.
+    Retourne True si la création a réussi, False sinon.
+    """
+    first_name = request.POST.get('first_name')
+    last_name = request.POST.get('last_name')
+    email = request.POST.get('email')
+    phone_code = request.POST.get('phone_code')
+    phone_number = request.POST.get('phone_number')
+    role = request.POST.get('role', 'admin')
+
+    errors = []
+
+    if not first_name or not last_name:
+        errors.append('Le prénom et le nom sont requis.')
+
+    if not email:
+        errors.append('L\'email est requis.')
+    elif CustomUser.objects.filter(email=email).exists():
+        errors.append('Cet email est déjà utilisé.')
+
+    if not phone_code or not phone_number:
+        errors.append('Le code et le numéro de téléphone sont requis.')
+
+    if role != 'admin':
+        errors.append('Vous ne pouvez créer que des utilisateurs avec le rôle Admin.')
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return False
+
+    try:
+        generated_password = generate_password(8)
+
+        user = CustomUser.objects.create_user(
+            email=email,
+            password=generated_password,
+            first_name=first_name,
+            last_name=last_name,
+            phone_code=phone_code,
+            phone_number=phone_number,
+            role='admin',
+            is_active=True,
+            created_by=request.user,
+        )
+
+        print(generated_password)
+
+        if notify_by_email:
+            login_url = request.build_absolute_uri('/login/')
+            email_sent = user.send_credentials_email(generated_password, login_url)
+            if email_sent:
+                messages.success(
+                    request,
+                    f'Utilisateur {user.get_full_name()} créé avec succès ! '
+                    f'Un email avec les identifiants a été envoyé à {user.email}.',
+                )
+            else:
+                messages.warning(
+                    request,
+                    f'Utilisateur {user.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
+                    f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).',
+                )
+        else:
+            messages.success(
+                request,
+                f'Administrateur {user.get_full_name()} créé avec succès. '
+                f'Mot de passe à communiquer manuellement : {generated_password}',
+            )
+        return True
+    except Exception as e:
+        messages.error(request, f'Erreur lors de la création : {str(e)}')
+        return False
+
+
 @super_admin_required
 def create_user_view(request):
     """
@@ -430,77 +507,168 @@ def create_user_view(request):
     Accessible uniquement aux super_admins
     Génère automatiquement un mot de passe et l'envoie par email
     """
-    if request.method == 'POST':
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        email = request.POST.get('email')
-        phone_code = request.POST.get('phone_code')
-        phone_number = request.POST.get('phone_number')
-        role = request.POST.get('role', 'admin')  # Par défaut admin
-        
-        # Validation
-        errors = []
-        
-        if not first_name or not last_name:
-            errors.append('Le prénom et le nom sont requis.')
-        
-        if not email:
-            errors.append('L\'email est requis.')
-        elif CustomUser.objects.filter(email=email).exists():
-            errors.append('Cet email est déjà utilisé.')
-        
-        if not phone_code or not phone_number:
-            errors.append('Le code et le numéro de téléphone sont requis.')
-        
-        # Le super_admin ne peut créer que des admins
-        if role != 'admin':
-            errors.append('Vous ne pouvez créer que des utilisateurs avec le rôle Admin.')
-        
-        if errors:
-            for error in errors:
-                messages.error(request, error)
-        else:
-            try:
-                # Générer un mot de passe sécurisé
-                generated_password = generate_password(8)
-                
-                # Créer l'utilisateur
-                user = CustomUser.objects.create_user(
-                    email=email,
-                    password=generated_password,
-                    first_name=first_name,
-                    last_name=last_name,
-                    phone_code=phone_code,
-                    phone_number=phone_number,
-                    role='admin',  # Forcé à admin
-                    is_active=True,
-                    created_by=request.user  # Le super_admin qui crée l'admin
-                )
-                
-                # Envoyer l'email avec le mot de passe via la méthode du modèle
-                login_url = request.build_absolute_uri('/login/')
-                email_sent = user.send_credentials_email(generated_password, login_url)
+    if request.method == 'POST' and _create_admin_from_post(request, notify_by_email=True):
+        return redirect('account:users_list')
 
-                print(generated_password)
-
-                if email_sent:
-                    messages.success(
-                        request, 
-                        f'Utilisateur {user.get_full_name()} créé avec succès ! Un email avec les identifiants a été envoyé à {user.email}.'
-                    )
-                else:
-                    # Si l'envoi d'email échoue, on crée quand même l'utilisateur mais on affiche un avertissement
-                    messages.warning(
-                        request, 
-                        f'Utilisateur {user.get_full_name()} créé avec succès, mais l\'envoi de l\'email a échoué. '
-                        f'Mot de passe généré : {generated_password} (Veuillez le noter et le communiquer manuellement).'
-                    )
-                
-                return redirect('account:users_list')
-            except Exception as e:
-                messages.error(request, f'Erreur lors de la création : {str(e)}')
-    
     return redirect('account:users_list')
+
+
+@admin_required
+def create_admin_view(request):
+    """
+    Crée un administrateur (rôle admin) depuis la page des admins.
+    Accessible aux admins (un admin peut en créer un autre).
+    """
+    if request.method == 'POST' and _create_admin_from_post(request):
+        return redirect('account:admins_list')
+
+    return redirect('account:admins_list')
+
+
+@admin_required
+def admins_list_view(request):
+    """
+    Liste des administrateurs (rôle admin).
+    Un admin voit son propre compte et ceux qu'il a créés.
+    """
+    admins = CustomUser.objects.filter(role='admin').filter(
+        Q(created_by=request.user) | Q(pk=request.user.pk)
+    ).order_by('-created_at')
+
+    search_query = request.GET.get('search', '')
+    status_filter = request.GET.get('status', '')
+
+    if search_query:
+        admins = admins.filter(
+            Q(first_name__icontains=search_query)
+            | Q(last_name__icontains=search_query)
+            | Q(email__icontains=search_query)
+            | Q(phone_number__icontains=search_query)
+        )
+
+    if status_filter == 'active':
+        admins = admins.filter(is_active=True)
+    elif status_filter == 'inactive':
+        admins = admins.filter(is_active=False)
+
+    total_admins = admins.count()
+    active_admins = admins.filter(is_active=True).count()
+    inactive_admins = admins.filter(is_active=False).count()
+
+    context = {
+        'admins': admins,
+        'total_admins': total_admins,
+        'active_admins': active_admins,
+        'inactive_admins': inactive_admins,
+        'search_query': search_query,
+        'status_filter': status_filter,
+    }
+
+    return render(request, 'account/admin_content.html', context)
+
+
+@admin_required
+def update_admin_name_view(request, user_uuid):
+    """Met à jour le prénom/nom d'un administrateur."""
+    if request.method == 'POST':
+        admin_user = get_object_or_404(CustomUser, user_uuid=user_uuid, role='admin')
+
+        if admin_user != request.user and admin_user.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de modifier cet administrateur.")
+            return redirect('account:admins_list')
+
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+
+        if not first_name or not last_name:
+            messages.error(request, 'Le prénom et le nom sont obligatoires.')
+            return redirect('account:admins_list')
+
+        admin_user.first_name = first_name
+        admin_user.last_name = last_name
+        admin_user.save(update_fields=['first_name', 'last_name', 'updated_at'])
+        messages.success(request, "L'administrateur a été modifié avec succès.")
+
+    return redirect('account:admins_list')
+
+
+@admin_required
+def delete_admin_view(request, user_uuid):
+    """Supprime définitivement un administrateur."""
+    if request.method == 'POST':
+        try:
+            admin_to_delete = get_object_or_404(CustomUser, user_uuid=user_uuid, role='admin')
+
+            if admin_to_delete == request.user:
+                messages.error(request, 'Vous ne pouvez pas supprimer votre propre compte.')
+                return redirect('account:admins_list')
+
+            if admin_to_delete.created_by != request.user:
+                messages.error(request, "Vous n'avez pas la permission de supprimer cet administrateur.")
+                return redirect('account:admins_list')
+
+            admin_name = admin_to_delete.get_full_name()
+            admin_to_delete.delete()
+            messages.success(request, f'Administrateur {admin_name} supprimé définitivement avec succès.')
+        except CustomUser.DoesNotExist:
+            messages.error(request, 'Administrateur introuvable.')
+        except Exception as e:
+            messages.error(request, f'Erreur lors de la suppression : {str(e)}')
+
+    return redirect('account:admins_list')
+
+
+@admin_required
+def toggle_admin_status_view(request, user_uuid):
+    """Active ou désactive un administrateur."""
+    if request.method == 'POST':
+        admin_user = get_object_or_404(CustomUser, user_uuid=user_uuid, role='admin')
+
+        if admin_user == request.user:
+            messages.error(request, 'Vous ne pouvez pas désactiver votre propre compte.')
+            return redirect('account:admins_list')
+
+        if admin_user.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de modifier cet administrateur.")
+            return redirect('account:admins_list')
+
+        admin_user.is_active = not admin_user.is_active
+        admin_user.save(update_fields=['is_active', 'updated_at'])
+
+        if admin_user.is_active:
+            messages.success(request, f"L'administrateur {admin_user.get_full_name()} a été activé.")
+        else:
+            messages.success(request, f"L'administrateur {admin_user.get_full_name()} a été désactivé.")
+
+    return redirect('account:admins_list')
+
+
+@admin_required
+def reset_admin_password_view(request, user_uuid):
+    """Réinitialise le mot de passe d'un administrateur."""
+    if request.method == 'POST':
+        admin_user = get_object_or_404(CustomUser, user_uuid=user_uuid, role='admin')
+
+        if admin_user != request.user and admin_user.created_by != request.user:
+            messages.error(request, "Vous n'avez pas la permission de réinitialiser ce mot de passe.")
+            return redirect('account:admins_list')
+
+        try:
+            generated_password = generate_password(8)
+            print(generated_password)
+            admin_user.set_password(generated_password)
+            admin_user.save(update_fields=['password', 'updated_at'])
+
+            messages.success(
+                request,
+                f"Mot de passe de {admin_user.get_full_name()} réinitialisé. "
+                f"Nouveau mot de passe à communiquer manuellement : {generated_password}",
+            )
+        except Exception as e:
+            messages.error(request, f"Erreur lors de la réinitialisation : {str(e)}")
+
+    return redirect('account:admins_list')
+
 
 @admin_required
 def managers_list_view(request):
@@ -888,12 +1056,16 @@ def user_detail_view(request, user_uuid):
         # Super admin peut voir tous les utilisateurs
         pass
     elif request.user.role == 'admin':
-        # Admin peut voir ses managers et lui-même
-        if user_detail.role == 'manager' and user_detail.created_by != request.user:
+        if user_detail == request.user:
+            pass
+        elif user_detail.role == 'manager' and user_detail.created_by == request.user:
+            pass
+        elif user_detail.role == 'admin' and user_detail.created_by == request.user:
+            pass
+        else:
             messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
-            return redirect('account:managers_list')
-        elif user_detail.role not in ['manager', 'admin'] and user_detail != request.user:
-            messages.error(request, 'Vous n\'avez pas la permission de voir cet utilisateur.')
+            if user_detail.role == 'admin':
+                return redirect('account:admins_list')
             return redirect('account:dashboard')
     elif request.user.role == 'manager':
         # Manager peut voir seulement lui-même
@@ -961,6 +1133,8 @@ def update_user_name_view(request, user_uuid):
         if user_to_update == request.user:
             pass
         elif user_to_update.role == 'manager' and user_to_update.created_by == request.user:
+            pass
+        elif user_to_update.role == 'admin' and user_to_update.created_by == request.user:
             pass
         else:
             messages.error(request, "Vous n'avez pas la permission de modifier cet utilisateur.")
