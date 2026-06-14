@@ -136,12 +136,16 @@
 
 {% if can_refund %}
 <div id="refundCreditModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative">
+        <div id="refundModalLoader" class="hidden absolute inset-0 bg-white/90 z-30 flex flex-col items-center justify-center rounded-xl">
+            <i class="fas fa-spinner fa-spin text-3xl text-emerald-600 mb-3" aria-hidden="true"></i>
+            <p class="text-sm font-medium text-gray-700">Enregistrement en cours…</p>
+        </div>
         <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
             <h3 class="text-lg font-bold text-gray-800">
                 <i class="fas fa-hand-holding-usd mr-2 text-emerald-600"></i>Remboursement crédit
             </h3>
-            <button type="button" id="closeRefundCreditModal" class="text-gray-400 hover:text-gray-600" aria-label="Fermer">
+            <button type="button" id="closeRefundCreditModal" class="text-gray-400 hover:text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Fermer">
                 <i class="fas fa-times text-xl"></i>
             </button>
         </div>
@@ -194,20 +198,23 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label for="refund_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du client <span class="text-red-500">*</span></label>
-                    <input type="text" name="name" id="refund_name" maxlength="255" required autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Nom complet">
+                    <label for="refund_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du client <span class="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+                    <input type="text" name="name" id="refund_name" maxlength="255" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Nom complet">
                 </div>
                 <div>
-                    <label for="refund_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone <span class="text-red-500">*</span></label>
-                    <input type="tel" name="phone_number" id="refund_phone_number" maxlength="255" required inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex. +224 …">
+                    <label for="refund_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone <span class="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+                    <input type="tel" name="phone_number" id="refund_phone_number" maxlength="255" inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Ex. +224 …">
                 </div>
             </div>
 
             <p class="text-xs text-gray-500">Remboursement partiel autorisé — vous pouvez enregistrer plusieurs remboursements jusqu'à solde du crédit.</p>
 
             <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                <button type="button" id="cancelRefundCreditModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-                <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold">Enregistrer le remboursement</button>
+                <button type="button" id="cancelRefundCreditModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Annuler</button>
+                <button type="submit" id="refundCreditSubmitBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold inline-flex items-center justify-center gap-2 min-w-[12rem] disabled:opacity-70 disabled:cursor-not-allowed">
+                    <i id="refundCreditSubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="refundCreditSubmitLabel">Enregistrer le remboursement</span>
+                </button>
             </div>
         </form>
     </div>
@@ -229,8 +236,35 @@
     const placeholderUuid = '00000000-0000-4000-8000-000000000001';
     const refundUrlTemplate = '{% url "credit:credit_refund" "00000000-0000-4000-8000-000000000001" %}';
     const NF = window.NumberFormat;
+    const refundModalLoader = document.getElementById('refundModalLoader');
+    const refundSubmitBtn = document.getElementById('refundCreditSubmitBtn');
+    const refundSubmitSpinner = document.getElementById('refundCreditSubmitSpinner');
+    const refundSubmitLabel = document.getElementById('refundCreditSubmitLabel');
+    const closeRefundCreditModalBtn = document.getElementById('closeRefundCreditModal');
+    const cancelRefundCreditModalBtn = document.getElementById('cancelRefundCreditModal');
 
     let currentRemaining = 0;
+    let refundSubmitLocked = false;
+
+    function setRefundSubmitLoading(loading) {
+        refundSubmitLocked = loading;
+        if (refundModalLoader) refundModalLoader.classList.toggle('hidden', !loading);
+        if (refundSubmitBtn) {
+            refundSubmitBtn.disabled = loading;
+            refundSubmitBtn.classList.toggle('opacity-70', loading);
+            refundSubmitBtn.classList.toggle('cursor-not-allowed', loading);
+        }
+        if (closeRefundCreditModalBtn) closeRefundCreditModalBtn.disabled = loading;
+        if (cancelRefundCreditModalBtn) cancelRefundCreditModalBtn.disabled = loading;
+        if (refundSubmitSpinner) refundSubmitSpinner.classList.toggle('hidden', !loading);
+        if (refundSubmitLabel) {
+            refundSubmitLabel.textContent = loading ? 'Enregistrement…' : 'Enregistrer le remboursement';
+        }
+    }
+
+    function resetRefundSubmitState() {
+        setRefundSubmitLoading(false);
+    }
 
     function formatMoneyFr(value) {
         if (NF) return NF.formatAmount(value);
@@ -298,14 +332,17 @@
             NF.initNumberInputs(refundModal);
         }
 
+        resetRefundSubmitState();
         refundModal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         refundAmountInput?.focus();
     }
 
     function closeRefundModal() {
+        if (refundSubmitLocked) return;
         refundModal?.classList.add('hidden');
         document.body.style.overflow = 'auto';
+        resetRefundSubmitState();
     }
 
     document.querySelectorAll('.js-open-refund-modal').forEach(function(btn) {
@@ -321,6 +358,10 @@
     });
 
     refundForm?.addEventListener('submit', function(e) {
+        if (refundSubmitLocked) {
+            e.preventDefault();
+            return;
+        }
         const amount = parseMoney(refundAmountInput?.value);
         if (amount <= 0) {
             e.preventDefault();
@@ -333,6 +374,7 @@
             return;
         }
         if (NF) NF.stripNumberInputsForSubmit(refundForm);
+        setRefundSubmitLoading(true);
     });
 })();
 </script>

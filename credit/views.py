@@ -172,12 +172,12 @@ def credit_refund_view(request, credit_uuid):
     name = (request.POST.get("name") or "").strip()
     phone_number = (request.POST.get("phone_number") or "").strip()
 
-    if not account_id or not refund_date_raw or not name or not phone_number:
+    if not account_id or not refund_date_raw:
         messages.error(
             request,
-            "Compte, montant, date, nom du client et téléphone sont obligatoires.",
+            "Compte, montant et date sont obligatoires.",
         )
-        return redirect("credit:credit_list")
+        return redirect("credit:credit_detail", credit_uuid=credit_uuid)
 
     refund_date = parse_date(refund_date_raw)
     if not refund_date:
@@ -220,8 +220,8 @@ def credit_refund_view(request, credit_uuid):
             Refund.objects.create(
                 amount=amount,
                 date=refund_date,
-                name=name,
-                phone_number=phone_number,
+                name=name or None,
+                phone_number=phone_number or None,
                 credit=locked_credit,
                 account=wallet,
                 recorded_by=request.user,

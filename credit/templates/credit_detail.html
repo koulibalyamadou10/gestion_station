@@ -90,8 +90,8 @@
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
                         <td class="px-6 py-4 text-sm font-semibold text-gray-900 text-right tabular-nums">{{ r.amount|money_gnf }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-800">{{ r.name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ r.phone_number }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-800">{{ r.name|default:"—" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ r.phone_number|default:"—" }}</td>
                         <td class="px-6 py-4 text-sm text-gray-800">{{ r.account.name }}</td>
                         <td class="px-6 py-4 text-sm text-gray-600">{{ r.recorded_by.get_full_name|default:r.recorded_by.email }}</td>
                         <td class="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">{{ r.created_at|date:"d/m/Y H:i" }}</td>
@@ -163,12 +163,12 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label for="refund_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du client <span class="text-red-500">*</span></label>
-                    <input type="text" name="name" id="refund_name" maxlength="255" required autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label for="refund_name" class="block text-sm font-semibold text-gray-700 mb-2">Nom du client <span class="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+                    <input type="text" name="name" id="refund_name" maxlength="255" autocomplete="name" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label for="refund_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone <span class="text-red-500">*</span></label>
-                    <input type="tel" name="phone_number" id="refund_phone_number" maxlength="255" required inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <label for="refund_phone_number" class="block text-sm font-semibold text-gray-700 mb-2">Téléphone <span class="text-gray-400 font-normal text-xs">(optionnel)</span></label>
+                    <input type="tel" name="phone_number" id="refund_phone_number" maxlength="255" inputmode="tel" autocomplete="tel" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
             </div>
 
