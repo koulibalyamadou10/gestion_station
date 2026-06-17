@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'product_price',
     'credit',
     'refund',
+    'entry',
 ]
 
 MIDDLEWARE = [
