@@ -16,4 +16,4 @@ class Entry(models.Model):
         db_table = "entries"
 
     def __str__(self):
-        return f"Entry #{self.id} - {self.amount} {self.currency}"
+        return f"Entry #{self.id} - {self.amount}"
