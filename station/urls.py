@@ -53,6 +53,7 @@ urlpatterns = [
     path('orders/', include('order.urls')),
     path('expenses/', include('expense.urls')),
     path('deposits/', include('deposit.urls')),
+    path('entries/', include('entry.urls')),
     path('daily-stock/', include('daily_stock.urls')),
     path('inventory/', include('inventory.urls')),
     path('product-prices/', include('product_price.urls')),

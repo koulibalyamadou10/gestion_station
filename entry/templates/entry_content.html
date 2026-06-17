@@ -1,0 +1,422 @@
+{% extends 'base_authenticated.html' %}
+{% load money_extras %}
+
+{% block title %}Entrées{% endblock %}
+{% block page_title %}Entrées{% if manager_station %} — {{ manager_station.name }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
+        <p class="text-sm text-gray-600">Nombre d'entrées</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2">{{ total_entries }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+        <p class="text-sm text-gray-600">Montant total (filtres)</p>
+        <p class="text-3xl font-bold text-gray-800 mt-2 tabular-nums">{{ sum_amount|money_gnf }}</p>
+    </div>
+</div>
+
+{% if can_create_entry %}
+<div class="flex justify-end mb-6">
+    <button type="button" id="openCreateEntryModal" class="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-semibold">
+        <i class="fas fa-plus mr-2"></i>Enregistrer une entrée
+    </button>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <form method="GET" class="grid grid-cols-1 {% if show_station_filter %}md:grid-cols-4{% else %}md:grid-cols-3{% endif %} gap-4">
+        <input type="text" name="search" value="{{ search_query }}" placeholder="Motif, compte, enregistré par…"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        {% if show_station_filter %}
+        <select name="station" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+            <option value="">Toutes les stations</option>
+            {% for s in stations %}
+                <option value="{{ s.id }}" {% if station_filter == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        <input type="date" name="entry_date" value="{{ date_filter }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg" title="Filtrer par date">
+        <div class="flex gap-2">
+            <button type="submit" class="w-full bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700">Filtrer</button>
+            <a href="{% url 'entry:entry_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 whitespace-nowrap">Réinitialiser</a>
+        </div>
+    </form>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Date</th>
+                    {% if show_station_column %}
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Station</th>
+                    {% endif %}
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Compte</th>
+                    <th class="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase">Montant</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Motif</th>
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Enregistré par</th>
+                    {% if can_edit_entry or can_delete_entry %}
+                    <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% if entries %}
+                    {% for e in entries %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{{ e.date|date:"d/m/Y" }}</td>
+                        {% if show_station_column %}
+                        <td class="px-6 py-4 text-sm text-gray-900">{{ e.account.station.name }}</td>
+                        {% endif %}
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ e.account.name }}</td>
+                        <td class="px-6 py-4 text-sm font-semibold text-emerald-700 text-right tabular-nums">{{ e.amount|money_gnf }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="{{ e.motif|default:'' }}">{{ e.motif|default:"—" }}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">{{ e.recorded_by.get_full_name|default:e.recorded_by.email }}</td>
+                        {% if can_edit_entry or can_delete_entry %}
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            <div class="flex items-center gap-1">
+                            {% if can_edit_entry %}
+                            <button type="button"
+                                    class="open-edit-entry inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                    title="Modifier"
+                                    aria-label="Modifier"
+                                    data-url="{% url 'entry:entry_update' e.pk %}"
+                                    data-account-id="{{ e.account_id }}"
+                                    data-amount="{{ e.amount }}"
+                                    data-date="{{ e.date|date:'Y-m-d' }}"
+                                    data-motif="{{ e.motif|default:''|escape }}">
+                                <i class="fas fa-pen text-sm"></i>
+                            </button>
+                            {% endif %}
+                            {% if can_delete_entry %}
+                            <button type="button"
+                                    class="open-delete-entry inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                    title="Supprimer"
+                                    aria-label="Supprimer"
+                                    data-url="{% url 'entry:entry_delete' e.pk %}"
+                                    data-station="{{ e.account.station.name|escape }}"
+                                    data-account="{{ e.account.name|escape }}"
+                                    data-amount-label="{{ e.amount|money_gnf }}">
+                                <i class="fas fa-trash-alt text-sm"></i>
+                            </button>
+                            {% endif %}
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{% if show_station_column %}{% if can_edit_entry or can_delete_entry %}7{% else %}6{% endif %}{% else %}{% if can_edit_entry or can_delete_entry %}6{% else %}5{% endif %}{% endif %}" class="px-6 py-10 text-center text-gray-500">
+                            Aucune entrée trouvée.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="mt-6 flex items-center justify-between">
+    <p class="text-sm text-gray-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</p>
+    <div class="flex gap-2">
+        {% if page_obj.has_previous %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_station_filter and station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&entry_date={{ date_filter }}{% endif %}">Précédent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+            <a class="px-3 py-1 rounded border border-gray-300" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if show_station_filter and station_filter %}&station={{ station_filter }}{% endif %}{% if date_filter %}&entry_date={{ date_filter }}{% endif %}">Suivant</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if can_create_entry %}
+<div id="createEntryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-lg font-bold text-gray-800">Nouvelle entrée</h3>
+            <button type="button" id="closeCreateEntryModal" class="text-gray-400 hover:text-gray-600 disabled:opacity-40"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="createEntryForm" method="POST" action="{% url 'entry:entry_list' %}" class="p-6 space-y-4">
+            {% csrf_token %}
+            {% if manager_station %}
+            <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Station</p>
+                <p class="text-sm font-bold text-gray-900">{{ manager_station.name }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte à créditer <span class="text-red-500">*</span></label>
+                <select name="account_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sélectionner un compte</option>
+                    {% for a in accounts %}
+                        <option value="{{ a.id }}" {% if default_account_id and default_account_id == a.id %}selected{% endif %}>{{ a.station.name }} — {{ a.name }} ({% if a.currency == 'GNF' %}{{ a.balance|money_gnf }}{% else %}{{ a.balance|money_fr }} {{ a.currency }}{% endif %})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Montant (GNF) <span class="text-red-500">*</span></label>
+                    <input type="text" name="amount" id="entry_amount" required inputmode="decimal" autocomplete="off" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg text-right tabular-nums" placeholder="Ex. 50 000">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="date" required value="{{ today|date:'Y-m-d' }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Motif <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                <textarea name="motif" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Détail optionnel"></textarea>
+            </div>
+            <div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-xs text-emerald-900">
+                Le montant sera ajouté au solde du compte sélectionné.
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelCreateEntryModal" class="px-4 py-2 border border-gray-300 rounded-lg">Annuler</button>
+                <button type="submit" id="createEntrySubmitBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-2 disabled:opacity-70">
+                    <i id="createEntrySubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="createEntrySubmitLabel">Enregistrer</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_edit_entry %}
+<div id="editEntryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white">
+            <h3 class="text-lg font-bold text-gray-800">Modifier l'entrée</h3>
+            <button type="button" id="closeEditEntryModal" class="text-gray-400 hover:text-gray-600 disabled:opacity-40"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="editEntryForm" method="POST" action="" class="p-6 space-y-4">
+            {% csrf_token %}
+            {% if manager_station %}
+            <div class="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <p class="text-xs font-semibold text-gray-500 uppercase">Station</p>
+                <p class="text-sm font-bold text-gray-900">{{ manager_station.name }}</p>
+            </div>
+            {% endif %}
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Compte à créditer <span class="text-red-500">*</span></label>
+                <select name="account_id" id="edit_entry_account_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sélectionner un compte</option>
+                    {% for a in accounts %}
+                        <option value="{{ a.id }}">{{ a.station.name }} — {{ a.name }} ({% if a.currency == 'GNF' %}{{ a.balance|money_gnf }}{% else %}{{ a.balance|money_fr }} {{ a.currency }}{% endif %})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Montant (GNF) <span class="text-red-500">*</span></label>
+                    <input type="text" name="amount" id="edit_entry_amount" required inputmode="decimal" autocomplete="off" class="js-number-input w-full px-4 py-2 border border-gray-300 rounded-lg text-right tabular-nums" placeholder="Ex. 50 000">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="date" id="edit_entry_date" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Motif <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                <textarea name="motif" id="edit_entry_motif" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Détail optionnel"></textarea>
+            </div>
+            <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-900">
+                L'ancien montant sera retiré du compte, puis le nouveau sera crédité (même compte ou autre).
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelEditEntryModal" class="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50">Annuler</button>
+                <button type="submit" id="editEntrySubmitBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-2 disabled:opacity-70">
+                    <i id="editEntrySubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                    <span id="editEntrySubmitLabel">Enregistrer</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if can_delete_entry %}
+<div id="deleteEntryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+        <h3 class="text-lg font-bold text-gray-800">Supprimer cette entrée ?</h3>
+        <p id="deleteEntrySummary" class="text-sm text-gray-700 mt-3 leading-relaxed"></p>
+        <p class="text-xs text-gray-500 mt-2">Le montant sera débité du compte associé.</p>
+        <form id="deleteEntryForm" method="POST" action="" class="mt-6 flex justify-end gap-2">
+            {% csrf_token %}
+            <button type="button" id="cancelDeleteEntryModal" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">Annuler</button>
+            <button type="submit" id="deleteEntrySubmitBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 inline-flex items-center gap-2 disabled:opacity-70">
+                <i id="deleteEntrySubmitSpinner" class="fas fa-spinner fa-spin hidden" aria-hidden="true"></i>
+                <span id="deleteEntrySubmitLabel">Supprimer</span>
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if can_create_entry or can_edit_entry or can_delete_entry %}
+<script>
+(function() {
+    const NF = window.NumberFormat;
+
+    function setBtnLoading(btn, spinner, label, isLoading, loadingText, defaultText) {
+        if (btn) btn.disabled = isLoading;
+        if (spinner) spinner.classList.toggle('hidden', !isLoading);
+        if (label) label.textContent = isLoading ? loadingText : defaultText;
+    }
+
+    const createModal = document.getElementById('createEntryModal');
+    const openCreateBtn = document.getElementById('openCreateEntryModal');
+    const closeCreateBtn = document.getElementById('closeCreateEntryModal');
+    const cancelCreateBtn = document.getElementById('cancelCreateEntryModal');
+    const createForm = document.getElementById('createEntryForm');
+    const createSubmitBtn = document.getElementById('createEntrySubmitBtn');
+    const createSubmitSpinner = document.getElementById('createEntrySubmitSpinner');
+    const createSubmitLabel = document.getElementById('createEntrySubmitLabel');
+
+    function setCreateSubmitting(isSubmitting) {
+        if (cancelCreateBtn) cancelCreateBtn.disabled = isSubmitting;
+        setBtnLoading(createSubmitBtn, createSubmitSpinner, createSubmitLabel, isSubmitting, 'Enregistrement…', 'Enregistrer');
+    }
+
+    function openCreateModal() {
+        setCreateSubmitting(false);
+        createModal?.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        if (NF && createModal) NF.initAllNumberInputs(createModal);
+    }
+
+    function closeCreateModal() {
+        if (createSubmitBtn?.disabled) return;
+        setCreateSubmitting(false);
+        createModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+        createForm?.reset();
+    }
+
+    openCreateBtn?.addEventListener('click', openCreateModal);
+    closeCreateBtn?.addEventListener('click', closeCreateModal);
+    cancelCreateBtn?.addEventListener('click', closeCreateModal);
+    createModal?.addEventListener('click', function(e) {
+        if (e.target === createModal && !createSubmitBtn?.disabled) closeCreateModal();
+    });
+
+    createForm?.addEventListener('submit', function(e) {
+        if (createSubmitBtn?.disabled) {
+            e.preventDefault();
+            return;
+        }
+        if (NF) NF.stripNumberInputsForSubmit(createForm);
+        setCreateSubmitting(true);
+    });
+
+    const editModal = document.getElementById('editEntryModal');
+    const editForm = document.getElementById('editEntryForm');
+    const closeEditBtn = document.getElementById('closeEditEntryModal');
+    const cancelEditBtn = document.getElementById('cancelEditEntryModal');
+    const editSubmitBtn = document.getElementById('editEntrySubmitBtn');
+    const editSubmitSpinner = document.getElementById('editEntrySubmitSpinner');
+    const editSubmitLabel = document.getElementById('editEntrySubmitLabel');
+
+    function setEditSubmitting(isSubmitting) {
+        if (cancelEditBtn) cancelEditBtn.disabled = isSubmitting;
+        setBtnLoading(editSubmitBtn, editSubmitSpinner, editSubmitLabel, isSubmitting, 'Modification…', 'Enregistrer');
+    }
+
+    function closeEditModal() {
+        if (editSubmitBtn?.disabled) return;
+        setEditSubmitting(false);
+        editModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.querySelectorAll('.open-edit-entry').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setEditSubmitting(false);
+            if (editForm) editForm.action = btn.dataset.url || '';
+            const accountSelect = document.getElementById('edit_entry_account_id');
+            const amountInput = document.getElementById('edit_entry_amount');
+            const dateInput = document.getElementById('edit_entry_date');
+            const motifInput = document.getElementById('edit_entry_motif');
+            if (accountSelect) accountSelect.value = btn.dataset.accountId || '';
+            if (dateInput) dateInput.value = btn.dataset.date || '';
+            if (motifInput) motifInput.value = btn.dataset.motif || '';
+            if (amountInput && NF) {
+                amountInput.value = NF.formatAmount(btn.dataset.amount || '0');
+            } else if (amountInput) {
+                amountInput.value = btn.dataset.amount || '';
+            }
+            editModal?.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (NF && editModal) NF.initAllNumberInputs(editModal);
+        });
+    });
+
+    closeEditBtn?.addEventListener('click', closeEditModal);
+    cancelEditBtn?.addEventListener('click', closeEditModal);
+    editModal?.addEventListener('click', function(e) {
+        if (e.target === editModal && !editSubmitBtn?.disabled) closeEditModal();
+    });
+
+    editForm?.addEventListener('submit', function(e) {
+        if (editSubmitBtn?.disabled) {
+            e.preventDefault();
+            return;
+        }
+        if (NF) NF.stripNumberInputsForSubmit(editForm);
+        setEditSubmitting(true);
+    });
+
+    const deleteModal = document.getElementById('deleteEntryModal');
+    const deleteForm = document.getElementById('deleteEntryForm');
+    const deleteSummary = document.getElementById('deleteEntrySummary');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteEntryModal');
+    const deleteSubmitBtn = document.getElementById('deleteEntrySubmitBtn');
+    const deleteSubmitSpinner = document.getElementById('deleteEntrySubmitSpinner');
+    const deleteSubmitLabel = document.getElementById('deleteEntrySubmitLabel');
+
+    function setDeleteSubmitting(isSubmitting) {
+        if (cancelDeleteBtn) cancelDeleteBtn.disabled = isSubmitting;
+        setBtnLoading(deleteSubmitBtn, deleteSubmitSpinner, deleteSubmitLabel, isSubmitting, 'Suppression…', 'Supprimer');
+    }
+
+    function closeDeleteModal() {
+        if (deleteSubmitBtn?.disabled) return;
+        setDeleteSubmitting(false);
+        deleteModal?.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    document.querySelectorAll('.open-delete-entry').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setDeleteSubmitting(false);
+            if (deleteForm) deleteForm.action = btn.dataset.url || '';
+            if (deleteSummary) {
+                deleteSummary.textContent = (btn.dataset.station || '') + ' — ' + (btn.dataset.account || '') + ' : ' + (btn.dataset.amountLabel || '');
+            }
+            deleteModal?.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    cancelDeleteBtn?.addEventListener('click', closeDeleteModal);
+    deleteModal?.addEventListener('click', function(e) {
+        if (e.target === deleteModal && !deleteSubmitBtn?.disabled) closeDeleteModal();
+    });
+
+    deleteForm?.addEventListener('submit', function(e) {
+        if (deleteSubmitBtn?.disabled) {
+            e.preventDefault();
+            return;
+        }
+        setDeleteSubmitting(true);
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
